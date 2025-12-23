@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: blockchain_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/blockchain_db
+      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY:-}
+      - DEMO_FUNDED_ADDRESS=${DEMO_FUNDED_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
+      - DEMO_INITIAL_BALANCE_ETH=${DEMO_INITIAL_BALANCE_ETH:-1000}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  scanner:
+    build: ./backend
+    container_name: blockchain_scanner
+    restart: always
+    command: python scanner.py
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/blockchain_db
+      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY:-}
+      - DEMO_FUNDED_ADDRESS=${DEMO_FUNDED_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
+      - DEMO_INITIAL_BALANCE_ETH=${DEMO_INITIAL_BALANCE_ETH:-1000}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  frontend:
+    build: ./frontend
+    container_name: blockchain_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_SENDER_ADDRESS=${NEXT_PUBLIC_SENDER_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - app_network
+
+  db:
+    image: postgres:16-alpine
+    container_name: blockchain_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: blockchain_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app_network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d blockchain_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  app_network:
+    driver: bridge
+    name: blockchain_network
+
+volumes:
+  postgres_data:
+    name: blockchain_postgres_data
