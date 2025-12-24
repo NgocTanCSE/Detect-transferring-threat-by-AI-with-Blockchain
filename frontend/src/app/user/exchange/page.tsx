@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Wallet,
@@ -16,6 +16,7 @@ import {
   XCircle,
   AlertOctagon,
   Info,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,16 @@ export default function UserExchange() {
   const [amount, setAmount] = useState("");
   const [copied, setCopied] = useState(false);
 
+  // Sender wallet balance state
+  const [senderBalance, setSenderBalance] = useState<WalletBalance | null>(null);
+  const [senderBalanceLoading, setSenderBalanceLoading] = useState(false);
+  const [senderBalanceError, setSenderBalanceError] = useState<string | null>(null);
+
+  // Receiver risk assessment state (only risk, not balance)
+  const [receiverRisk, setReceiverRisk] = useState<{ risk_score: number; risk_level: string } | null>(null);
+  const [receiverRiskLoading, setReceiverRiskLoading] = useState(false);
+  const [receiverRiskError, setReceiverRiskError] = useState<string | null>(null);
+
   // Dialog states
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [showBlockedDialog, setShowBlockedDialog] = useState(false);
@@ -60,12 +71,80 @@ export default function UserExchange() {
   );
   const [currentWarnings, setCurrentWarnings] = useState(0);
 
-  // Fetch wallet balance
-  const { data: balance, isLoading: balanceLoading } = useQuery<WalletBalance>({
-    queryKey: ["walletBalance", DEMO_WALLET],
-    queryFn: () => fetchWalletBalance(DEMO_WALLET),
-    refetchInterval: 30000,
-  });
+  // Fetch sender balance when address changes
+  const fetchSenderBalanceHandler = useCallback(async (address: string) => {
+    if (!address || address.length < 42 || !address.startsWith("0x")) {
+      setSenderBalance(null);
+      setSenderBalanceError(null);
+      return;
+    }
+
+    setSenderBalanceLoading(true);
+    setSenderBalanceError(null);
+
+    try {
+      const balance = await fetchWalletBalance(address);
+      setSenderBalance(balance);
+    } catch (error) {
+      setSenderBalanceError("Không thể lấy thông tin ví");
+      setSenderBalance(null);
+    } finally {
+      setSenderBalanceLoading(false);
+    }
+  }, []);
+
+  // Watch fromWalletId changes with debounce (assuming it's an address)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (fromWalletId && fromWalletId.startsWith("0x")) {
+        fetchSenderBalanceHandler(fromWalletId);
+      } else {
+        setSenderBalance(null);
+        setSenderBalanceError(null);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [fromWalletId, fetchSenderBalanceHandler]);
+
+  // Fetch receiver risk assessment when toAddress changes
+  const fetchReceiverRisk = useCallback(async (address: string) => {
+    if (!address || address.length < 42 || !address.startsWith("0x")) {
+      setReceiverRisk(null);
+      setReceiverRiskError(null);
+      return;
+    }
+
+    setReceiverRiskLoading(true);
+    setReceiverRiskError(null);
+
+    try {
+      const data = await fetchWalletBalance(address);
+      const riskLevel = data.risk_score >= 80 ? 'CRITICAL' :
+        data.risk_score >= 60 ? 'HIGH' :
+          data.risk_score >= 40 ? 'MEDIUM' : 'LOW';
+      setReceiverRisk({ risk_score: data.risk_score, risk_level: riskLevel });
+    } catch (error) {
+      setReceiverRiskError("Không thể kiểm tra địa chỉ");
+      setReceiverRisk(null);
+    } finally {
+      setReceiverRiskLoading(false);
+    }
+  }, []);
+
+  // Watch toAddress changes with debounce
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (toAddress && toAddress.startsWith("0x")) {
+        fetchReceiverRisk(toAddress);
+      } else {
+        setReceiverRisk(null);
+        setReceiverRiskError(null);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [toAddress, fetchReceiverRisk]);
 
   // Fetch transactions
   const { data: transactions, isLoading: txLoading } = useQuery<Transaction[]>({
@@ -96,10 +175,15 @@ export default function UserExchange() {
       } else if (response.status === "success") {
         // Show success dialog
         setShowSuccessDialog(true);
-        setFromWalletId("");
+        // Refresh sender balance after successful transfer
+        if (fromWalletId) {
+          fetchSenderBalanceHandler(fromWalletId);
+        }
         setToWalletId("");
         setToAddress("");
         setAmount("");
+        setReceiverRisk(null);
+        // Keep fromWalletId to show updated balance
       }
     },
     onError: (error) => {
@@ -131,58 +215,18 @@ export default function UserExchange() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-cyber-bg-dark to-cyber-bg-darker p-6">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Wallet Card - Banking Style */}
-        <Card className="border-cyber-border bg-gradient-to-br from-cyber-bg-card to-cyber-bg-elevated overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-cyber-neon-cyan/5 rounded-full blur-3xl" />
-          <CardContent className="p-8 relative">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-cyber-text-muted text-sm mb-1">
-                  Available Balance
-                </p>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-bold text-cyber-text-primary">
-                    {balanceLoading ? "..." : balance?.balance_eth.toFixed(4) || "0"}
-                  </span>
-                  <span className="text-2xl text-cyber-neon-cyan">ETH</span>
-                </div>
-                <div className="mt-4 flex items-center gap-2">
-                  <div className="flex items-center gap-2 bg-cyber-bg-darker rounded-lg px-3 py-2 border border-cyber-border">
-                    <Wallet className="h-4 w-4 text-cyber-neon-cyan" />
-                    <span className="font-mono text-sm text-cyber-text-secondary">
-                      {formatAddress(DEMO_WALLET, 8)}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={copyAddress}
-                    className="h-9 w-9"
-                  >
-                    {copied ? (
-                      <CheckCircle2 className="h-4 w-4 text-cyber-neon-green" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 bg-cyber-neon-green/10 border border-cyber-neon-green/30 rounded-full px-3 py-1.5">
-                <ShieldCheck className="h-4 w-4 text-cyber-neon-green" />
-                <span className="text-sm text-cyber-neon-green font-medium">
-                  Protected
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Send Form */}
         <Card className="border-cyber-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Send className="h-5 w-5 text-cyber-neon-cyan" />
               Send ETH
+              <div className="ml-auto flex items-center gap-2 bg-cyber-neon-green/10 border border-cyber-neon-green/30 rounded-full px-3 py-1.5">
+                <ShieldCheck className="h-4 w-4 text-cyber-neon-green" />
+                <span className="text-sm text-cyber-neon-green font-medium">
+                  AI Protected
+                </span>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -205,13 +249,43 @@ export default function UserExchange() {
 
             {/* From Wallet ID */}
             <div className="space-y-2">
-              <Label htmlFor="fromWalletId">From Wallet ID</Label>
+              <Label htmlFor="fromWalletId">From Wallet Address</Label>
               <Input
                 id="fromWalletId"
-                placeholder="Enter your wallet ID..."
+                placeholder="0x..."
                 value={fromWalletId}
                 onChange={(e) => setFromWalletId(e.target.value)}
+                className="font-mono"
               />
+              {/* Sender Balance Info */}
+              {senderBalanceLoading && (
+                <div className="flex items-center gap-2 text-cyber-text-muted text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Đang kiểm tra ví...</span>
+                </div>
+              )}
+              {senderBalanceError && (
+                <div className="flex items-center gap-2 text-red-400 text-sm">
+                  <XCircle className="h-4 w-4" />
+                  <span>{senderBalanceError}</span>
+                </div>
+              )}
+              {senderBalance && !senderBalanceLoading && (
+                <div className="bg-cyber-bg-elevated border border-cyber-border rounded-lg p-3 mt-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4 text-cyber-neon-cyan" />
+                      <span className="text-sm text-cyber-text-muted">Số dư khả dụng:</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-bold text-cyber-text-primary">
+                        {senderBalance.balance_eth.toFixed(4)}
+                      </span>
+                      <span className="text-sm text-cyber-neon-cyan">ETH</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* To Wallet ID */}
@@ -235,6 +309,67 @@ export default function UserExchange() {
                 onChange={(e) => setToAddress(e.target.value)}
                 className="font-mono"
               />
+              {/* Receiver Risk Assessment */}
+              {receiverRiskLoading && (
+                <div className="flex items-center gap-2 text-cyber-text-muted text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Đang kiểm tra độ an toàn...</span>
+                </div>
+              )}
+              {receiverRiskError && (
+                <div className="flex items-center gap-2 text-yellow-400 text-sm">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>{receiverRiskError}</span>
+                </div>
+              )}
+              {receiverRisk && !receiverRiskLoading && (
+                <div className={`border rounded-lg p-3 mt-2 ${receiverRisk.risk_score >= 80
+                    ? 'bg-red-500/10 border-red-500/30'
+                    : receiverRisk.risk_score >= 60
+                      ? 'bg-orange-500/10 border-orange-500/30'
+                      : receiverRisk.risk_score >= 40
+                        ? 'bg-yellow-500/10 border-yellow-500/30'
+                        : 'bg-green-500/10 border-green-500/30'
+                  }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {receiverRisk.risk_score >= 60 ? (
+                        <ShieldAlert className={`h-5 w-5 ${receiverRisk.risk_score >= 80 ? 'text-red-400' : 'text-orange-400'
+                          }`} />
+                      ) : (
+                        <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-yellow-400' : 'text-green-400'
+                          }`} />
+                      )}
+                      <span className="text-sm font-medium text-cyber-text-primary">
+                        {receiverRisk.risk_score >= 80
+                          ? '⚠️ Địa chỉ nguy hiểm!'
+                          : receiverRisk.risk_score >= 60
+                            ? '⚠️ Địa chỉ rủi ro cao'
+                            : receiverRisk.risk_score >= 40
+                              ? '⚠️ Cần cẩn thận'
+                              : '✅ Địa chỉ an toàn'}
+                      </span>
+                    </div>
+                    <Badge variant="outline" className={`${receiverRisk.risk_score >= 80
+                        ? 'border-red-500 text-red-400'
+                        : receiverRisk.risk_score >= 60
+                          ? 'border-orange-500 text-orange-400'
+                          : receiverRisk.risk_score >= 40
+                            ? 'border-yellow-500 text-yellow-400'
+                            : 'border-green-500 text-green-400'
+                      }`}>
+                      Risk: {receiverRisk.risk_score.toFixed(0)}%
+                    </Badge>
+                  </div>
+                  {receiverRisk.risk_score >= 60 && (
+                    <p className="text-xs text-cyber-text-muted mt-2">
+                      {receiverRisk.risk_score >= 80
+                        ? 'Giao dịch đến địa chỉ này sẽ bị chặn tự động!'
+                        : 'Bạn sẽ nhận được cảnh báo nếu tiếp tục giao dịch.'}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Amount */}
@@ -255,9 +390,11 @@ export default function UserExchange() {
                   ETH
                 </span>
               </div>
-              <p className="text-xs text-cyber-text-muted">
-                Available: {balance?.balance_eth.toFixed(4) || "0"} ETH
-              </p>
+              {senderBalance && (
+                <p className="text-xs text-cyber-text-muted">
+                  Khả dụng: {senderBalance.balance_eth.toFixed(4)} ETH
+                </p>
+              )}
             </div>
 
             {/* Send Button */}

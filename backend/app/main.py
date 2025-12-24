@@ -9,7 +9,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 from app.core.database import engine, get_db, Base, ensure_schema
 from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog
@@ -566,14 +566,29 @@ def protected_transfer(
     confirm_risk = payload.get("confirm_risk", False)
 
     # Validate inputs
-    if not from_wallet_id or not to_wallet_id or not to_address or amount_eth <= 0:
+    if not from_wallet_id or not to_wallet_id or amount_eth <= 0:
         raise HTTPException(
             status_code=400,
-            detail="from_wallet_id, to_wallet_id, to_address, and amount_eth are required"
+            detail="from_wallet_id, to_wallet_id, and amount_eth are required"
         )
 
-    # Get source wallet by ID
-    from_wallet = database_session.query(Wallet).filter(Wallet.id == from_wallet_id).first()
+    # Helper function to find wallet by ID or address
+    def find_wallet(identifier: str):
+        # Try as UUID first
+        try:
+            import uuid as uuid_module
+            uuid_module.UUID(identifier)
+            wallet = database_session.query(Wallet).filter(Wallet.id == identifier).first()
+            if wallet:
+                return wallet
+        except (ValueError, AttributeError):
+            pass
+        # Try as address (0x...)
+        normalized = identifier.lower().strip()
+        return database_session.query(Wallet).filter(Wallet.address == normalized).first()
+
+    # Get source wallet by ID or address
+    from_wallet = find_wallet(from_wallet_id)
     if not from_wallet:
         raise HTTPException(status_code=404, detail="Source wallet not found")
 
@@ -586,17 +601,19 @@ def protected_transfer(
             detail="Your account is suspended due to multiple risk warnings. Contact support."
         )
 
-    # Get destination wallet by ID
-    to_wallet = database_session.query(Wallet).filter(Wallet.id == to_wallet_id).first()
+    # Get destination wallet by ID or address
+    to_wallet = find_wallet(to_wallet_id)
     if not to_wallet:
-        raise HTTPException(status_code=404, detail="Destination wallet not found")
-
-    # Verify to_address matches to_wallet address
-    if to_wallet.address.lower() != to_address:
-        raise HTTPException(
-            status_code=400,
-            detail="Wallet ID and address do not match"
-        )
+        # If wallet not found in DB, use to_address or to_wallet_id as the receiver address
+        receiver_address = to_address if to_address else to_wallet_id.lower().strip()
+        # Create a new wallet record for this address
+        if receiver_address.startswith('0x') and len(receiver_address) == 42:
+            to_wallet = Wallet(address=receiver_address, entity_type='Unknown', account_status='active')
+            database_session.add(to_wallet)
+            database_session.commit()
+            database_session.refresh(to_wallet)
+        else:
+            raise HTTPException(status_code=404, detail="Destination wallet not found and invalid address format")
 
     receiver = to_wallet.address
 
@@ -1154,7 +1171,7 @@ def get_wallet_transactions(
     transactions = database_session.query(Transaction).filter(
         (Transaction.from_address == normalized_address) |
         (Transaction.to_address == normalized_address)
-    ).order_by(Transaction.block_timestamp.desc()).limit(limit).all()
+    ).order_by(Transaction.timestamp.desc()).limit(limit).all()
 
     tx_list = []
     for tx in transactions:
@@ -1174,7 +1191,7 @@ def get_wallet_transactions(
             "counterparty_risk": float(counterparty_wallet.risk_score or 0) if counterparty_wallet else 0,
             "value_eth": _eth_from_wei(int(tx.value or 0)),
             "block_number": tx.block_number,
-            "timestamp": tx.block_timestamp.isoformat() if tx.block_timestamp else None,
+            "timestamp": tx.timestamp.isoformat() if tx.timestamp else None,
             "is_flagged": tx.is_flagged,
             "flag_reason": tx.flag_reason
         })
@@ -1395,13 +1412,13 @@ def get_money_flow_statistics(
     query = database_session.query(
         func.date(Transaction.timestamp).label('date'),
         func.sum(
-            func.case(
+            case(
                 (Transaction.to_address == wallet_address, Transaction.value) if wallet_address else (True, Transaction.value),
                 else_=0
             )
         ).label('inflow'),
         func.sum(
-            func.case(
+            case(
                 (Transaction.from_address == wallet_address, Transaction.value) if wallet_address else (True, Transaction.value),
                 else_=0
             )

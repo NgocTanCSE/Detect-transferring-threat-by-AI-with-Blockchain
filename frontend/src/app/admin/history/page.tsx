@@ -66,7 +66,7 @@ export default function AdminHistory() {
   // Calculate summary stats
   const totalBlocked = blockedTransfers?.length || 0;
   const totalBlockedValue = blockedTransfers?.reduce(
-    (sum, t) => sum + Number(t.amount_wei),
+    (sum, t) => sum + (t.amount_eth || 0),
     0
   ) || 0;
   const avgRiskScore =
@@ -130,7 +130,7 @@ export default function AdminHistory() {
             </div>
             <div>
               <p className="text-2xl font-bold text-cyber-neon-orange">
-                {formatEth(totalBlockedValue.toString())}
+                {totalBlockedValue.toFixed(4)}
               </p>
               <p className="text-sm text-cyber-text-muted">ETH Protected</p>
             </div>
@@ -281,7 +281,7 @@ export default function AdminHistory() {
                 </TableRow>
               ) : (
                 blockedTransfers?.map((transfer) => (
-                  <TableRow key={transfer.blocked_id}>
+                  <TableRow key={transfer.id}>
                     <TableCell>
                       <div className="flex items-center gap-2 text-cyber-text-muted">
                         <Clock className="h-4 w-4" />
@@ -291,17 +291,17 @@ export default function AdminHistory() {
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-sm">
-                      {formatAddress(transfer.from_address)}
+                      {formatAddress(transfer.sender_address)}
                     </TableCell>
                     <TableCell>
                       <ArrowRight className="h-4 w-4 text-cyber-neon-red" />
                     </TableCell>
                     <TableCell className="font-mono text-sm">
-                      {formatAddress(transfer.to_address)}
+                      {formatAddress(transfer.receiver_address)}
                     </TableCell>
                     <TableCell>
                       <span className="font-medium text-cyber-text-primary">
-                        {formatEth(transfer.amount_wei)} ETH
+                        {transfer.amount_eth?.toFixed(4) || '0.0000'} ETH
                       </span>
                     </TableCell>
                     <TableCell>
@@ -327,14 +327,14 @@ export default function AdminHistory() {
                         {[1, 2, 3].map((i) => (
                           <div
                             key={i}
-                            className={`w-2 h-2 rounded-full ${i <= transfer.warning_count
-                                ? "bg-cyber-neon-red"
-                                : "bg-cyber-border"
+                            className={`w-2 h-2 rounded-full ${i <= transfer.user_warning_count
+                              ? "bg-cyber-neon-red"
+                              : "bg-cyber-border"
                               }`}
                           />
                         ))}
                         <span className="text-xs text-cyber-text-muted ml-1">
-                          {transfer.warning_count}/3
+                          {transfer.user_warning_count}/3
                         </span>
                       </div>
                     </TableCell>
