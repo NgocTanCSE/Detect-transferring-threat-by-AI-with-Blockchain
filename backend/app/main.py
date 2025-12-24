@@ -456,6 +456,7 @@ def get_latest_alerts(
 
 
 @app.get("/balance/{wallet_address}", tags=["Wallet"])
+@app.get("/wallet/{wallet_address}/balance", tags=["Wallet"])
 def get_wallet_balance(wallet_address: str, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Return balance computed from transactions table (in - out)."""
     normalized_address = wallet_address.lower().strip()
@@ -483,6 +484,7 @@ def get_wallet_balance(wallet_address: str, database_session: Session = Depends(
 
 
 @app.get("/transactions/{wallet_address}", tags=["Transaction"])
+@app.get("/wallet/{wallet_address}/transactions", tags=["Transaction"])
 def get_wallet_transactions(
     wallet_address: str,
     limit: int = 20,
@@ -520,15 +522,273 @@ def get_wallet_transactions(
             {
                 "id": str(tx.id),
                 "tx_hash": tx.tx_hash,
-                "from": tx.from_address,
-                "to": tx.to_address,
+                "from_address": tx.from_address,
+                "to_address": tx.to_address,
                 "value_wei": int(tx.value or 0),
                 "value_eth": _eth_from_wei(int(tx.value or 0)),
                 "timestamp": tx.timestamp.isoformat() if tx.timestamp else None,
-                "status": int(tx.status or 1)
+                "status": int(tx.status or 1),
+                "is_flagged": bool(tx.is_flagged),
+                "flag_reason": tx.flag_reason,
+                "gas_price": str(tx.gas_price or 0),
+                "gas_used": int(tx.gas_used or 0),
+                "block_number": int(tx.block_number or 0)
             }
             for tx in txs
         ]
+    }
+
+
+@app.post("/transfer/protected", tags=["Transaction"])
+def protected_transfer(
+    payload: Dict[str, Any],
+    database_session: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Protected transfer endpoint with wallet ID validation and AI risk assessment.
+
+    Supports 3-strike warning system:
+    - Risk 0-50: Auto-approve
+    - Risk 50-80: Require user confirmation
+    - Risk >80 or blacklisted: Block immediately
+
+    Args:
+        from_wallet_id: Source wallet ID
+        to_wallet_id: Destination wallet ID
+        to_address: Destination Ethereum address
+        amount_eth: Amount in ETH
+        confirm_risk: User acknowledged the risk (for 50-80 case)
+    """
+    from_wallet_id = str(payload.get("from_wallet_id", "")).strip()
+    to_wallet_id = str(payload.get("to_wallet_id", "")).strip()
+    to_address = str(payload.get("to_address", "")).lower().strip()
+    amount_eth = float(payload.get("amount_eth", 0))
+    confirm_risk = payload.get("confirm_risk", False)
+
+    # Validate inputs
+    if not from_wallet_id or not to_wallet_id or not to_address or amount_eth <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="from_wallet_id, to_wallet_id, to_address, and amount_eth are required"
+        )
+
+    # Get source wallet by ID
+    from_wallet = database_session.query(Wallet).filter(Wallet.id == from_wallet_id).first()
+    if not from_wallet:
+        raise HTTPException(status_code=404, detail="Source wallet not found")
+
+    sender = from_wallet.address
+
+    # Check if sender is suspended
+    if from_wallet.account_status == 'suspended':
+        raise HTTPException(
+            status_code=403,
+            detail="Your account is suspended due to multiple risk warnings. Contact support."
+        )
+
+    # Get destination wallet by ID
+    to_wallet = database_session.query(Wallet).filter(Wallet.id == to_wallet_id).first()
+    if not to_wallet:
+        raise HTTPException(status_code=404, detail="Destination wallet not found")
+
+    # Verify to_address matches to_wallet address
+    if to_wallet.address.lower() != to_address:
+        raise HTTPException(
+            status_code=400,
+            detail="Wallet ID and address do not match"
+        )
+
+    receiver = to_wallet.address
+
+    # Get sender's current warning count
+    warning_count = database_session.query(UserWarning).filter(
+        UserWarning.wallet_address == sender
+    ).count()
+
+    # Check receiver risk
+    blacklist_record = database_session.query(Blacklist).filter(
+        Blacklist.address == receiver
+    ).first()
+
+    receiver_risk = float(to_wallet.risk_score or 0)
+    receiver_status = to_wallet.account_status
+
+    # If receiver has no risk score or outdated data, run AI analysis
+    if receiver_risk == 0 or to_wallet.risk_score is None:
+        try:
+            # Fetch fresh blockchain data and run AI analysis
+            tx_history = fetch_wallet_history(receiver, max_count=100)
+            ai_engine = MultiAgentDetectionEngine(database_session=database_session)
+            risk_analysis = ai_engine.analyze_wallet(wallet_address=receiver, transactions=tx_history)
+            receiver_risk = float(risk_analysis["total_score"])
+
+            # Update wallet with new risk score
+            to_wallet.risk_score = receiver_risk
+            to_wallet.last_activity_at = datetime.utcnow()
+
+            # Auto-update status based on risk
+            if receiver_risk >= 90:
+                to_wallet.account_status = 'frozen'
+                to_wallet.risk_category = risk_analysis.get("highest_category", "scam")
+            elif receiver_risk >= 70:
+                to_wallet.account_status = 'suspended'
+                to_wallet.risk_category = risk_analysis.get("highest_category", "manipulation")
+            elif receiver_risk >= 50:
+                to_wallet.account_status = 'under_review'
+
+            database_session.commit()
+            receiver_status = to_wallet.account_status
+            logger.info(f"Real-time AI analysis for {receiver}: risk={receiver_risk}%")
+        except Exception as e:
+            logger.warning(f"AI analysis failed for {receiver}: {e}")
+            # Continue with cached/default risk
+
+    if blacklist_record:
+        receiver_risk = 100.0
+        receiver_status = "blacklisted"
+
+    # Critical risk (>80 or blacklisted) - Block immediately
+    if receiver_risk >= 80 or blacklist_record or receiver_status in ['frozen', 'suspended']:
+        # Record blocked transfer
+        blocked = BlockedTransfer(
+            sender_address=sender,
+            receiver_address=receiver,
+            amount=_wei_from_eth(amount_eth),
+            risk_score=receiver_risk,
+            block_reason="high_risk_receiver",
+            user_warning_count=warning_count
+        )
+        database_session.add(blocked)
+        database_session.commit()
+
+        return {
+            "status": "blocked",
+            "requires_confirmation": False,
+            "receiver_risk": receiver_risk,
+            "message": f"Transfer blocked: Receiver is high-risk (score: {receiver_risk}%)",
+            "block_reason": receiver_status if receiver_status != "unknown" else "high_risk"
+        }
+
+    # Medium risk (50-80) - Show warning if not confirmed
+    if receiver_risk >= 50 and not confirm_risk:
+        return {
+            "status": "warning",
+            "requires_confirmation": True,
+            "receiver_risk": receiver_risk,
+            "current_warnings": warning_count,
+            "max_warnings": 3,
+            "message": f"⚠️ This wallet has a risk score of {receiver_risk}%. Are you sure you want to proceed?",
+            "warning_text": f"You have {3 - warning_count} warnings remaining before account suspension."
+        }
+
+    # User chose to proceed despite warning
+    if confirm_risk and receiver_risk >= 50:
+        # Record warning
+        new_warning = UserWarning(
+            wallet_address=sender,
+            target_address=receiver,
+            warning_type="RISK_IGNORED",
+            risk_score=receiver_risk,
+            user_action="ignored",
+            warning_number=warning_count + 1
+        )
+        database_session.add(new_warning)
+        warning_count += 1
+
+        # Check if 3 strikes reached
+        if warning_count >= 3:
+            from_wallet.account_status = 'suspended'
+            from_wallet.flagged_at = datetime.utcnow()
+            from_wallet.flagged_by = 'SYSTEM_AUTO_SUSPEND'
+            from_wallet.notes = f"{from_wallet.notes or ''}\n[{datetime.utcnow().isoformat()}] Auto-suspended after 3 risk warnings."
+
+            # Create alert for admin
+            suspend_alert = Alert(
+                wallet_address=sender,
+                alert_type="USER_SUSPENDED",
+                severity="HIGH",
+                message=f"User account auto-suspended after ignoring 3 risk warnings. Last attempted transfer to {receiver}.",
+                risk_score=receiver_risk,
+                meta={
+                    "warning_count": warning_count,
+                    "last_target": receiver,
+                    "last_risk": receiver_risk
+                }
+            )
+            database_session.add(suspend_alert)
+            database_session.commit()
+
+            return {
+                "status": "blocked",
+                "suspended": True,
+                "message": "Account suspended after 3 ignored risk warnings",
+                "warning_count": warning_count
+            }
+
+        database_session.commit()
+
+    # Proceed with transaction (low risk or user accepted warning)
+    amount_wei = _wei_from_eth(amount_eth)
+
+    # Check balance
+    sender_received_wei = database_session.query(
+        func.coalesce(func.sum(Transaction.value), 0)
+    ).filter(Transaction.to_address == sender).scalar()
+
+    sender_sent_wei = database_session.query(
+        func.coalesce(func.sum(Transaction.value), 0)
+    ).filter(Transaction.from_address == sender).scalar()
+
+    sender_balance_wei = int(sender_received_wei or 0) - int(sender_sent_wei or 0)
+
+    if sender_balance_wei < amount_wei:
+        return {
+            "status": "blocked",
+            "message": f"Insufficient balance. Available: {_eth_from_wei(sender_balance_wei)} ETH",
+            "available_balance": _eth_from_wei(sender_balance_wei)
+        }
+
+    # Create transaction
+    import uuid as uuid_module
+    tx_hash = f"sim_{uuid_module.uuid4().hex}"
+    tx = Transaction(
+        tx_hash=tx_hash,
+        from_address=sender,
+        to_address=receiver,
+        value=amount_wei,
+        block_number=0,
+        timestamp=datetime.utcnow(),
+        gas_price=0,
+        gas_used=0,
+        input_data="0x",
+        status=1
+    )
+    database_session.add(tx)
+
+    # Update wallets
+    from_wallet.total_value_sent = int(from_wallet.total_value_sent or 0) + amount_wei
+    from_wallet.total_transactions = int(from_wallet.total_transactions or 0) + 1
+    from_wallet.last_activity_at = datetime.utcnow()
+
+    to_wallet.total_value_received = int(to_wallet.total_value_received or 0) + amount_wei
+    to_wallet.total_transactions = int(to_wallet.total_transactions or 0) + 1
+    to_wallet.last_activity_at = datetime.utcnow()
+
+    database_session.commit()
+
+    # Calculate new balance
+    new_balance_wei = sender_balance_wei - amount_wei
+
+    return {
+        "status": "success",
+        "tx_hash": tx_hash,
+        "from": sender,
+        "to": receiver,
+        "amount_eth": amount_eth,
+        "receiver_risk_score": receiver_risk,
+        "warning_count": warning_count,
+        "sender_balance_eth": _eth_from_wei(new_balance_wei),
+        "message": "Transaction completed successfully" + (f" (Warning #{warning_count} recorded)" if confirm_risk and receiver_risk >= 50 else "")
     }
 
 
@@ -691,8 +951,10 @@ def send_eth(
 @app.get("/wallets", tags=["Admin - Wallets"])
 def get_all_wallets(
     status: str = None,
+    account_status: str = None,  # Alias for status (frontend uses this)
     risk_category: str = None,
     min_risk: float = None,
+    min_risk_score: float = None,  # Alias for min_risk (frontend uses this)
     limit: int = 100,
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -701,18 +963,24 @@ def get_all_wallets(
 
     Args:
         status: Filter by account_status (active, suspended, frozen, under_review)
+        account_status: Alias for status parameter
         risk_category: Filter by risk_category (money_laundering, manipulation, scam)
         min_risk: Minimum risk score filter
+        min_risk_score: Alias for min_risk parameter
         limit: Maximum results to return
     """
     query = database_session.query(Wallet)
 
-    if status:
-        query = query.filter(Wallet.account_status == status)
+    # Support both parameter names
+    actual_status = status or account_status
+    actual_min_risk = min_risk if min_risk is not None else min_risk_score
+
+    if actual_status:
+        query = query.filter(Wallet.account_status == actual_status)
     if risk_category:
         query = query.filter(Wallet.risk_category == risk_category)
-    if min_risk is not None:
-        query = query.filter(Wallet.risk_score >= min_risk)
+    if actual_min_risk is not None:
+        query = query.filter(Wallet.risk_score >= actual_min_risk)
 
     wallets = query.order_by(Wallet.risk_score.desc()).limit(limit).all()
 
@@ -817,6 +1085,104 @@ def update_wallet_status(
         "old_status": old_status,
         "new_status": new_status,
         "updated_at": wallet.updated_at.isoformat()
+    }
+
+
+@app.get("/wallets/{wallet_address}/stats", tags=["Admin - Tracking"])
+def get_wallet_stats(
+    wallet_address: str,
+    database_session: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get detailed wallet statistics including ETH sent/received.
+    """
+    normalized_address = wallet_address.lower().strip()
+
+    # Calculate total ETH sent
+    sent_result = database_session.query(
+        func.sum(Transaction.value).label('total_sent'),
+        func.count(Transaction.id).label('sent_count')
+    ).filter(
+        Transaction.from_address == normalized_address
+    ).first()
+
+    # Calculate total ETH received
+    received_result = database_session.query(
+        func.sum(Transaction.value).label('total_received'),
+        func.count(Transaction.id).label('received_count')
+    ).filter(
+        Transaction.to_address == normalized_address
+    ).first()
+
+    total_sent_wei = int(sent_result.total_sent or 0) if sent_result else 0
+    total_received_wei = int(received_result.total_received or 0) if received_result else 0
+    sent_count = sent_result.sent_count or 0 if sent_result else 0
+    received_count = received_result.received_count or 0 if received_result else 0
+
+    # Get wallet info
+    wallet = database_session.query(Wallet).filter(Wallet.address == normalized_address).first()
+
+    return {
+        "address": normalized_address,
+        "eth_sent": _eth_from_wei(total_sent_wei),
+        "eth_received": _eth_from_wei(total_received_wei),
+        "eth_balance": _eth_from_wei(total_received_wei - total_sent_wei),
+        "sent_count": sent_count,
+        "received_count": received_count,
+        "total_transactions": sent_count + received_count,
+        "wallet_info": {
+            "label": wallet.label if wallet else None,
+            "entity_type": wallet.entity_type if wallet else "Unknown",
+            "risk_score": float(wallet.risk_score or 0) if wallet else 0,
+            "account_status": wallet.account_status if wallet else None
+        } if wallet else None
+    }
+
+
+@app.get("/wallets/{wallet_address}/transactions", tags=["Admin - Tracking"])
+def get_wallet_transactions(
+    wallet_address: str,
+    limit: int = 50,
+    database_session: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get transaction history for a wallet.
+    """
+    normalized_address = wallet_address.lower().strip()
+
+    # Get all transactions involving this wallet
+    transactions = database_session.query(Transaction).filter(
+        (Transaction.from_address == normalized_address) |
+        (Transaction.to_address == normalized_address)
+    ).order_by(Transaction.block_timestamp.desc()).limit(limit).all()
+
+    tx_list = []
+    for tx in transactions:
+        direction = "sent" if tx.from_address == normalized_address else "received"
+        counterparty = tx.to_address if direction == "sent" else tx.from_address
+
+        # Get counterparty wallet info
+        counterparty_wallet = database_session.query(Wallet).filter(
+            Wallet.address == counterparty
+        ).first()
+
+        tx_list.append({
+            "tx_hash": tx.tx_hash,
+            "direction": direction,
+            "counterparty": counterparty,
+            "counterparty_label": counterparty_wallet.label if counterparty_wallet else None,
+            "counterparty_risk": float(counterparty_wallet.risk_score or 0) if counterparty_wallet else 0,
+            "value_eth": _eth_from_wei(int(tx.value or 0)),
+            "block_number": tx.block_number,
+            "timestamp": tx.block_timestamp.isoformat() if tx.block_timestamp else None,
+            "is_flagged": tx.is_flagged,
+            "flag_reason": tx.flag_reason
+        })
+
+    return {
+        "address": normalized_address,
+        "transactions": tx_list,
+        "count": len(tx_list)
     }
 
 

@@ -52,6 +52,7 @@ def get_random_target_wallet(session: Session) -> str:
 def create_alert(session: Session, wallet_address: str, risk_score: float, risk_level: str) -> None:
     """
     Create alert record in database for high-risk wallet detection.
+    Also auto-updates wallet status based on risk score.
 
     Args:
         session: Database session
@@ -73,9 +74,27 @@ def create_alert(session: Session, wallet_address: str, risk_score: float, risk_
     if not wallet:
         wallet = Wallet(address=wallet_address)
         session.add(wallet)
+
     wallet.risk_score = max(float(wallet.risk_score or 0.0), float(risk_score or 0.0))
     wallet.last_activity_at = datetime.utcnow()
     wallet.updated_at = datetime.utcnow()
+
+    # Auto-update wallet status based on risk score
+    if risk_score >= 90:
+        wallet.account_status = 'frozen'
+        wallet.flagged_at = datetime.utcnow()
+        wallet.flagged_by = 'SCANNER_AUTO_FREEZE'
+        logger.warning(f"🚫 WALLET FROZEN: {wallet_address} (Risk: {risk_score}%)")
+    elif risk_score >= 80:
+        if wallet.account_status not in ['frozen']:  # Don't downgrade frozen
+            wallet.account_status = 'suspended'
+            wallet.flagged_at = datetime.utcnow()
+            wallet.flagged_by = 'SCANNER_AUTO_SUSPEND'
+            logger.warning(f"⚠️ WALLET SUSPENDED: {wallet_address} (Risk: {risk_score}%)")
+    elif risk_score >= 50:
+        if wallet.account_status not in ['frozen', 'suspended']:  # Don't downgrade
+            wallet.account_status = 'under_review'
+            logger.info(f"👁️ WALLET UNDER REVIEW: {wallet_address} (Risk: {risk_score}%)")
 
     session.commit()
     logger.warning(f"🚨 ALERT CREATED: {wallet_address} | Risk: {risk_score}% | Level: {risk_level}")

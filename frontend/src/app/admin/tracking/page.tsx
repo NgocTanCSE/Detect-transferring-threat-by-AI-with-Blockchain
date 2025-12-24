@@ -14,6 +14,9 @@ import {
   Activity,
   ExternalLink,
   Clock,
+  History,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,10 +30,20 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   fetchWallets,
   fetchWalletConnections,
+  fetchWalletStats,
+  fetchWalletTransactionHistory,
   type Wallet,
   type WalletConnectionsResponse,
+  type WalletStats,
+  type WalletTransaction,
 } from "@/lib/api";
 import {
   formatAddress,
@@ -51,7 +64,8 @@ export default function AdminTracking() {
     queryFn: async () => {
       const underReview = await fetchWallets({ account_status: "under_review", limit: 50 });
       const suspended = await fetchWallets({ account_status: "suspended", limit: 50 });
-      return [...underReview, ...suspended];
+      const frozen = await fetchWallets({ account_status: "frozen", limit: 50 });
+      return [...underReview, ...suspended, ...frozen];
     },
     refetchInterval: 30000,
   });
@@ -63,6 +77,24 @@ export default function AdminTracking() {
       queryFn: () => fetchWalletConnections(selectedWallet!.address),
       enabled: !!selectedWallet,
     });
+
+  // Fetch wallet stats (ETH sent/received)
+  const { data: walletStats, isLoading: statsLoading } = useQuery<WalletStats>({
+    queryKey: ["walletStats", selectedWallet?.address],
+    queryFn: () => fetchWalletStats(selectedWallet!.address),
+    enabled: !!selectedWallet,
+  });
+
+  // Fetch transaction history
+  const { data: transactions, isLoading: txLoading } = useQuery<WalletTransaction[]>({
+    queryKey: ["walletTransactions", selectedWallet?.address],
+    queryFn: () => fetchWalletTransactionHistory(selectedWallet!.address, 50),
+    enabled: !!selectedWallet,
+  });
+
+  // Filter incoming connections
+  const incomingConnections = connections?.connections.filter(c => c.direction === "incoming") || [];
+  const outgoingConnections = connections?.connections.filter(c => c.direction === "outgoing") || [];
 
   const handleWalletClick = (wallet: Wallet) => {
     setSelectedWallet(wallet);
@@ -270,113 +302,295 @@ export default function AdminTracking() {
                   <div className="rounded-lg border border-cyber-border bg-cyber-bg-card p-3 text-center">
                     <Activity className="h-5 w-5 mx-auto mb-1 text-cyber-neon-cyan" />
                     <p className="text-lg font-bold text-cyber-text-primary">
-                      {selectedWallet.total_transactions || 0}
+                      {walletStats?.total_transactions ?? selectedWallet.total_transactions ?? 0}
                     </p>
                     <p className="text-xs text-cyber-text-muted">Transactions</p>
                   </div>
                   <div className="rounded-lg border border-cyber-border bg-cyber-bg-card p-3 text-center">
                     <ArrowUpRight className="h-5 w-5 mx-auto mb-1 text-cyber-neon-red" />
-                    <p className="text-lg font-bold text-cyber-text-primary">
-                      N/A
+                    <p className="text-lg font-bold text-cyber-neon-red">
+                      {statsLoading ? "..." : walletStats?.eth_sent?.toFixed(4) ?? "0"} ETH
                     </p>
-                    <p className="text-xs text-cyber-text-muted">ETH Sent</p>
+                    <p className="text-xs text-cyber-text-muted">ETH Sent ({walletStats?.sent_count ?? 0} txs)</p>
                   </div>
                   <div className="rounded-lg border border-cyber-border bg-cyber-bg-card p-3 text-center">
                     <ArrowDownLeft className="h-5 w-5 mx-auto mb-1 text-cyber-neon-green" />
-                    <p className="text-lg font-bold text-cyber-text-primary">
-                      N/A
+                    <p className="text-lg font-bold text-cyber-neon-green">
+                      {statsLoading ? "..." : walletStats?.eth_received?.toFixed(4) ?? "0"} ETH
                     </p>
-                    <p className="text-xs text-cyber-text-muted">ETH Received</p>
+                    <p className="text-xs text-cyber-text-muted">ETH Received ({walletStats?.received_count ?? 0} txs)</p>
                   </div>
                 </div>
 
                 <Separator />
 
-                {/* Network Connections */}
-                <div>
-                  <h3 className="text-lg font-semibold text-cyber-text-primary mb-4 flex items-center gap-2">
-                    <Link2 className="h-5 w-5 text-cyber-neon-cyan" />
-                    Network Connections
-                    {connections && (
-                      <Badge variant="secondary">
-                        {connections.total_connections} connections
-                      </Badge>
-                    )}
-                  </h3>
+                {/* Tabs for Connections and Transaction History */}
+                <Tabs defaultValue="connections" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="connections">
+                      <Link2 className="h-4 w-4 mr-2" />
+                      All Connections
+                    </TabsTrigger>
+                    <TabsTrigger value="incoming">
+                      <ArrowDownLeft className="h-4 w-4 mr-2" />
+                      Incoming ({incomingConnections.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="history">
+                      <History className="h-4 w-4 mr-2" />
+                      Transaction History
+                    </TabsTrigger>
+                  </TabsList>
 
-                  {connectionsLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Radar className="h-6 w-6 animate-spin text-cyber-neon-cyan" />
-                    </div>
-                  ) : connections?.connections.length === 0 ? (
-                    <p className="text-center py-8 text-cyber-text-muted">
-                      No connections found
-                    </p>
-                  ) : (
-                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                      {connections?.connections.map((conn, idx) => (
-                        <div
-                          key={idx}
-                          className={`flex items-center justify-between p-3 rounded-lg border ${conn.risk_score >= 70
-                            ? "border-cyber-neon-red/30 bg-cyber-neon-red/5"
-                            : conn.risk_score >= 50
-                              ? "border-cyber-neon-orange/30 bg-cyber-neon-orange/5"
-                              : "border-cyber-border bg-cyber-bg-elevated"
-                            }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`p-2 rounded-lg ${conn.direction === "outgoing"
-                                ? "bg-cyber-neon-red/10"
-                                : "bg-cyber-neon-green/10"
-                                }`}
-                            >
-                              {conn.direction === "outgoing" ? (
-                                <ArrowUpRight
-                                  className={`h-4 w-4 ${conn.direction === "outgoing"
-                                    ? "text-cyber-neon-red"
-                                    : "text-cyber-neon-green"
-                                    }`}
-                                />
-                              ) : (
-                                <ArrowDownLeft className="h-4 w-4 text-cyber-neon-green" />
-                              )}
-                            </div>
-                            <div>
-                              <p className="font-mono text-sm text-cyber-text-primary">
-                                {formatAddress(conn.address)}
-                              </p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs text-cyber-text-muted">
-                                  {conn.label || conn.entity_type}
-                                </span>
-                                <Badge
-                                  className={getStatusColor(conn.account_status)}
-                                  variant="outline"
-                                >
-                                  {conn.account_status}
-                                </Badge>
+                  {/* All Connections Tab */}
+                  <TabsContent value="connections" className="mt-4">
+                    <h3 className="text-lg font-semibold text-cyber-text-primary mb-4 flex items-center gap-2">
+                      <Link2 className="h-5 w-5 text-cyber-neon-cyan" />
+                      Network Connections
+                      {connections && (
+                        <Badge variant="secondary">
+                          {connections.total_connections} connections
+                        </Badge>
+                      )}
+                    </h3>
+
+                    {connectionsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Radar className="h-6 w-6 animate-spin text-cyber-neon-cyan" />
+                      </div>
+                    ) : connections?.connections.length === 0 ? (
+                      <p className="text-center py-8 text-cyber-text-muted">
+                        No connections found
+                      </p>
+                    ) : (
+                      <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        {connections?.connections.map((conn, idx) => (
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-between p-3 rounded-lg border ${conn.risk_score >= 70
+                              ? "border-cyber-neon-red/30 bg-cyber-neon-red/5"
+                              : conn.risk_score >= 50
+                                ? "border-cyber-neon-orange/30 bg-cyber-neon-orange/5"
+                                : "border-cyber-border bg-cyber-bg-elevated"
+                              }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`p-2 rounded-lg ${conn.direction === "outgoing"
+                                  ? "bg-cyber-neon-red/10"
+                                  : "bg-cyber-neon-green/10"
+                                  }`}
+                              >
+                                {conn.direction === "outgoing" ? (
+                                  <ArrowUpRight
+                                    className={`h-4 w-4 ${conn.direction === "outgoing"
+                                      ? "text-cyber-neon-red"
+                                      : "text-cyber-neon-green"
+                                      }`}
+                                  />
+                                ) : (
+                                  <ArrowDownLeft className="h-4 w-4 text-cyber-neon-green" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-mono text-sm text-cyber-text-primary">
+                                  {formatAddress(conn.address)}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs text-cyber-text-muted">
+                                    {conn.label || conn.entity_type}
+                                  </span>
+                                  <Badge
+                                    className={getStatusColor(conn.account_status)}
+                                    variant="outline"
+                                  >
+                                    {conn.account_status}
+                                  </Badge>
+                                </div>
                               </div>
                             </div>
+                            <div className="text-right">
+                              <p
+                                className={`text-sm font-bold ${getRiskColor(
+                                  conn.risk_score
+                                )}`}
+                              >
+                                Risk: {conn.risk_score.toFixed(0)}
+                              </p>
+                              <p className="text-xs text-cyber-text-muted">
+                                {conn.tx_count} txs • {conn.total_value_eth.toFixed(2)}{" "}
+                                ETH
+                              </p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p
-                              className={`text-sm font-bold ${getRiskColor(
-                                conn.risk_score
-                              )}`}
-                            >
-                              Risk: {conn.risk_score.toFixed(0)}
-                            </p>
-                            <p className="text-xs text-cyber-text-muted">
-                              {conn.tx_count} txs • {conn.total_value_eth.toFixed(2)}{" "}
-                              ETH
-                            </p>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* Incoming Transfers Tab */}
+                  <TabsContent value="incoming" className="mt-4">
+                    <h3 className="text-lg font-semibold text-cyber-text-primary mb-4 flex items-center gap-2">
+                      <TrendingDown className="h-5 w-5 text-cyber-neon-green" />
+                      Wallets That Sent To This Account
+                      <Badge variant="secondary">{incomingConnections.length} sources</Badge>
+                    </h3>
+
+                    {connectionsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Radar className="h-6 w-6 animate-spin text-cyber-neon-cyan" />
+                      </div>
+                    ) : incomingConnections.length === 0 ? (
+                      <p className="text-center py-8 text-cyber-text-muted">
+                        No incoming transfers found
+                      </p>
+                    ) : (
+                      <>
+                        {/* Summary Bar Chart */}
+                        <div className="mb-4 p-4 rounded-lg border border-cyber-border bg-cyber-bg-elevated">
+                          <p className="text-sm text-cyber-text-muted mb-3">Incoming ETH by Source</p>
+                          <div className="space-y-2">
+                            {incomingConnections.slice(0, 5).map((conn, idx) => {
+                              const maxEth = Math.max(...incomingConnections.map(c => c.total_value_eth));
+                              const widthPercent = maxEth > 0 ? (conn.total_value_eth / maxEth) * 100 : 0;
+                              return (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <span className="text-xs font-mono text-cyber-text-muted w-24 truncate">
+                                    {formatAddress(conn.address)}
+                                  </span>
+                                  <div className="flex-1 h-4 bg-cyber-bg-card rounded overflow-hidden">
+                                    <div
+                                      className="h-full bg-cyber-neon-green/60 rounded"
+                                      style={{ width: `${widthPercent}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-cyber-neon-green font-bold w-20 text-right">
+                                    {conn.total_value_eth.toFixed(4)} ETH
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+
+                        {/* Incoming List */}
+                        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                          {incomingConnections.map((conn, idx) => (
+                            <div
+                              key={idx}
+                              className={`flex items-center justify-between p-3 rounded-lg border ${conn.risk_score >= 70
+                                ? "border-cyber-neon-red/30 bg-cyber-neon-red/5"
+                                : "border-cyber-neon-green/30 bg-cyber-neon-green/5"
+                                }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-cyber-neon-green/10">
+                                  <ArrowDownLeft className="h-4 w-4 text-cyber-neon-green" />
+                                </div>
+                                <div>
+                                  <p className="font-mono text-sm text-cyber-text-primary">
+                                    {formatAddress(conn.address)}
+                                  </p>
+                                  <p className="text-xs text-cyber-text-muted">
+                                    {conn.label || conn.entity_type}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-bold text-cyber-neon-green">
+                                  +{conn.total_value_eth.toFixed(4)} ETH
+                                </p>
+                                <p className="text-xs text-cyber-text-muted">
+                                  {conn.tx_count} transactions
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </TabsContent>
+
+                  {/* Transaction History Tab */}
+                  <TabsContent value="history" className="mt-4">
+                    <h3 className="text-lg font-semibold text-cyber-text-primary mb-4 flex items-center gap-2">
+                      <History className="h-5 w-5 text-cyber-neon-cyan" />
+                      Transaction History
+                      <Badge variant="secondary">{transactions?.length ?? 0} transactions</Badge>
+                    </h3>
+
+                    {txLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Radar className="h-6 w-6 animate-spin text-cyber-neon-cyan" />
+                      </div>
+                    ) : !transactions || transactions.length === 0 ? (
+                      <p className="text-center py-8 text-cyber-text-muted">
+                        No transactions found
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                        {transactions.map((tx, idx) => (
+                          <div
+                            key={tx.tx_hash || idx}
+                            className={`flex items-center justify-between p-3 rounded-lg border ${tx.is_flagged
+                              ? "border-cyber-neon-red/30 bg-cyber-neon-red/5"
+                              : "border-cyber-border bg-cyber-bg-elevated"
+                              }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`p-2 rounded-lg ${tx.direction === "sent"
+                                  ? "bg-cyber-neon-red/10"
+                                  : "bg-cyber-neon-green/10"
+                                  }`}
+                              >
+                                {tx.direction === "sent" ? (
+                                  <ArrowUpRight className="h-4 w-4 text-cyber-neon-red" />
+                                ) : (
+                                  <ArrowDownLeft className="h-4 w-4 text-cyber-neon-green" />
+                                )}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-mono text-sm text-cyber-text-primary">
+                                    {tx.direction === "sent" ? "To: " : "From: "}
+                                    {formatAddress(tx.counterparty)}
+                                  </p>
+                                  {tx.counterparty_risk >= 70 && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      High Risk
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-cyber-text-muted">
+                                  {tx.timestamp ? formatDate(tx.timestamp) : "Unknown date"}
+                                  {tx.is_flagged && (
+                                    <span className="text-cyber-neon-red ml-2">
+                                      ⚠ {tx.flag_reason}
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p
+                                className={`text-sm font-bold ${tx.direction === "sent"
+                                  ? "text-cyber-neon-red"
+                                  : "text-cyber-neon-green"
+                                  }`}
+                              >
+                                {tx.direction === "sent" ? "-" : "+"}
+                                {tx.value_eth.toFixed(4)} ETH
+                              </p>
+                              <p className="text-xs font-mono text-cyber-text-muted truncate max-w-[100px]">
+                                {tx.tx_hash ? `${tx.tx_hash.slice(0, 10)}...` : ""}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
               </div>
             </>
           )}

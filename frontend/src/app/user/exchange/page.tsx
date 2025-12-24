@@ -45,6 +45,8 @@ import { formatAddress, formatEth, formatDate } from "@/lib/utils";
 const DEMO_WALLET = "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD08";
 
 export default function UserExchange() {
+  const [fromWalletId, setFromWalletId] = useState("");
+  const [toWalletId, setToWalletId] = useState("");
   const [toAddress, setToAddress] = useState("");
   const [amount, setAmount] = useState("");
   const [copied, setCopied] = useState(false);
@@ -76,8 +78,8 @@ export default function UserExchange() {
   const transferMutation = useMutation({
     mutationFn: (params: { confirmRisk: boolean }) =>
       sendProtectedTransfer(
-        DEMO_WALLET,
-        toAddress,
+        fromWalletId,
+        toWalletId,
         parseFloat(amount),
         params.confirmRisk
       ),
@@ -94,6 +96,8 @@ export default function UserExchange() {
       } else if (response.status === "success") {
         // Show success dialog
         setShowSuccessDialog(true);
+        setFromWalletId("");
+        setToWalletId("");
         setToAddress("");
         setAmount("");
       }
@@ -104,7 +108,7 @@ export default function UserExchange() {
   });
 
   const handleSend = () => {
-    if (!toAddress || !amount || parseFloat(amount) <= 0) return;
+    if (!fromWalletId || !toWalletId || !toAddress || !amount || parseFloat(amount) <= 0) return;
     transferMutation.mutate({ confirmRisk: false });
   };
 
@@ -199,6 +203,28 @@ export default function UserExchange() {
               </div>
             </div>
 
+            {/* From Wallet ID */}
+            <div className="space-y-2">
+              <Label htmlFor="fromWalletId">From Wallet ID</Label>
+              <Input
+                id="fromWalletId"
+                placeholder="Enter your wallet ID..."
+                value={fromWalletId}
+                onChange={(e) => setFromWalletId(e.target.value)}
+              />
+            </div>
+
+            {/* To Wallet ID */}
+            <div className="space-y-2">
+              <Label htmlFor="toWalletId">To Wallet ID</Label>
+              <Input
+                id="toWalletId"
+                placeholder="Enter recipient wallet ID..."
+                value={toWalletId}
+                onChange={(e) => setToWalletId(e.target.value)}
+              />
+            </div>
+
             {/* Recipient Address */}
             <div className="space-y-2">
               <Label htmlFor="toAddress">Recipient Address</Label>
@@ -240,6 +266,8 @@ export default function UserExchange() {
               onClick={handleSend}
               disabled={
                 transferMutation.isPending ||
+                !fromWalletId ||
+                !toWalletId ||
                 !toAddress ||
                 !amount ||
                 parseFloat(amount) <= 0
@@ -291,8 +319,8 @@ export default function UserExchange() {
                       <div className="flex items-center gap-3">
                         <div
                           className={`p-2 rounded-lg ${isSent
-                              ? "bg-cyber-neon-red/10 border-cyber-neon-red/30"
-                              : "bg-cyber-neon-green/10 border-cyber-neon-green/30"
+                            ? "bg-cyber-neon-red/10 border-cyber-neon-red/30"
+                            : "bg-cyber-neon-green/10 border-cyber-neon-green/30"
                             } border`}
                         >
                           {isSent ? (
@@ -400,8 +428,8 @@ export default function UserExchange() {
                   <div
                     key={i}
                     className={`w-3 h-3 rounded-full ${i <= currentWarnings
-                        ? "bg-cyber-neon-red"
-                        : "bg-cyber-border"
+                      ? "bg-cyber-neon-red"
+                      : "bg-cyber-border"
                       }`}
                   />
                 ))}
