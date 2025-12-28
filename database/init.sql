@@ -1,17 +1,7 @@
--- ==========================================
--- Blockchain Sentinel - Production Database Schema
--- PostgreSQL 15+ Optimized for Real-time Fraud Detection
--- ==========================================
-
--- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm"; -- For fuzzy text search
 CREATE EXTENSION IF NOT EXISTS "btree_gin"; -- For composite indexes
 
--- ==========================================
--- 1. Users Table (System Users with Roles)
--- Stores admin and user accounts for the platform
--- ==========================================
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username VARCHAR(100) NOT NULL UNIQUE,
@@ -34,10 +24,6 @@ CREATE INDEX idx_users_role ON users (role);
 COMMENT ON TABLE users IS 'Platform users including admins and regular users';
 COMMENT ON COLUMN users.warning_count IS 'Number of times user ignored risk warnings (3 = suspend)';
 
--- ==========================================
--- 2. Wallets Table (Monitored Wallet Addresses)
--- Stores Ethereum wallet addresses and metadata
--- ==========================================
 CREATE TABLE IF NOT EXISTS wallets (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     address VARCHAR(255) NOT NULL UNIQUE,
@@ -69,10 +55,6 @@ COMMENT ON TABLE wallets IS 'Ethereum wallet addresses with risk metadata and ac
 COMMENT ON COLUMN wallets.risk_score IS 'AI-calculated risk score from 0 to 100';
 COMMENT ON COLUMN wallets.account_status IS 'active=normal, suspended=temp block, frozen=permanent block, under_review=investigating';
 
--- ==========================================
--- 3. Transactions Table (Enhanced)
--- Stores detailed blockchain transactions
--- ==========================================
 CREATE TABLE IF NOT EXISTS transactions (
     id UUID NOT NULL DEFAULT uuid_generate_v4(),
     tx_hash VARCHAR(66) NOT NULL,
@@ -125,10 +107,6 @@ COMMENT ON TABLE transactions IS 'Ethereum blockchain transactions with full tec
 COMMENT ON COLUMN transactions.status IS '1 = Success, 0 = Failed';
 COMMENT ON COLUMN transactions.input_data IS 'Method call data for smart contract interactions';
 
--- ==========================================
--- 3. Token Transfers Table (NEW)
--- Stores ERC20/ERC721 token transfers
--- ==========================================
 CREATE TABLE IF NOT EXISTS token_transfers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     transaction_hash VARCHAR(66) NOT NULL,
@@ -159,10 +137,6 @@ CREATE INDEX idx_token_transfers_value ON token_transfers (value_decimal DESC);
 COMMENT ON TABLE token_transfers IS 'ERC20 and ERC721 token transfer events';
 COMMENT ON COLUMN token_transfers.transfer_type IS 'ERC20, ERC721, or ERC1155';
 
--- ==========================================
--- 5. Blocked Transfers Table (NEW)
--- Records all blocked transaction attempts
--- ==========================================
 CREATE TABLE IF NOT EXISTS blocked_transfers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     sender_address VARCHAR(255) NOT NULL,
@@ -181,10 +155,6 @@ CREATE INDEX idx_blocked_time ON blocked_transfers (blocked_at DESC);
 
 COMMENT ON TABLE blocked_transfers IS 'History of all blocked transaction attempts for audit';
 
--- ==========================================
--- 6. User Warnings Table (NEW)
--- Tracks user warnings for ignoring risk alerts
--- ==========================================
 CREATE TABLE IF NOT EXISTS user_warnings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id),
@@ -203,10 +173,6 @@ CREATE INDEX idx_warnings_time ON user_warnings (created_at DESC);
 
 COMMENT ON TABLE user_warnings IS 'Tracks when users ignore risk warnings (3 strikes = suspension)';
 
--- ==========================================
--- 7. Risk Assessments Table
--- Historical AI risk analysis records
--- ==========================================
 CREATE TABLE IF NOT EXISTS risk_assessments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     wallet_id UUID NOT NULL,
@@ -229,10 +195,6 @@ CREATE INDEX idx_risk_assessments_details ON risk_assessments USING gin (details
 
 COMMENT ON TABLE risk_assessments IS 'Historical AI-powered risk assessment records';
 
--- ==========================================
--- 5. Blacklist Table
--- Known malicious or sanctioned addresses
--- ==========================================
 CREATE TABLE IF NOT EXISTS blacklist (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     address VARCHAR(255) NOT NULL UNIQUE,
@@ -253,10 +215,6 @@ CREATE INDEX idx_blacklist_active ON blacklist (is_active) WHERE is_active = tru
 
 COMMENT ON TABLE blacklist IS 'Known malicious addresses from various threat intelligence sources';
 
--- ==========================================
--- 6. Alerts Table
--- Real-time security alerts from scanner
--- ==========================================
 CREATE TABLE IF NOT EXISTS alerts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     wallet_address VARCHAR(255) NOT NULL,
@@ -279,10 +237,6 @@ CREATE INDEX idx_alerts_acknowledged ON alerts (acknowledged) WHERE acknowledged
 
 COMMENT ON TABLE alerts IS 'Real-time security alerts generated by autonomous scanner service';
 
--- ==========================================
--- 7. Audit Log Table (NEW)
--- Track all system actions for compliance
--- ==========================================
 CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     action_type VARCHAR(50) NOT NULL,
@@ -299,10 +253,6 @@ CREATE INDEX idx_audit_entity ON audit_logs (entity_type, entity_id);
 CREATE INDEX idx_audit_time ON audit_logs (timestamp DESC);
 
 COMMENT ON TABLE audit_logs IS 'System-wide audit trail for compliance and forensics';
-
--- ==========================================
--- MATERIALIZED VIEWS FOR PERFORMANCE
--- ==========================================
 
 -- High-risk wallets aggregated view
 CREATE MATERIALIZED VIEW IF NOT EXISTS high_risk_wallets AS
@@ -322,10 +272,6 @@ GROUP BY w.id, w.address, w.risk_score, w.entity_type, w.total_transactions, w.l
 CREATE UNIQUE INDEX idx_high_risk_wallets_addr ON high_risk_wallets (address);
 
 COMMENT ON MATERIALIZED VIEW high_risk_wallets IS 'Pre-aggregated high-risk wallets for dashboard performance';
-
--- ==========================================
--- TRIGGERS FOR AUTO-UPDATE
--- ==========================================
 
 -- Update wallet statistics on transaction insert
 CREATE OR REPLACE FUNCTION update_wallet_stats()
@@ -359,10 +305,6 @@ CREATE TRIGGER trg_update_wallet_stats
 AFTER INSERT ON transactions
 FOR EACH ROW
 EXECUTE FUNCTION update_wallet_stats();
-
--- ==========================================
--- MAINTENANCE PROCEDURES
--- ==========================================
 
 -- Refresh materialized view (run via cron)
 CREATE OR REPLACE FUNCTION refresh_high_risk_wallets()
@@ -416,12 +358,6 @@ WHEN (NEW.warning_count >= 3 AND OLD.warning_count < 3)
 EXECUTE FUNCTION suspend_user_on_warnings();
 
 COMMENT ON FUNCTION archive_old_alerts IS 'Archives acknowledged alerts older than 90 days';
-
--- ==========================================
--- REALISTIC SEED DATA FOR DEMO
--- Following real Ethereum address format
--- ==========================================
-
 -- Insert platform users (2 regular users + 1 admin)
 INSERT INTO users (username, email, password_hash, role, wallet_address, is_active, warning_count) VALUES
 ('alice_nguyen', 'alice.nguyen@gmail.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.9HvD6s1qWq1q1q', 'user', '0x742d35cc6634c0532925a3b844bc454e4438f44e', true, 0),
@@ -469,49 +405,26 @@ INSERT INTO wallets (address, label, entity_type, account_status, risk_score, ri
 ('0x21a31ee1afc51d94c2efccaa2092ad1028285549', 'Bybit Cold Wallet', 'Exchange', 'active', 4.00, NULL, 234567, '2021-03-20 00:00:00+00', NOW() - INTERVAL '30 minutes', 'Verified Bybit cold storage')
 ON CONFLICT (address) DO NOTHING;
 
--- Insert realistic transactions between wallets
--- SEED DATA WITH PROPER BALANCES FOR DIFFERENT ACCOUNT TYPES
 INSERT INTO transactions (tx_hash, from_address, to_address, value, block_number, gas_price, gas_used, nonce, status, timestamp) VALUES
--- ====== NORMAL USER TRANSACTIONS ======
--- Alice nhận 100 ETH từ Binance (user bình thường nạp tiền từ sàn)
 ('0xabc001seed123456789012345678901234567890abcdef1234567890abcdef', '0xdfd5293d8e347dfe59e90efd55b2956a1343963d', '0x742d35cc6634c0532925a3b844bc454e4438f44e', 100000000000000000000, 18000001, 20000000000, 21000, 1, 1, NOW() - INTERVAL '30 days'),
--- Bob nhận 50 ETH từ Binance
 ('0xabc002seed123456789012345678901234567890abcdef1234567890abcdef', '0xdfd5293d8e347dfe59e90efd55b2956a1343963d', '0x8ba1f109551bd432803012645ac136ddd64dba72', 50000000000000000000, 18000100, 20000000000, 21000, 5, 1, NOW() - INTERVAL '28 days'),
--- Bob gửi Alice 5 ETH
 ('0xabc003seed123456789012345678901234567890abcdef1234567890abcdef', '0x8ba1f109551bd432803012645ac136ddd64dba72', '0x742d35cc6634c0532925a3b844bc454e4438f44e', 5000000000000000000, 18000200, 25000000000, 21000, 10, 1, NOW() - INTERVAL '25 days'),
-
--- ====== HACKER/STOLEN FUNDS ======
--- Lazarus Group nhận 1000 ETH (stolen funds from exploit)
-('0xdef001seed123456789012345678901234567890abcdef1234567890abcdef', '0x0000000000000000000000000000000000000000', '0x098b716b8aaf21512996dc57eb0615e2383e2f96', 1000000000000000000000, 17900001, 50000000000, 21000, 1, 1, NOW() - INTERVAL '60 days'),
--- Lazarus chuyển cho Ronin Exploiter 300 ETH (layering)
+('0xdef001seed123456789012345678901234567890abcdef1234567890abcdef', '0x098b716b8aaf21512996dc57eb0615e2383e2f96', '0x098b716b8aaf21512996dc57eb0615e2383e2f96', 1000000000000000000000, 17900001, 50000000000, 21000, 1, 1, NOW() - INTERVAL '60 days'),
 ('0xdef002seed123456789012345678901234567890abcdef1234567890abcdef', '0x098b716b8aaf21512996dc57eb0615e2383e2f96', '0x4f3a120e72c76c22ae802d129f599bfdbc31cb81', 300000000000000000000, 17950001, 60000000000, 21000, 100, 1, NOW() - INTERVAL '55 days'),
--- Lazarus chuyển cho Layer 1 Hub 200 ETH
 ('0xdef003seed123456789012345678901234567890abcdef1234567890abcdef', '0x098b716b8aaf21512996dc57eb0615e2383e2f96', '0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a', 200000000000000000000, 17980001, 45000000000, 21000, 101, 1, NOW() - INTERVAL '50 days'),
-
--- ====== MONEY LAUNDERING PATTERN (structuring - amounts just under $10k) ======
 ('0xlaunder01234567890abcdef1234567890abcdef1234567890abcdef12340101', '0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a', '0x7f367cc41522ce07553e823bf3be79a889debe1b', 2800000000000000000, 18600001, 30000000000, 21000, 1, 1, NOW() - INTERVAL '6 hours'),
 ('0xlaunder01234567890abcdef1234567890abcdef1234567890abcdef12340102', '0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a', '0x7f367cc41522ce07553e823bf3be79a889debe1b', 2750000000000000000, 18600002, 30000000000, 21000, 2, 1, NOW() - INTERVAL '5 hours 55 minutes'),
 ('0xlaunder01234567890abcdef1234567890abcdef1234567890abcdef12340103', '0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a', '0x7f367cc41522ce07553e823bf3be79a889debe1b', 2820000000000000000, 18600003, 30000000000, 21000, 3, 1, NOW() - INTERVAL '5 hours 50 minutes'),
 ('0xlaunder01234567890abcdef1234567890abcdef1234567890abcdef12340104', '0x7f367cc41522ce07553e823bf3be79a889debe1b', '0x19aa5fe80d33a56d56c78e82ea5e50e5d80b4dff', 8000000000000000000, 18600100, 28000000000, 21000, 1, 1, NOW() - INTERVAL '4 hours'),
-
--- ====== WASH TRADING PATTERN (circular transactions) ======
--- Wash Trader nhận 100 ETH ban đầu
 ('0xwash00seed12345678901234567890abcdef1234567890abcdef1234567890', '0xdfd5293d8e347dfe59e90efd55b2956a1343963d', '0x9bf4001d307dfd62b26a2f1307ee0c0307632d59', 100000000000000000000, 18050001, 20000000000, 21000, 50, 1, NOW() - INTERVAL '15 days'),
--- Wash trading: Trader → Alice
 ('0xwash01seed12345678901234567890abcdef1234567890abcdef1234567890', '0x9bf4001d307dfd62b26a2f1307ee0c0307632d59', '0x742d35cc6634c0532925a3b844bc454e4438f44e', 50000000000000000000, 18100001, 30000000000, 21000, 100, 1, NOW() - INTERVAL '10 days'),
--- Wash trading: Alice → Trader (gần bằng số nhận)
 ('0xwash02seed12345678901234567890abcdef1234567890abcdef1234567890', '0x742d35cc6634c0532925a3b844bc454e4438f44e', '0x9bf4001d307dfd62b26a2f1307ee0c0307632d59', 49500000000000000000, 18100005, 30000000000, 21000, 128, 1, NOW() - INTERVAL '10 days'),
-
--- ====== SMURFING PATTERN (nhiều giao dịch nhỏ < 10 ETH) ======
 ('0xsmurf01seed2345678901234567890abcdef1234567890abcdef1234567890', '0xdfd5293d8e347dfe59e90efd55b2956a1343963d', '0x2fc617e933a52713247ce25730f6695920b3befe', 9900000000000000000, 18150001, 20000000000, 21000, 200, 1, NOW() - INTERVAL '7 days'),
 ('0xsmurf02seed2345678901234567890abcdef1234567890abcdef1234567890', '0xdfd5293d8e347dfe59e90efd55b2956a1343963d', '0x2fc617e933a52713247ce25730f6695920b3befe', 9800000000000000000, 18160001, 20000000000, 21000, 201, 1, NOW() - INTERVAL '6 days'),
 ('0xsmurf03seed2345678901234567890abcdef1234567890abcdef1234567890', '0xdfd5293d8e347dfe59e90efd55b2956a1343963d', '0x2fc617e933a52713247ce25730f6695920b3befe', 9700000000000000000, 18170001, 20000000000, 21000, 202, 1, NOW() - INTERVAL '5 days'),
-
--- Hacker transactions to mixer
 ('0xhacker123456789abcdef1234567890abcdef1234567890abcdef12345600a1', '0x098b716b8aaf21512996dc57eb0615e2383e2f96', '0x722122df12d4e14e13ac3b6895a86e84145b6967', 100000000000000000000, 18800001, 50000000000, 21000, 500, 1, NOW() - INTERVAL '12 hours')
 ON CONFLICT (tx_hash) DO NOTHING;
 
--- Insert blacklist entries (Known bad actors)
 INSERT INTO blacklist (address, category, source, description, severity, is_active) VALUES
 ('0x098b716b8aaf21512996dc57eb0615e2383e2f96', 'Heist', 'OFAC SDN List', 'Lazarus Group - DPRK state-sponsored hackers linked to multiple bridge exploits', 'CRITICAL', true),
 ('0x4f3a120e72c76c22ae802d129f599bfdbc31cb81', 'Heist', 'FBI IC3', 'Ronin Network hack perpetrator - $625M stolen', 'CRITICAL', true),
@@ -522,7 +435,6 @@ INSERT INTO blacklist (address, category, source, description, severity, is_acti
 ('0x9bf4001d307dfd62b26a2f1307ee0c0307632d59', 'Manipulation', 'Internal Detection', 'Wash trading bot - self-dealing detected', 'HIGH', true)
 ON CONFLICT (address) DO NOTHING;
 
--- Insert risk assessments
 INSERT INTO risk_assessments (wallet_id, score, risk_level, details, model_version)
 SELECT id, 99.00, 'CRITICAL', '{"reasons": ["OFAC Sanctioned", "Linked to state-sponsored hacking", "Multiple bridge exploits"], "detection_modules": {"scam": true, "money_laundering": true, "manipulation": false}}', 'Multi-Agent-v2.0'
 FROM wallets WHERE address = '0x098b716b8aaf21512996dc57eb0615e2383e2f96';
@@ -539,7 +451,6 @@ INSERT INTO risk_assessments (wallet_id, score, risk_level, details, model_versi
 SELECT id, 5.00, 'LOW', '{"reasons": ["Verified individual", "Consistent trading patterns", "No suspicious activity"], "detection_modules": {"scam": false, "money_laundering": false, "manipulation": false}}', 'Multi-Agent-v2.0'
 FROM wallets WHERE address = '0x742d35cc6634c0532925a3b844bc454e4438f44e';
 
--- Insert sample alerts from scanner
 INSERT INTO alerts (wallet_address, alert_type, severity, message, risk_score, metadata) VALUES
 ('0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a', 'STRUCTURING_DETECTED', 'CRITICAL', 'Detected 5 transactions of similar amounts within 1 hour - potential structuring activity', 92.00, '{"pattern": "structuring", "tx_count": 5, "time_window_minutes": 60, "avg_amount_eth": 2.79}'),
 ('0x7f367cc41522ce07553e823bf3be79a889debe1b', 'MIXER_INTERACTION', 'HIGH', 'Wallet received funds from known Tornado Cash user', 88.00, '{"source_type": "mixer_connected", "hops_from_mixer": 1}'),
@@ -548,14 +459,10 @@ INSERT INTO alerts (wallet_address, alert_type, severity, message, risk_score, m
 ('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', 'PUMP_DUMP_DETECTED', 'HIGH', 'Coordinated price manipulation detected across 3 token pairs', 96.00, '{"pattern": "pump_and_dump", "affected_tokens": ["SCAM1", "RUGME", "FAKE99"]}')
 ON CONFLICT DO NOTHING;
 
--- Insert sample blocked transfers (demo audit trail)
 INSERT INTO blocked_transfers (sender_address, receiver_address, amount, risk_score, block_reason, user_warning_count) VALUES
 ('0x742d35cc6634c0532925a3b844bc454e4438f44e', '0x098b716b8aaf21512996dc57eb0615e2383e2f96', 5000000000000000000, 99.00, 'blacklisted', 0),
-('0x8ba1f109551bd432803012645ac136ddd64dba72', '0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a', 10000000000000000000, 92.00, 'high_risk_score', 1)
-ON CONFLICT DO NOTHING;
--- ==========================================
--- VACUUM AND ANALYZE (Performance)
--- ==========================================
+('0x8ba1f109551bd432803012645ac136ddd64dba72', '0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a', 10000000000000000000, 92.00, 'high_risk_score', 1);
+
 VACUUM ANALYZE users;
 VACUUM ANALYZE wallets;
 VACUUM ANALYZE transactions;
