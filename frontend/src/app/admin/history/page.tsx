@@ -5,7 +5,6 @@ import {
   History,
   Ban,
   TrendingUp,
-  TrendingDown,
   Calendar,
   AlertOctagon,
   ArrowRight,
@@ -33,16 +32,13 @@ import {
   type BlockedTransfer,
   type FlowStats,
 } from "@/lib/api";
-import { formatAddress, formatEth, getRiskColor, formatDate } from "@/lib/utils";
+import { formatAddress, getRiskColor, formatDate } from "@/lib/utils";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   Area,
   AreaChart,
 } from "recharts";
@@ -75,12 +71,12 @@ export default function AdminHistory() {
       : 0;
 
   // Custom tooltip for chart
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ color: string; name: string; value: number }>; label?: string }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-cyber-bg-card border border-cyber-border rounded-lg p-3 shadow-lg">
-          <p className="text-cyber-text-primary font-medium mb-2">{label}</p>
-          {payload.map((entry: any, index: number) => (
+        <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-lg">
+          <p className="text-white font-medium mb-2">{label}</p>
+          {payload.map((entry, index: number) => (
             <p
               key={index}
               className="text-sm"
@@ -99,117 +95,111 @@ export default function AdminHistory() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-cyber-text-primary">
-          Transaction <span className="text-cyber-neon-cyan">History</span>
+        <h1 className="text-2xl font-semibold text-white">
+          Transaction History
         </h1>
-        <p className="text-cyber-text-secondary mt-1">
+        <p className="text-slate-400 mt-1">
           Blocked transfers and money flow analytics
         </p>
       </div>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-cyber-neon-red/30 bg-cyber-neon-red/5">
+        <Card className="border-slate-700/50 bg-slate-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-lg bg-cyber-neon-red/10 border border-cyber-neon-red/30">
-              <Ban className="h-6 w-6 text-cyber-neon-red" />
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+              <Ban className="h-6 w-6 text-red-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-cyber-neon-red">
+              <p className="text-2xl font-semibold text-white">
                 {totalBlocked}
               </p>
-              <p className="text-sm text-cyber-text-muted">Total Blocked</p>
+              <p className="text-sm text-slate-400">Total Blocked</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-cyber-neon-orange/30 bg-cyber-neon-orange/5">
+        <Card className="border-slate-700/50 bg-slate-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-lg bg-cyber-neon-orange/10 border border-cyber-neon-orange/30">
-              <AlertOctagon className="h-6 w-6 text-cyber-neon-orange" />
+            <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+              <AlertOctagon className="h-6 w-6 text-orange-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-cyber-neon-orange">
+              <p className="text-2xl font-semibold text-white">
                 {totalBlockedValue.toFixed(4)}
               </p>
-              <p className="text-sm text-cyber-text-muted">ETH Protected</p>
+              <p className="text-sm text-slate-400">ETH Protected</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-cyber-neon-cyan/30 bg-cyber-neon-cyan/5">
+        <Card className="border-slate-700/50 bg-slate-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-lg bg-cyber-neon-cyan/10 border border-cyber-neon-cyan/30">
-              <TrendingUp className="h-6 w-6 text-cyber-neon-cyan" />
+            <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+              <TrendingUp className="h-6 w-6 text-cyan-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-cyber-neon-cyan">
+              <p className="text-2xl font-semibold text-white">
                 {avgRiskScore.toFixed(1)}
               </p>
-              <p className="text-sm text-cyber-text-muted">Avg Risk Score</p>
+              <p className="text-sm text-slate-400">Avg Risk Score</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Flow Chart */}
-      <Card className="border-cyber-border">
+      <Card className="border-slate-700/50 bg-slate-800/30">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-cyber-neon-cyan" />
+          <CardTitle className="flex items-center gap-2 text-white">
+            <TrendingUp className="h-5 w-5 text-cyan-400" />
             Money Flow Analysis
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-slate-400">
             Daily inflow and outflow volume across monitored wallets
           </CardDescription>
         </CardHeader>
         <CardContent>
           {flowLoading ? (
             <div className="h-80 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyber-neon-cyan" />
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" />
             </div>
           ) : flowStats && flowStats.length > 0 ? (
             <ResponsiveContainer width="100%" height={350}>
               <AreaChart data={flowStats}>
                 <defs>
                   <linearGradient id="inflowGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#00ff88" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#00ff88" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="outflowGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ff0040" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#ff0040" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid
                   strokeDasharray="3 3"
-                  stroke="#1a1a2e"
+                  stroke="#334155"
                   vertical={false}
                 />
                 <XAxis
                   dataKey="date"
-                  stroke="#606070"
-                  tick={{ fill: "#a0a0b0", fontSize: 12 }}
-                  axisLine={{ stroke: "#1a1a2e" }}
+                  stroke="#64748b"
+                  tick={{ fill: "#94a3b8", fontSize: 12 }}
+                  axisLine={{ stroke: "#334155" }}
                 />
                 <YAxis
-                  stroke="#606070"
-                  tick={{ fill: "#a0a0b0", fontSize: 12 }}
-                  axisLine={{ stroke: "#1a1a2e" }}
+                  stroke="#64748b"
+                  tick={{ fill: "#94a3b8", fontSize: 12 }}
+                  axisLine={{ stroke: "#334155" }}
                   tickFormatter={(value) => `${value} ETH`}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  wrapperStyle={{ paddingTop: "20px" }}
-                  formatter={(value) => (
-                    <span className="text-cyber-text-secondary">{value}</span>
-                  )}
-                />
                 <Area
                   type="monotone"
                   dataKey="inflow"
                   name="Inflow"
-                  stroke="#00ff88"
+                  stroke="#10b981"
                   strokeWidth={2}
                   fill="url(#inflowGradient)"
                 />
@@ -217,14 +207,14 @@ export default function AdminHistory() {
                   type="monotone"
                   dataKey="outflow"
                   name="Outflow"
-                  stroke="#ff0040"
+                  stroke="#ef4444"
                   strokeWidth={2}
                   fill="url(#outflowGradient)"
                 />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-80 flex items-center justify-center text-cyber-text-muted">
+            <div className="h-80 flex items-center justify-center text-slate-400">
               <div className="text-center">
                 <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No flow data available</p>
@@ -235,42 +225,42 @@ export default function AdminHistory() {
       </Card>
 
       {/* Blocked Transfers Table */}
-      <Card className="border-cyber-border">
+      <Card className="border-slate-700/50 bg-slate-800/30">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5 text-cyber-neon-red" />
+          <CardTitle className="flex items-center gap-2 text-white">
+            <History className="h-5 w-5 text-red-400" />
             Blocked Transfers History
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-slate-400">
             All transfers that were blocked by the AI protection system
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>From</TableHead>
+              <TableRow className="border-slate-700">
+                <TableHead className="text-slate-300">Time</TableHead>
+                <TableHead className="text-slate-300">From</TableHead>
                 <TableHead></TableHead>
-                <TableHead>To</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Risk Score</TableHead>
-                <TableHead>Block Reason</TableHead>
-                <TableHead>Warnings</TableHead>
+                <TableHead className="text-slate-300">To</TableHead>
+                <TableHead className="text-slate-300">Amount</TableHead>
+                <TableHead className="text-slate-300">Risk Score</TableHead>
+                <TableHead className="text-slate-300">Block Reason</TableHead>
+                <TableHead className="text-slate-300">Warnings</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {blockedLoading ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyber-neon-cyan mx-auto" />
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-400 mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : blockedTransfers?.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={8}
-                    className="text-center py-12 text-cyber-text-muted"
+                    className="text-center py-12 text-slate-400"
                   >
                     <Ban className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>No blocked transfers found</p>
@@ -281,44 +271,38 @@ export default function AdminHistory() {
                 </TableRow>
               ) : (
                 blockedTransfers?.map((transfer) => (
-                  <TableRow key={transfer.id}>
+                  <TableRow key={transfer.id} className="border-slate-700/50">
                     <TableCell>
-                      <div className="flex items-center gap-2 text-cyber-text-muted">
+                      <div className="flex items-center gap-2 text-slate-400">
                         <Clock className="h-4 w-4" />
                         <span className="text-sm">
                           {formatDate(transfer.blocked_at)}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-sm">
+                    <TableCell className="font-mono text-sm text-slate-300">
                       {formatAddress(transfer.sender_address)}
                     </TableCell>
                     <TableCell>
-                      <ArrowRight className="h-4 w-4 text-cyber-neon-red" />
+                      <ArrowRight className="h-4 w-4 text-red-400" />
                     </TableCell>
-                    <TableCell className="font-mono text-sm">
+                    <TableCell className="font-mono text-sm text-slate-300">
                       {formatAddress(transfer.receiver_address)}
                     </TableCell>
                     <TableCell>
-                      <span className="font-medium text-cyber-text-primary">
+                      <span className="font-medium text-white">
                         {transfer.amount_eth?.toFixed(4) || '0.0000'} ETH
                       </span>
                     </TableCell>
                     <TableCell>
                       <span
-                        className={`font-bold ${getRiskColor(transfer.risk_score)}`}
+                        className={`font-semibold ${getRiskColor(transfer.risk_score)}`}
                       >
                         {transfer.risk_score.toFixed(0)}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          transfer.block_reason.includes("blacklist")
-                            ? "destructive"
-                            : "warning"
-                        }
-                      >
+                      <Badge variant="destructive">
                         {transfer.block_reason.replace(/_/g, " ")}
                       </Badge>
                     </TableCell>
@@ -328,12 +312,12 @@ export default function AdminHistory() {
                           <div
                             key={i}
                             className={`w-2 h-2 rounded-full ${i <= transfer.user_warning_count
-                              ? "bg-cyber-neon-red"
-                              : "bg-cyber-border"
+                              ? "bg-red-400"
+                              : "bg-slate-600"
                               }`}
                           />
                         ))}
-                        <span className="text-xs text-cyber-text-muted ml-1">
+                        <span className="text-xs text-slate-500 ml-1">
                           {transfer.user_warning_count}/3
                         </span>
                       </div>

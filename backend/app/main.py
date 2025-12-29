@@ -1664,3 +1664,80 @@ def send_eth_with_warning_system(
         "sender_balance_eth": _eth_from_wei(new_balance_wei),
         "message": "Transaction completed successfully" + (f" (Warning #{warning_count} recorded)" if force_proceed and receiver_risk >= 50 else "")
     }
+
+
+@app.get("/user/{wallet_address}/history", tags=["User"])
+def get_user_history(
+    wallet_address: str,
+    database_session: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get user's transaction history including blocked transfers, successful transactions, and warnings.
+    """
+    normalized_address = wallet_address.lower().strip()
+
+    # Get blocked transfers where user was the sender
+    blocked = database_session.query(BlockedTransfer).filter(
+        BlockedTransfer.sender_address == normalized_address
+    ).order_by(BlockedTransfer.blocked_at.desc()).limit(50).all()
+
+    # Get successful transactions (both sent and received)
+    transactions = database_session.query(Transaction).filter(
+        (Transaction.from_address == normalized_address) | (Transaction.to_address == normalized_address)
+    ).order_by(Transaction.timestamp.desc().nullslast()).limit(50).all()
+
+    # Get warnings for this wallet
+    warnings = database_session.query(UserWarning).filter(
+        UserWarning.wallet_address == normalized_address
+    ).order_by(UserWarning.created_at.desc()).limit(20).all()
+
+    return {
+        "wallet_address": normalized_address,
+        "blocked_transfers": [
+            {
+                "id": str(b.id),
+                "sender_address": b.sender_address,
+                "receiver_address": b.receiver_address,
+                "amount_eth": _eth_from_wei(int(b.amount or 0)),
+                "risk_score": float(b.risk_score or 0),
+                "block_reason": b.block_reason,
+                "user_warning_count": b.user_warning_count,
+                "blocked_at": b.blocked_at.isoformat() if b.blocked_at else None
+            }
+            for b in blocked
+        ],
+        "successful_transactions": [
+            {
+                "id": str(tx.id),
+                "tx_hash": tx.tx_hash,
+                "from_address": tx.from_address,
+                "to_address": tx.to_address,
+                "value_eth": _eth_from_wei(int(tx.value or 0)),
+                "direction": "sent" if tx.from_address == normalized_address else "received",
+                "timestamp": tx.timestamp.isoformat() if tx.timestamp else None,
+                "status": int(tx.status or 1),
+                "is_flagged": bool(tx.is_flagged),
+                "flag_reason": tx.flag_reason
+            }
+            for tx in transactions
+        ],
+        "warnings": [
+            {
+                "id": str(w.id),
+                "wallet_address": w.wallet_address,
+                "target_address": w.target_address,
+                "warning_type": w.warning_type,
+                "risk_score": float(w.risk_score or 0),
+                "user_action": w.user_action,
+                "warning_number": w.warning_number,
+                "created_at": w.created_at.isoformat() if w.created_at else None
+            }
+            for w in warnings
+        ],
+        "summary": {
+            "total_blocked": len(blocked),
+            "total_transactions": len(transactions),
+            "total_warnings": len(warnings),
+            "warning_count": len([w for w in warnings if w.user_action == 'ignored'])
+        }
+    }

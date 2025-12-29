@@ -57,17 +57,11 @@ const categoryIcons = {
   scam: Fish,
 };
 
-const categoryColors = {
-  money_laundering: "cyan",
-  manipulation: "orange",
-  scam: "red",
-} as const;
-
 const statusOptions = [
-  { value: "active", label: "Active", color: "text-cyber-neon-green" },
-  { value: "under_review", label: "Under Review", color: "text-cyber-neon-yellow" },
-  { value: "suspended", label: "Suspended", color: "text-cyber-neon-orange" },
-  { value: "frozen", label: "Frozen", color: "text-cyber-neon-red" },
+  { value: "active", label: "Active", color: "text-emerald-400" },
+  { value: "under_review", label: "Under Review", color: "text-amber-400" },
+  { value: "suspended", label: "Suspended", color: "text-orange-400" },
+  { value: "frozen", label: "Frozen", color: "text-red-400" },
 ];
 
 export default function AdminDashboard() {
@@ -80,7 +74,7 @@ export default function AdminDashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["dashboardStats"],
     queryFn: fetchDashboardStats,
-    refetchInterval: 30000, // Refresh every 30s
+    refetchInterval: 30000,
   });
 
   // Fetch wallets
@@ -100,7 +94,7 @@ export default function AdminDashboard() {
   const { data: alerts } = useQuery<Alert[]>({
     queryKey: ["latestAlerts"],
     queryFn: fetchLatestAlerts,
-    refetchInterval: 10000, // Refresh every 10s
+    refetchInterval: 10000,
   });
 
   // Update wallet status mutation
@@ -129,15 +123,17 @@ export default function AdminDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-cyber-text-primary">
-            AI Detection <span className="text-cyber-neon-cyan">Dashboard</span>
+          <h1 className="text-2xl font-semibold text-white">
+            AI Detection Dashboard
           </h1>
-          <p className="text-cyber-text-secondary mt-1">
+          <p className="text-slate-400 mt-1">
             Multi-agent fraud detection overview
           </p>
         </div>
         <Button
           variant="outline"
+          size="sm"
+          className="text-slate-300 border-slate-600 hover:bg-slate-800 hover:text-white"
           onClick={() => {
             queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
             queryClient.invalidateQueries({ queryKey: ["wallets"] });
@@ -148,92 +144,88 @@ export default function AdminDashboard() {
         </Button>
       </div>
 
-      {/* Stats Grid - 4 Cards */}
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Money Laundering Card */}
-        <Card glow="cyan" className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-neon-cyan/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+        <Card className="border-slate-700/50 bg-slate-800/30">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-cyber-text-secondary">
+            <CardTitle className="text-sm font-medium text-slate-400">
               Money Laundering
             </CardTitle>
-            <div className="p-2 rounded-lg bg-cyber-neon-cyan/10 border border-cyber-neon-cyan/30">
-              <Droplets className="h-5 w-5 text-cyber-neon-cyan" />
+            <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+              <Droplets className="h-5 w-5 text-cyan-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-cyber-neon-cyan">
+            <div className="text-3xl font-semibold text-white">
               {statsLoading ? "..." : stats?.money_laundering.wallet_count || 0}
             </div>
-            <p className="text-xs text-cyber-text-muted mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               {stats?.money_laundering.alert_count || 0} alerts detected
             </p>
           </CardContent>
         </Card>
 
         {/* Manipulation Card */}
-        <Card glow="orange" className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-neon-orange/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+        <Card className="border-slate-700/50 bg-slate-800/30">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-cyber-text-secondary">
+            <CardTitle className="text-sm font-medium text-slate-400">
               Market Manipulation
             </CardTitle>
-            <div className="p-2 rounded-lg bg-cyber-neon-orange/10 border border-cyber-neon-orange/30">
-              <TrendingUp className="h-5 w-5 text-cyber-neon-orange" />
+            <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+              <TrendingUp className="h-5 w-5 text-orange-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-cyber-neon-orange">
+            <div className="text-3xl font-semibold text-white">
               {statsLoading ? "..." : stats?.manipulation.wallet_count || 0}
             </div>
-            <p className="text-xs text-cyber-text-muted mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               {stats?.manipulation.alert_count || 0} alerts detected
             </p>
           </CardContent>
         </Card>
 
         {/* Scam Card */}
-        <Card glow="red" className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-neon-red/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+        <Card className="border-slate-700/50 bg-slate-800/30">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-cyber-text-secondary">
+            <CardTitle className="text-sm font-medium text-slate-400">
               Scam Detection
             </CardTitle>
-            <div className="p-2 rounded-lg bg-cyber-neon-red/10 border border-cyber-neon-red/30">
-              <Fish className="h-5 w-5 text-cyber-neon-red" />
+            <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+              <Fish className="h-5 w-5 text-red-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-cyber-neon-red">
+            <div className="text-3xl font-semibold text-white">
               {statsLoading ? "..." : stats?.scam.wallet_count || 0}
             </div>
-            <p className="text-xs text-cyber-text-muted mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               {stats?.scam.alert_count || 0} alerts detected
             </p>
           </CardContent>
         </Card>
 
         {/* Overview Card */}
-        <Card glow="purple" className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-neon-purple/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+        <Card className="border-slate-700/50 bg-slate-800/30">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-cyber-text-secondary">
+            <CardTitle className="text-sm font-medium text-slate-400">
               Total Overview
             </CardTitle>
-            <div className="p-2 rounded-lg bg-cyber-neon-purple/10 border border-cyber-neon-purple/30">
-              <Activity className="h-5 w-5 text-cyber-neon-purple" />
+            <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+              <Activity className="h-5 w-5 text-violet-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-cyber-neon-purple">
+            <div className="text-3xl font-semibold text-white">
               {statsLoading ? "..." : stats?.overview.total_wallets || 0}
             </div>
             <div className="flex items-center gap-3 mt-1">
-              <span className="text-xs text-cyber-neon-red flex items-center gap-1">
+              <span className="text-xs text-red-400 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
                 {stats?.overview.critical_alerts || 0} critical
               </span>
-              <span className="text-xs text-cyber-text-muted">
+              <span className="text-xs text-slate-500">
                 {stats?.overview.total_blocked || 0} blocked
               </span>
             </div>
@@ -243,17 +235,17 @@ export default function AdminDashboard() {
 
       {/* Alert Ticker */}
       {alerts && alerts.length > 0 && (
-        <div className="bg-cyber-bg-darker border border-cyber-border rounded-lg p-3 overflow-hidden">
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3 overflow-hidden">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 shrink-0">
-              <ShieldAlert className="h-5 w-5 text-cyber-neon-red animate-pulse" />
-              <span className="text-sm font-medium text-cyber-text-primary">
+              <ShieldAlert className="h-5 w-5 text-red-400" />
+              <span className="text-sm font-medium text-white">
                 Latest Alerts
               </span>
             </div>
             <div className="flex-1 overflow-hidden">
-              <div className="flex gap-6 animate-marquee">
-                {alerts.map((alert) => (
+              <div className="flex gap-6">
+                {alerts.slice(0, 3).map((alert) => (
                   <div
                     key={alert.alert_id}
                     className="flex items-center gap-2 shrink-0"
@@ -269,7 +261,7 @@ export default function AdminDashboard() {
                     >
                       {alert.severity}
                     </Badge>
-                    <span className="text-sm text-cyber-text-secondary">
+                    <span className="text-sm text-slate-400">
                       {formatAddress(alert.wallet_address)} - {alert.alert_type}
                     </span>
                   </div>
@@ -281,20 +273,20 @@ export default function AdminDashboard() {
       )}
 
       {/* Suspicious Accounts Table */}
-      <Card className="border-cyber-border">
+      <Card className="border-slate-700/50 bg-slate-800/30">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Ban className="h-5 w-5 text-cyber-neon-red" />
+            <CardTitle className="flex items-center gap-2 text-white">
+              <Ban className="h-5 w-5 text-red-400" />
               Suspicious Accounts
             </CardTitle>
             <div className="flex items-center gap-2">
               {/* Search */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cyber-text-muted" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                 <Input
                   placeholder="Search address..."
-                  className="pl-9 w-64"
+                  className="pl-9 w-64 bg-slate-800 border-slate-600"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -302,15 +294,13 @@ export default function AdminDashboard() {
 
               {/* Category Filter */}
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-44 bg-slate-800 border-slate-600">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="money_laundering">
-                    Money Laundering
-                  </SelectItem>
+                  <SelectItem value="money_laundering">Money Laundering</SelectItem>
                   <SelectItem value="manipulation">Manipulation</SelectItem>
                   <SelectItem value="scam">Scam</SelectItem>
                 </SelectContent>
@@ -318,7 +308,7 @@ export default function AdminDashboard() {
 
               {/* Status Filter */}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-40 bg-slate-800 border-slate-600">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -336,29 +326,29 @@ export default function AdminDashboard() {
         <CardContent>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Address</TableHead>
-                <TableHead>Label</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Risk Score</TableHead>
-                <TableHead>Transactions</TableHead>
-                <TableHead>Last Seen</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
+              <TableRow className="border-slate-700">
+                <TableHead className="text-slate-300">Address</TableHead>
+                <TableHead className="text-slate-300">Label</TableHead>
+                <TableHead className="text-slate-300">Category</TableHead>
+                <TableHead className="text-slate-300">Risk Score</TableHead>
+                <TableHead className="text-slate-300">Transactions</TableHead>
+                <TableHead className="text-slate-300">Last Seen</TableHead>
+                <TableHead className="text-slate-300">Status</TableHead>
+                <TableHead className="text-slate-300">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {walletsLoading ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8">
-                    <RefreshCw className="h-6 w-6 animate-spin mx-auto text-cyber-neon-cyan" />
+                    <RefreshCw className="h-6 w-6 animate-spin mx-auto text-cyan-400" />
                   </TableCell>
                 </TableRow>
               ) : filteredWallets?.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={8}
-                    className="text-center py-8 text-cyber-text-muted"
+                    className="text-center py-8 text-slate-500"
                   >
                     No suspicious accounts found
                   </TableCell>
@@ -366,40 +356,32 @@ export default function AdminDashboard() {
               ) : (
                 filteredWallets?.map((wallet) => {
                   const CategoryIcon = wallet.risk_category
-                    ? categoryIcons[
-                    wallet.risk_category as keyof typeof categoryIcons
-                    ]
+                    ? categoryIcons[wallet.risk_category as keyof typeof categoryIcons]
                     : AlertTriangle;
 
                   return (
-                    <TableRow key={wallet.id}>
-                      <TableCell className="font-mono text-sm">
+                    <TableRow key={wallet.id} className="border-slate-700/50">
+                      <TableCell className="font-mono text-sm text-slate-300">
                         {formatAddress(wallet.address)}
                       </TableCell>
-                      <TableCell>
-                        {wallet.label || (
-                          <span className="text-cyber-text-muted">-</span>
-                        )}
+                      <TableCell className="text-slate-300">
+                        {wallet.label || <span className="text-slate-500">-</span>}
                       </TableCell>
                       <TableCell>
                         {wallet.risk_category ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 text-slate-300">
                             <CategoryIcon className="h-4 w-4" />
                             <span className="capitalize text-sm">
                               {wallet.risk_category.replace("_", " ")}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-cyber-text-muted">-</span>
+                          <span className="text-slate-500">-</span>
                         )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span
-                            className={`font-bold ${getRiskColor(
-                              wallet.risk_score
-                            )}`}
-                          >
+                          <span className={`font-semibold ${getRiskColor(wallet.risk_score)}`}>
                             {wallet.risk_score.toFixed(0)}
                           </span>
                           <Badge
@@ -417,27 +399,23 @@ export default function AdminDashboard() {
                           </Badge>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-slate-300">
                         {formatNumber(wallet.total_transactions || 0)}
                       </TableCell>
-                      <TableCell className="text-cyber-text-muted text-sm">
+                      <TableCell className="text-slate-500 text-sm">
                         {formatDate(wallet.last_activity_at)}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          className={getStatusColor(wallet.account_status)}
-                        >
+                        <Badge className={getStatusColor(wallet.account_status)}>
                           {wallet.account_status.replace("_", " ")}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <Select
                           value={wallet.account_status}
-                          onValueChange={(value) =>
-                            handleStatusChange(wallet.address, value)
-                          }
+                          onValueChange={(value) => handleStatusChange(wallet.address, value)}
                         >
-                          <SelectTrigger className="w-32 h-8">
+                          <SelectTrigger className="w-32 h-8 bg-slate-800 border-slate-600">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>

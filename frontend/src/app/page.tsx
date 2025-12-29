@@ -15,13 +15,11 @@ import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-cyber-bg-dark cyber-grid-bg relative overflow-hidden">
-      {/* Background Effects */}
+    <div className="min-h-screen bg-slate-900 relative overflow-hidden">
+      {/* Background Effects - Subtle gradient */}
       <div className="absolute inset-0 pointer-events-none">
-        {/* Gradient Orbs */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyber-neon-cyan/10 rounded-full blur-3xl animate-pulse-slow" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyber-neon-purple/10 rounded-full blur-3xl animate-pulse-slow delay-1000" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-cyber-neon-blue/5 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-cyan-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-1/4 w-[600px] h-[300px] bg-blue-500/5 rounded-full blur-3xl" />
       </div>
 
       {/* Content */}
@@ -29,27 +27,27 @@ export default function HomePage() {
         {/* Header */}
         <header className="flex items-center justify-between p-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyber-neon-cyan to-cyber-neon-blue shadow-neon-cyan">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600">
               <Shield className="h-7 w-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-cyber-text-primary">
-                Blockchain <span className="text-cyber-neon-cyan">AI</span>{" "}
+              <h1 className="text-2xl font-bold text-slate-100">
+                Blockchain <span className="text-cyan-400">AI</span>{" "}
                 Security
               </h1>
-              <p className="text-sm text-cyber-text-muted">
+              <p className="text-sm text-slate-400">
                 Multi-Agent Detection System
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-full bg-cyber-neon-green/10 border border-cyber-neon-green/30 px-3 py-1.5">
+            <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyber-neon-green opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyber-neon-green"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-sm text-cyber-neon-green font-medium">
+              <span className="text-sm text-emerald-400 font-medium">
                 System Online
               </span>
             </div>
@@ -61,12 +59,12 @@ export default function HomePage() {
           <div className="max-w-6xl w-full">
             {/* Hero Text */}
             <div className="text-center mb-16">
-              <h2 className="text-5xl md:text-6xl font-bold text-cyber-text-primary mb-6">
-                <span className="text-glow-cyan">AI-Powered</span> Blockchain
+              <h2 className="text-5xl md:text-6xl font-bold text-slate-100 mb-6">
+                <span className="text-cyan-400">AI-Powered</span> Blockchain
                 <br />
                 Security Platform
               </h2>
-              <p className="text-xl text-cyber-text-secondary max-w-2xl mx-auto">
+              <p className="text-xl text-slate-400 max-w-2xl mx-auto">
                 Advanced multi-agent detection system for identifying money
                 laundering, market manipulation, and fraud patterns in
                 real-time.
@@ -83,10 +81,10 @@ export default function HomePage() {
               ].map((feature, i) => (
                 <div
                   key={i}
-                  className="flex flex-col items-center gap-2 text-cyber-text-muted"
+                  className="flex flex-col items-center gap-2 text-slate-400"
                 >
-                  <div className="p-3 rounded-lg bg-cyber-bg-card border border-cyber-border">
-                    <feature.icon className="h-6 w-6 text-cyber-neon-cyan" />
+                  <div className="p-3 rounded-lg bg-slate-800 border border-slate-700">
+                    <feature.icon className="h-6 w-6 text-cyan-400" />
                   </div>
                   <span className="text-xs">{feature.label}</span>
                 </div>
@@ -98,23 +96,20 @@ export default function HomePage() {
               {/* User Demo Card */}
               <Link href="/user/exchange" className="group">
                 <div className="relative h-full">
-                  {/* Animated Border */}
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-cyber-neon-cyan via-cyber-neon-blue to-cyber-neon-purple rounded-2xl opacity-50 group-hover:opacity-100 blur transition-all duration-500 group-hover:blur-md animate-border-glow" />
-
                   {/* Card Content */}
-                  <div className="relative h-full bg-cyber-bg-card rounded-2xl p-8 border border-cyber-border group-hover:border-cyber-neon-cyan/50 transition-all duration-300">
+                  <div className="relative h-full bg-slate-800 rounded-2xl p-8 border border-slate-700 group-hover:border-cyan-500/50 transition-all duration-300 group-hover:shadow-[0_0_30px_rgba(6,182,212,0.25)]">
                     {/* Icon */}
-                    <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-cyber-neon-cyan/20 to-cyber-neon-blue/20 border border-cyber-neon-cyan/30 mb-6 group-hover:shadow-neon-cyan transition-all duration-300">
-                      <UserCircle className="h-8 w-8 text-cyber-neon-cyan" />
+                    <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-cyan-500/10 border border-cyan-500/30 mb-6">
+                      <UserCircle className="h-8 w-8 text-cyan-400" />
                     </div>
 
                     {/* Title */}
-                    <h3 className="text-2xl font-bold text-cyber-text-primary mb-3 group-hover:text-cyber-neon-cyan transition-colors">
+                    <h3 className="text-2xl font-bold text-slate-100 mb-3 group-hover:text-cyan-400 transition-colors">
                       User Demo
                     </h3>
 
                     {/* Description */}
-                    <p className="text-cyber-text-secondary mb-6">
+                    <p className="text-slate-400 mb-6">
                       Experience the secure wallet interface. Transfer assets
                       with real-time risk detection and protection against
                       fraudulent addresses.
@@ -130,19 +125,16 @@ export default function HomePage() {
                       ].map((feature, i) => (
                         <li
                           key={i}
-                          className="flex items-center gap-2 text-sm text-cyber-text-muted"
+                          className="flex items-center gap-2 text-sm text-slate-400"
                         >
-                          <Zap className="h-4 w-4 text-cyber-neon-cyan" />
+                          <Zap className="h-4 w-4 text-cyan-400" />
                           {feature}
                         </li>
                       ))}
                     </ul>
 
                     {/* Button */}
-                    <Button
-                      variant="neon"
-                      className="w-full group-hover:bg-cyber-neon-cyan/10"
-                    >
+                    <Button className="w-full bg-cyan-600 hover:bg-cyan-700">
                       Enter User Portal
                       <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                     </Button>
@@ -153,23 +145,20 @@ export default function HomePage() {
               {/* Admin System Card */}
               <Link href="/admin/dashboard" className="group">
                 <div className="relative h-full">
-                  {/* Animated Border */}
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-cyber-neon-red via-cyber-neon-orange to-cyber-neon-yellow rounded-2xl opacity-50 group-hover:opacity-100 blur transition-all duration-500 group-hover:blur-md" />
-
                   {/* Card Content */}
-                  <div className="relative h-full bg-cyber-bg-card rounded-2xl p-8 border border-cyber-border group-hover:border-cyber-neon-orange/50 transition-all duration-300">
+                  <div className="relative h-full bg-slate-800 rounded-2xl p-8 border border-slate-700 group-hover:border-red-500/50 transition-all duration-300 group-hover:shadow-[0_0_30px_rgba(239,68,68,0.25)]">
                     {/* Icon */}
-                    <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-cyber-neon-red/20 to-cyber-neon-orange/20 border border-cyber-neon-orange/30 mb-6 group-hover:shadow-neon-orange transition-all duration-300">
-                      <Settings className="h-8 w-8 text-cyber-neon-orange" />
+                    <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-red-500/10 border border-red-500/30 mb-6">
+                      <Settings className="h-8 w-8 text-red-400" />
                     </div>
 
                     {/* Title */}
-                    <h3 className="text-2xl font-bold text-cyber-text-primary mb-3 group-hover:text-cyber-neon-orange transition-colors">
+                    <h3 className="text-2xl font-bold text-slate-100 mb-3 group-hover:text-red-400 transition-colors">
                       Admin System
                     </h3>
 
                     {/* Description */}
-                    <p className="text-cyber-text-secondary mb-6">
+                    <p className="text-slate-400 mb-6">
                       Access the security dashboard. Monitor AI detection
                       modules, manage suspicious accounts, and review blocked
                       transactions.
@@ -185,19 +174,16 @@ export default function HomePage() {
                       ].map((feature, i) => (
                         <li
                           key={i}
-                          className="flex items-center gap-2 text-sm text-cyber-text-muted"
+                          className="flex items-center gap-2 text-sm text-slate-400"
                         >
-                          <Activity className="h-4 w-4 text-cyber-neon-orange" />
+                          <Activity className="h-4 w-4 text-red-400" />
                           {feature}
                         </li>
                       ))}
                     </ul>
 
                     {/* Button */}
-                    <Button
-                      variant="neon-red"
-                      className="w-full group-hover:bg-cyber-neon-red/10 border-cyber-neon-orange text-cyber-neon-orange hover:border-cyber-neon-orange hover:shadow-neon-orange"
-                    >
+                    <Button className="w-full bg-red-600 hover:bg-red-700">
                       Enter Admin Panel
                       <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                     </Button>
@@ -210,7 +196,7 @@ export default function HomePage() {
 
         {/* Footer */}
         <footer className="p-6 text-center">
-          <p className="text-sm text-cyber-text-muted">
+          <p className="text-sm text-slate-400">
             Multi-Agent AI Detection System • Real-time Blockchain Security
           </p>
         </footer>

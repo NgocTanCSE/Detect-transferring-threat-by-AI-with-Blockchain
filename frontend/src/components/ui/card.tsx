@@ -21,7 +21,7 @@ const Card = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        "rounded-xl border bg-cyber-bg-card text-cyber-text-primary transition-all duration-300",
+        "rounded-2xl border bg-cyber-bg-card text-cyber-text-primary transition-all duration-300",
         glowClasses[glow],
         className
       )}

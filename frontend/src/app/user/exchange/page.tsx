@@ -57,6 +57,10 @@ export default function UserExchange() {
   const [senderBalanceLoading, setSenderBalanceLoading] = useState(false);
   const [senderBalanceError, setSenderBalanceError] = useState<string | null>(null);
 
+  // Sender transaction history state
+  const [senderTransactions, setSenderTransactions] = useState<Transaction[]>([]);
+  const [senderTxLoading, setSenderTxLoading] = useState(false);
+
   // Receiver risk assessment state (only risk, not balance)
   const [receiverRisk, setReceiverRisk] = useState<{ risk_score: number; risk_level: string } | null>(null);
   const [receiverRiskLoading, setReceiverRiskLoading] = useState(false);
@@ -71,25 +75,37 @@ export default function UserExchange() {
   );
   const [currentWarnings, setCurrentWarnings] = useState(0);
 
-  // Fetch sender balance when address changes
+  // Fetch sender balance and transaction history when address changes
   const fetchSenderBalanceHandler = useCallback(async (address: string) => {
     if (!address || address.length < 42 || !address.startsWith("0x")) {
       setSenderBalance(null);
       setSenderBalanceError(null);
+      setSenderTransactions([]);
       return;
     }
 
     setSenderBalanceLoading(true);
     setSenderBalanceError(null);
+    setSenderTxLoading(true);
 
     try {
-      const balance = await fetchWalletBalance(address);
+      // Fetch balance and transactions in parallel
+      const [balance, txData] = await Promise.all([
+        fetchWalletBalance(address),
+        fetchWalletTransactions(address, 10)
+      ]);
       setSenderBalance(balance);
+      // API returns {transactions: [...]} so extract the array
+      const txResponse = txData as unknown as { transactions: Transaction[] } | Transaction[];
+      const transactions = Array.isArray(txResponse) ? txResponse : (txResponse?.transactions || []);
+      setSenderTransactions(transactions);
     } catch (error) {
       setSenderBalanceError("Không thể lấy thông tin ví");
       setSenderBalance(null);
+      setSenderTransactions([]);
     } finally {
       setSenderBalanceLoading(false);
+      setSenderTxLoading(false);
     }
   }, []);
 
@@ -101,6 +117,7 @@ export default function UserExchange() {
       } else {
         setSenderBalance(null);
         setSenderBalanceError(null);
+        setSenderTransactions([]);
       }
     }, 500);
 
@@ -213,17 +230,17 @@ export default function UserExchange() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-cyber-bg-dark to-cyber-bg-darker p-6">
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-900 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Send Form */}
-        <Card className="border-cyber-border">
+        <Card className="border-slate-700 bg-slate-800/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-cyber-neon-cyan" />
+              <Send className="h-5 w-5 text-cyan-400" />
               Send ETH
-              <div className="ml-auto flex items-center gap-2 bg-cyber-neon-green/10 border border-cyber-neon-green/30 rounded-full px-3 py-1.5">
-                <ShieldCheck className="h-4 w-4 text-cyber-neon-green" />
-                <span className="text-sm text-cyber-neon-green font-medium">
+              <div className="ml-auto flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-3 py-1.5">
+                <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                <span className="text-sm text-emerald-400 font-medium">
                   AI Protected
                 </span>
               </div>
@@ -231,14 +248,14 @@ export default function UserExchange() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Security Notice */}
-            <div className="bg-cyber-neon-cyan/5 border border-cyber-neon-cyan/30 rounded-lg p-4">
+            <div className="bg-cyan-500/5 border border-cyan-500/30 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-cyber-neon-cyan shrink-0 mt-0.5" />
+                <Info className="h-5 w-5 text-cyan-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm text-cyber-text-primary font-medium">
+                  <p className="text-sm text-slate-100 font-medium">
                     AI Protection Active
                   </p>
-                  <p className="text-xs text-cyber-text-muted mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     All transfers are checked against our AI fraud detection system.
                     Transfers to high-risk wallets (score &gt; 80) will be blocked
                     automatically.
@@ -255,11 +272,11 @@ export default function UserExchange() {
                 placeholder="0x..."
                 value={fromWalletId}
                 onChange={(e) => setFromWalletId(e.target.value)}
-                className="font-mono"
+                className="font-mono bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500"
               />
               {/* Sender Balance Info */}
               {senderBalanceLoading && (
-                <div className="flex items-center gap-2 text-cyber-text-muted text-sm">
+                <div className="flex items-center gap-2 text-slate-400 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Đang kiểm tra ví...</span>
                 </div>
@@ -271,106 +288,110 @@ export default function UserExchange() {
                 </div>
               )}
               {senderBalance && !senderBalanceLoading && (
-                <div className="bg-cyber-bg-elevated border border-cyber-border rounded-lg p-3 mt-2">
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mt-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-cyber-neon-cyan" />
-                      <span className="text-sm text-cyber-text-muted">Số dư khả dụng:</span>
+                      <Wallet className="h-4 w-4 text-cyan-400" />
+                      <span className="text-sm text-slate-400">Số dư khả dụng:</span>
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-lg font-bold text-cyber-text-primary">
+                      <span className="text-lg font-bold text-slate-100">
                         {senderBalance.balance_eth.toFixed(4)}
                       </span>
-                      <span className="text-sm text-cyber-neon-cyan">ETH</span>
+                      <span className="text-sm text-cyan-400">ETH</span>
                     </div>
                   </div>
+
+                  {/* Transaction History removed from here */}
                 </div>
               )}
             </div>
 
             {/* To Wallet ID */}
             <div className="space-y-2">
-              <Label htmlFor="toWalletId">To Wallet ID</Label>
               <Input
                 id="toWalletId"
-                placeholder="Enter recipient wallet ID..."
+                placeholder="0x... hoặc Wallet ID"
                 value={toWalletId}
-                onChange={(e) => setToWalletId(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setToWalletId(value);
+                  // Auto-sync to recipient address if it looks like an Ethereum address
+                  if (value.startsWith("0x") && value.length >= 10) {
+                    setToAddress(value);
+                  }
+                }}
+                className="font-mono bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500"
               />
+              <p className="text-xs text-slate-500">
+                Nhập địa chỉ ví Ethereum (0x...) hoặc Wallet ID
+              </p>
             </div>
 
-            {/* Recipient Address */}
-            <div className="space-y-2">
-              <Label htmlFor="toAddress">Recipient Address</Label>
-              <Input
-                id="toAddress"
-                placeholder="0x..."
-                value={toAddress}
-                onChange={(e) => setToAddress(e.target.value)}
-                className="font-mono"
-              />
-              {/* Receiver Risk Assessment */}
-              {receiverRiskLoading && (
-                <div className="flex items-center gap-2 text-cyber-text-muted text-sm">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Đang kiểm tra độ an toàn...</span>
-                </div>
-              )}
-              {receiverRiskError && (
-                <div className="flex items-center gap-2 text-yellow-400 text-sm">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span>{receiverRiskError}</span>
-                </div>
-              )}
-              {receiverRisk && !receiverRiskLoading && (
-                <div className={`border rounded-lg p-3 mt-2 ${receiverRisk.risk_score >= 80
-                    ? 'bg-red-500/10 border-red-500/30'
-                    : receiverRisk.risk_score >= 60
-                      ? 'bg-orange-500/10 border-orange-500/30'
-                      : receiverRisk.risk_score >= 40
-                        ? 'bg-yellow-500/10 border-yellow-500/30'
-                        : 'bg-green-500/10 border-green-500/30'
-                  }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {receiverRisk.risk_score >= 60 ? (
-                        <ShieldAlert className={`h-5 w-5 ${receiverRisk.risk_score >= 80 ? 'text-red-400' : 'text-orange-400'
-                          }`} />
-                      ) : (
-                        <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-yellow-400' : 'text-green-400'
-                          }`} />
-                      )}
-                      <span className="text-sm font-medium text-cyber-text-primary">
-                        {receiverRisk.risk_score >= 80
-                          ? '⚠️ Địa chỉ nguy hiểm!'
-                          : receiverRisk.risk_score >= 60
-                            ? '⚠️ Địa chỉ rủi ro cao'
-                            : receiverRisk.risk_score >= 40
-                              ? '⚠️ Cần cẩn thận'
-                              : '✅ Địa chỉ an toàn'}
-                      </span>
-                    </div>
-                    <Badge variant="outline" className={`${receiverRisk.risk_score >= 80
-                        ? 'border-red-500 text-red-400'
-                        : receiverRisk.risk_score >= 60
-                          ? 'border-orange-500 text-orange-400'
-                          : receiverRisk.risk_score >= 40
-                            ? 'border-yellow-500 text-yellow-400'
-                            : 'border-green-500 text-green-400'
-                      }`}>
-                      Risk: {receiverRisk.risk_score.toFixed(0)}%
-                    </Badge>
-                  </div>
-                  {receiverRisk.risk_score >= 60 && (
-                    <p className="text-xs text-cyber-text-muted mt-2">
+            {/* Recipient Address - Hidden input, synced from toWalletId */}
+            <input type="hidden" value={toAddress} />
+
+            {/* Receiver Risk Assessment - Shown below To Wallet ID */}
+            {receiverRiskLoading && (
+              <div className="flex items-center gap-2 text-slate-400 text-sm -mt-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Đang kiểm tra độ an toàn...</span>
+              </div>
+            )}
+            {receiverRiskError && (
+              <div className="flex items-center gap-2 text-yellow-400 text-sm -mt-2">
+                <AlertTriangle className="h-4 w-4" />
+                <span>{receiverRiskError}</span>
+              </div>
+            )}
+            {receiverRisk && !receiverRiskLoading && (
+              <div className={`border rounded-lg p-3 -mt-2 ${receiverRisk.risk_score >= 80
+                ? 'bg-red-500/10 border-red-500/30'
+                : receiverRisk.risk_score >= 60
+                  ? 'bg-orange-500/10 border-orange-500/30'
+                  : receiverRisk.risk_score >= 40
+                    ? 'bg-yellow-500/10 border-yellow-500/30'
+                    : 'bg-green-500/10 border-green-500/30'
+                }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {receiverRisk.risk_score >= 60 ? (
+                      <ShieldAlert className={`h-5 w-5 ${receiverRisk.risk_score >= 80 ? 'text-red-400' : 'text-orange-400'
+                        }`} />
+                    ) : (
+                      <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-yellow-400' : 'text-green-400'
+                        }`} />
+                    )}
+                    <span className="text-sm font-medium text-slate-100">
                       {receiverRisk.risk_score >= 80
-                        ? 'Giao dịch đến địa chỉ này sẽ bị chặn tự động!'
-                        : 'Bạn sẽ nhận được cảnh báo nếu tiếp tục giao dịch.'}
-                    </p>
-                  )}
+                        ? '⚠️ Địa chỉ nguy hiểm!'
+                        : receiverRisk.risk_score >= 60
+                          ? '⚠️ Địa chỉ rủi ro cao'
+                          : receiverRisk.risk_score >= 40
+                            ? '⚠️ Cần cẩn thận'
+                            : '✅ Địa chỉ an toàn'}
+                    </span>
+                  </div>
+                  <Badge variant="outline" className={`${receiverRisk.risk_score >= 80
+                    ? 'border-red-500 text-red-400'
+                    : receiverRisk.risk_score >= 60
+                      ? 'border-orange-500 text-orange-400'
+                      : receiverRisk.risk_score >= 40
+                        ? 'border-yellow-500 text-yellow-400'
+                        : 'border-green-500 text-green-400'
+                    }`}>
+                    Risk: {receiverRisk.risk_score.toFixed(0)}%
+                  </Badge>
                 </div>
-              )}
-            </div>
+                {receiverRisk.risk_score >= 60 && (
+                  <p className="text-xs text-slate-400 mt-2">
+                    {receiverRisk.risk_score >= 80
+                      ? 'Giao dịch đến địa chỉ này sẽ bị chặn tự động!'
+                      : 'Bạn sẽ nhận được cảnh báo nếu tiếp tục giao dịch.'}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Amount */}
             <div className="space-y-2">
@@ -384,14 +405,14 @@ export default function UserExchange() {
                   placeholder="0.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="pr-16"
+                  className="pr-16 bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-cyber-text-muted">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                   ETH
                 </span>
               </div>
               {senderBalance && (
-                <p className="text-xs text-cyber-text-muted">
+                <p className="text-xs text-slate-400">
                   Khả dụng: {senderBalance.balance_eth.toFixed(4)} ETH
                 </p>
               )}
@@ -412,7 +433,7 @@ export default function UserExchange() {
             >
               {transferMutation.isPending ? (
                 <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-cyber-bg-dark" />
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-900" />
                   Checking...
                 </div>
               ) : (
@@ -426,51 +447,52 @@ export default function UserExchange() {
         </Card>
 
         {/* Recent Transactions */}
-        <Card className="border-cyber-border">
+        <Card className="border-slate-700 bg-slate-800/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-cyber-text-muted" />
+              <Clock className="h-5 w-5 text-slate-400" />
               Recent Transactions
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {txLoading ? (
+            {(fromWalletId ? senderTxLoading : txLoading) ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyber-neon-cyan" />
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-400" />
               </div>
-            ) : transactions?.length === 0 ? (
-              <div className="text-center py-8 text-cyber-text-muted">
+            ) : (fromWalletId ? senderTransactions : transactions)?.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
                 <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No transactions yet</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {transactions?.slice(0, 5).map((tx) => {
+                {(fromWalletId ? senderTransactions : transactions)?.slice(0, 5).map((tx: any) => {
+                  const currentWallet = fromWalletId || DEMO_WALLET;
                   const isSent =
-                    tx.from_address.toLowerCase() === DEMO_WALLET.toLowerCase();
+                    tx.from_address.toLowerCase() === currentWallet.toLowerCase();
                   return (
                     <div
                       key={tx.tx_hash}
-                      className="flex items-center justify-between p-4 rounded-lg bg-cyber-bg-elevated border border-cyber-border"
+                      className="flex items-center justify-between p-4 rounded-lg bg-slate-800 border border-slate-700"
                     >
                       <div className="flex items-center gap-3">
                         <div
                           className={`p-2 rounded-lg ${isSent
-                            ? "bg-cyber-neon-red/10 border-cyber-neon-red/30"
-                            : "bg-cyber-neon-green/10 border-cyber-neon-green/30"
+                            ? "bg-red-500/10 border-red-500/30"
+                            : "bg-emerald-500/10 border-emerald-500/30"
                             } border`}
                         >
                           {isSent ? (
-                            <ArrowUpRight className="h-5 w-5 text-cyber-neon-red" />
+                            <ArrowUpRight className="h-5 w-5 text-red-400" />
                           ) : (
-                            <ArrowDownLeft className="h-5 w-5 text-cyber-neon-green" />
+                            <ArrowDownLeft className="h-5 w-5 text-emerald-400" />
                           )}
                         </div>
                         <div>
-                          <p className="font-medium text-cyber-text-primary">
+                          <p className="font-medium text-slate-100">
                             {isSent ? "Sent" : "Received"}
                           </p>
-                          <p className="text-sm text-cyber-text-muted font-mono">
+                          <p className="text-sm text-slate-400 font-mono">
                             {isSent
                               ? `To: ${formatAddress(tx.to_address)}`
                               : `From: ${formatAddress(tx.from_address)}`}
@@ -479,13 +501,13 @@ export default function UserExchange() {
                       </div>
                       <div className="text-right">
                         <p
-                          className={`font-bold ${isSent ? "text-cyber-neon-red" : "text-cyber-neon-green"
+                          className={`font-bold ${isSent ? "text-red-400" : "text-emerald-400"
                             }`}
                         >
                           {isSent ? "-" : "+"}
                           {formatEth(tx.value_wei)} ETH
                         </p>
-                        <p className="text-xs text-cyber-text-muted">
+                        <p className="text-xs text-slate-400">
                           {formatDate(tx.timestamp)}
                         </p>
                       </div>
@@ -507,7 +529,7 @@ export default function UserExchange() {
       <Dialog open={showWarningDialog} onOpenChange={setShowWarningDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-cyber-neon-orange">
+            <DialogTitle className="flex items-center gap-2 text-orange-400">
               <AlertTriangle className="h-6 w-6" />
               Risk Warning
             </DialogTitle>
@@ -526,7 +548,7 @@ export default function UserExchange() {
                     cy="64"
                     r="56"
                     fill="none"
-                    stroke="#1a1a2e"
+                    stroke="#334155"
                     strokeWidth="12"
                   />
                   <circle
@@ -534,7 +556,7 @@ export default function UserExchange() {
                     cy="64"
                     r="56"
                     fill="none"
-                    stroke="#ff6600"
+                    stroke="#f97316"
                     strokeWidth="12"
                     strokeDasharray={`${((transferResponse?.receiver_risk || 0) / 100) * 352
                       } 352`}
@@ -542,43 +564,43 @@ export default function UserExchange() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold text-cyber-neon-orange">
+                  <span className="text-3xl font-bold text-orange-400">
                     {transferResponse?.receiver_risk?.toFixed(0) || 0}
                   </span>
-                  <span className="text-xs text-cyber-text-muted">Risk Score</span>
+                  <span className="text-xs text-slate-400">Risk Score</span>
                 </div>
               </div>
             </div>
 
             {/* Warning Message */}
-            <div className="bg-cyber-neon-orange/10 border border-cyber-neon-orange/30 rounded-lg p-4">
-              <p className="text-sm text-cyber-text-primary">
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4">
+              <p className="text-sm text-slate-100">
                 {transferResponse?.message}
               </p>
             </div>
 
             {/* Warning Count */}
             <div className="flex items-center justify-center gap-2">
-              <span className="text-sm text-cyber-text-muted">Warnings:</span>
+              <span className="text-sm text-slate-400">Warnings:</span>
               <div className="flex items-center gap-1">
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
                     className={`w-3 h-3 rounded-full ${i <= currentWarnings
-                      ? "bg-cyber-neon-red"
-                      : "bg-cyber-border"
+                      ? "bg-red-400"
+                      : "bg-slate-600"
                       }`}
                   />
                 ))}
               </div>
-              <span className="text-sm text-cyber-neon-orange font-medium">
+              <span className="text-sm text-orange-400 font-medium">
                 {transferResponse?.warning_text}
               </span>
             </div>
 
             {currentWarnings >= 2 && (
-              <div className="bg-cyber-neon-red/10 border border-cyber-neon-red/30 rounded-lg p-3">
-                <p className="text-sm text-cyber-neon-red flex items-center gap-2">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                <p className="text-sm text-red-400 flex items-center gap-2">
                   <ShieldAlert className="h-4 w-4" />
                   Final warning! Your account will be suspended if you proceed.
                 </p>
@@ -605,7 +627,7 @@ export default function UserExchange() {
       <Dialog open={showBlockedDialog} onOpenChange={setShowBlockedDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-cyber-neon-red">
+            <DialogTitle className="flex items-center gap-2 text-red-400">
               <AlertOctagon className="h-6 w-6" />
               Transfer Blocked
             </DialogTitle>
@@ -615,22 +637,22 @@ export default function UserExchange() {
             {/* Blocked Icon */}
             <div className="flex items-center justify-center">
               <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-cyber-neon-red/20 flex items-center justify-center animate-pulse">
-                  <XCircle className="h-12 w-12 text-cyber-neon-red" />
+                <div className="w-24 h-24 rounded-full bg-red-500/20 flex items-center justify-center animate-pulse">
+                  <XCircle className="h-12 w-12 text-red-400" />
                 </div>
               </div>
             </div>
 
             {/* Block Reason */}
-            <div className="bg-cyber-neon-red/10 border border-cyber-neon-red/30 rounded-lg p-4">
-              <p className="text-sm text-cyber-text-primary text-center">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+              <p className="text-sm text-slate-100 text-center">
                 {transferResponse?.message ||
                   "This transfer has been blocked due to high risk."}
               </p>
             </div>
 
             <div className="text-center">
-              <p className="text-cyber-text-muted text-sm">
+              <p className="text-slate-400 text-sm">
                 The recipient wallet has a critical risk score and has been
                 identified as potentially fraudulent.
               </p>
@@ -656,7 +678,7 @@ export default function UserExchange() {
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-cyber-neon-green">
+            <DialogTitle className="flex items-center gap-2 text-emerald-400">
               <CheckCircle2 className="h-6 w-6" />
               Transfer Successful
             </DialogTitle>
@@ -665,17 +687,17 @@ export default function UserExchange() {
           <div className="space-y-4 py-4">
             {/* Success Icon */}
             <div className="flex items-center justify-center">
-              <div className="w-24 h-24 rounded-full bg-cyber-neon-green/20 flex items-center justify-center">
-                <CheckCircle2 className="h-12 w-12 text-cyber-neon-green" />
+              <div className="w-24 h-24 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CheckCircle2 className="h-12 w-12 text-emerald-400" />
               </div>
             </div>
 
             <div className="text-center">
-              <p className="text-cyber-text-primary">
+              <p className="text-slate-100">
                 Your transfer has been processed successfully.
               </p>
               {transferResponse?.tx_hash && (
-                <p className="text-sm text-cyber-text-muted mt-2 font-mono">
+                <p className="text-sm text-slate-400 mt-2 font-mono">
                   TX: {formatAddress(transferResponse.tx_hash, 10)}
                 </p>
               )}
@@ -684,8 +706,7 @@ export default function UserExchange() {
 
           <DialogFooter>
             <Button
-              className="w-full"
-              variant="neon-green"
+              className="w-full bg-emerald-600 hover:bg-emerald-700"
               onClick={() => setShowSuccessDialog(false)}
             >
               Done
@@ -693,6 +714,6 @@ export default function UserExchange() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }
