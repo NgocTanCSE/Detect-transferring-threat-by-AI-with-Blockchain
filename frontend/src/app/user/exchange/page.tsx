@@ -233,7 +233,7 @@ export default function UserExchange() {
     <div className="min-h-[calc(100vh-4rem)] bg-slate-900 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Send Form */}
-        <Card className="border-slate-700 bg-slate-800/50">
+        <Card className="glass-card glass-card-hover animate-slide-up gradient-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Send className="h-5 w-5 text-cyan-400" />
@@ -447,7 +447,7 @@ export default function UserExchange() {
         </Card>
 
         {/* Recent Transactions */}
-        <Card className="border-slate-700 bg-slate-800/50">
+        <Card className="glass-card glass-card-hover animate-slide-up stagger-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-slate-400" />

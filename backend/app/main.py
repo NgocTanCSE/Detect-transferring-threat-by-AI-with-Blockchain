@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case
 
 from app.core.database import engine, get_db, Base, ensure_schema
-from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog
+from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel
 from blockchain_client import fetch_wallet_history
 from app.services.ai_engine import MultiAgentDetectionEngine
 
@@ -1200,6 +1200,165 @@ def get_wallet_transactions(
         "address": normalized_address,
         "transactions": tx_list,
         "count": len(tx_list)
+    }
+
+
+# ==========================================
+# FEEDBACK LOOP ENDPOINTS (AI Training)
+# ==========================================
+
+@app.post("/feedback", tags=["Admin - Feedback"])
+def submit_ai_feedback(
+    payload: Dict[str, Any],
+    database_session: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Submit admin feedback on AI risk prediction.
+
+    This enables the feedback loop for model retraining:
+    - Admin confirms or rejects AI verdicts
+    - Labeled data is stored for periodic model retraining
+
+    Args:
+        wallet_address: Target wallet address
+        admin_label: 'fraud', 'safe', or 'uncertain'
+        admin_category: Optional category (money_laundering, scam, wash_trading)
+        admin_notes: Optional notes explaining the decision
+        admin_username: Who submitted the feedback
+    """
+    wallet_address = str(payload.get("wallet_address", "")).lower().strip()
+    admin_label = str(payload.get("admin_label", "")).lower().strip()
+    admin_category = payload.get("admin_category")
+    admin_notes = payload.get("admin_notes")
+    admin_username = str(payload.get("admin_username", "anonymous"))
+
+    # Validate inputs
+    if not wallet_address or not wallet_address.startswith("0x"):
+        raise HTTPException(status_code=400, detail="Invalid wallet_address")
+
+    valid_labels = ['fraud', 'safe', 'uncertain']
+    if admin_label not in valid_labels:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid admin_label. Must be one of: {valid_labels}"
+        )
+
+    # Get current AI assessment for this wallet
+    wallet = database_session.query(Wallet).filter(
+        Wallet.address == wallet_address
+    ).first()
+
+    ai_score = float(wallet.risk_score or 0) if wallet else 0.0
+    ai_risk_level = "LOW"
+    if ai_score >= 90:
+        ai_risk_level = "CRITICAL"
+    elif ai_score >= 70:
+        ai_risk_level = "HIGH"
+    elif ai_score >= 50:
+        ai_risk_level = "MEDIUM"
+
+    # Create feedback record
+    feedback = FeedbackLabel(
+        wallet_address=wallet_address,
+        ai_score=ai_score,
+        ai_risk_level=ai_risk_level,
+        ai_model_version="Hybrid-ML-v2.0",
+        admin_label=admin_label,
+        admin_category=admin_category,
+        admin_notes=admin_notes,
+        admin_username=admin_username
+    )
+    database_session.add(feedback)
+
+    # Update wallet based on admin feedback
+    if wallet and admin_label == 'fraud':
+        wallet.account_status = 'frozen'
+        wallet.risk_category = admin_category or wallet.risk_category
+        wallet.flagged_at = datetime.utcnow()
+        wallet.flagged_by = f"ADMIN:{admin_username}"
+        wallet.notes = f"{wallet.notes or ''}\n[{datetime.utcnow().isoformat()}] Admin confirmed as fraud." if wallet.notes else f"[{datetime.utcnow().isoformat()}] Admin confirmed as fraud."
+
+        # Also add to blacklist if not already there
+        existing_blacklist = database_session.query(Blacklist).filter(
+            Blacklist.address == wallet_address
+        ).first()
+        if not existing_blacklist:
+            blacklist_entry = Blacklist(
+                address=wallet_address,
+                category=admin_category or 'admin_flagged',
+                source=f"Admin: {admin_username}",
+                description=admin_notes or "Confirmed fraud by admin",
+                severity="CRITICAL"
+            )
+            database_session.add(blacklist_entry)
+
+    elif wallet and admin_label == 'safe':
+        wallet.account_status = 'active'
+        wallet.risk_score = max(0, wallet.risk_score - 20) if wallet.risk_score else 0
+        wallet.notes = f"{wallet.notes or ''}\n[{datetime.utcnow().isoformat()}] Admin marked as safe." if wallet.notes else f"[{datetime.utcnow().isoformat()}] Admin marked as safe."
+
+    # Create audit log
+    audit = AuditLog(
+        action_type="FEEDBACK_SUBMITTED",
+        entity_type="wallet",
+        user_identifier=admin_username,
+        details={
+            "wallet_address": wallet_address,
+            "ai_score": ai_score,
+            "admin_label": admin_label,
+            "admin_category": admin_category
+        }
+    )
+    database_session.add(audit)
+    database_session.commit()
+
+    # Get count of unlabeled data for training info
+    unlabeled_count = database_session.query(FeedbackLabel).filter(
+        FeedbackLabel.used_for_training == False
+    ).count()
+
+    logger.info(
+        f"FEEDBACK_RECORDED | wallet={wallet_address[:10]}... | "
+        f"label={admin_label} | by={admin_username}"
+    )
+
+    return {
+        "success": True,
+        "feedback_id": str(feedback.id),
+        "wallet_address": wallet_address,
+        "admin_label": admin_label,
+        "ai_score_at_time": ai_score,
+        "wallet_status_updated": wallet.account_status if wallet else None,
+        "unlabeled_samples_for_training": unlabeled_count
+    }
+
+
+@app.get("/feedback/stats", tags=["Admin - Feedback"])
+def get_feedback_stats(
+    database_session: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get statistics on admin feedback for training monitoring.
+    """
+    from sqlalchemy import func
+
+    total = database_session.query(FeedbackLabel).count()
+    unlabeled = database_session.query(FeedbackLabel).filter(
+        FeedbackLabel.used_for_training == False
+    ).count()
+
+    # Count by label
+    label_counts = database_session.query(
+        FeedbackLabel.admin_label,
+        func.count(FeedbackLabel.id)
+    ).group_by(FeedbackLabel.admin_label).all()
+
+    return {
+        "total_feedback": total,
+        "unlabeled_for_training": unlabeled,
+        "used_for_training": total - unlabeled,
+        "by_label": {label: count for label, count in label_counts},
+        "ready_for_retraining": unlabeled >= 50  # Threshold hint
     }
 
 

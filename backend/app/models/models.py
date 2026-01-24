@@ -227,3 +227,37 @@ class AuditLog(Base):
 
     def __repr__(self) -> str:
         return f"<AuditLog(action={self.action_type}, entity={self.entity_type})>"
+
+
+class FeedbackLabel(Base):
+    """
+    Admin feedback on AI predictions for model retraining.
+
+    Stores corrections when admin confirms or rejects AI verdicts,
+    enabling supervised learning feedback loop.
+    """
+
+    __tablename__ = "feedback_labels"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    wallet_address = Column(String(255), nullable=False, index=True)
+
+    # AI prediction at time of feedback
+    ai_score = Column(Float, nullable=False)
+    ai_risk_level = Column(String(20), nullable=False)
+    ai_model_version = Column(String(50), nullable=True)
+
+    # Admin correction
+    admin_label = Column(String(20), nullable=False)  # 'fraud', 'safe', 'uncertain'
+    admin_category = Column(String(50), nullable=True)  # money_laundering, scam, wash_trading
+    admin_notes = Column(Text, nullable=True)
+    admin_username = Column(String(100), nullable=False, index=True)
+
+    # Metadata
+    used_for_training = Column(Boolean, default=False, index=True)
+    training_batch_id = Column(String(50), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def __repr__(self) -> str:
+        return f"<FeedbackLabel(wallet={self.wallet_address[:10]}, label={self.admin_label}, by={self.admin_username})>"
+

@@ -121,7 +121,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between animate-fade-in">
         <div>
           <h1 className="text-2xl font-semibold text-white">
             AI Detection Dashboard
@@ -133,7 +133,7 @@ export default function AdminDashboard() {
         <Button
           variant="outline"
           size="sm"
-          className="text-slate-300 border-slate-600 hover:bg-slate-800 hover:text-white"
+          className="btn-glow text-slate-300 border-slate-600 hover:bg-slate-800 hover:text-white hover:border-cyan-500/50"
           onClick={() => {
             queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
             queryClient.invalidateQueries({ queryKey: ["wallets"] });
@@ -147,17 +147,17 @@ export default function AdminDashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Money Laundering Card */}
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="glass-card glass-card-hover border-cyan-500/20">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">
               Money Laundering
             </CardTitle>
-            <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 border border-cyan-500/30">
               <Droplets className="h-5 w-5 text-cyan-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold text-white">
+            <div className="text-3xl font-bold text-white">
               {statsLoading ? "..." : stats?.money_laundering.wallet_count || 0}
             </div>
             <p className="text-xs text-slate-500 mt-1">
@@ -167,17 +167,17 @@ export default function AdminDashboard() {
         </Card>
 
         {/* Manipulation Card */}
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="glass-card glass-card-hover border-orange-500/20">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">
               Market Manipulation
             </CardTitle>
-            <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/30">
               <TrendingUp className="h-5 w-5 text-orange-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold text-white">
+            <div className="text-3xl font-bold text-white">
               {statsLoading ? "..." : stats?.manipulation.wallet_count || 0}
             </div>
             <p className="text-xs text-slate-500 mt-1">
@@ -187,17 +187,17 @@ export default function AdminDashboard() {
         </Card>
 
         {/* Scam Card */}
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="glass-card glass-card-hover border-red-500/20">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">
               Scam Detection
             </CardTitle>
-            <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/30">
               <Fish className="h-5 w-5 text-red-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold text-white">
+            <div className="text-3xl font-bold text-white">
               {statsLoading ? "..." : stats?.scam.wallet_count || 0}
             </div>
             <p className="text-xs text-slate-500 mt-1">
@@ -207,17 +207,17 @@ export default function AdminDashboard() {
         </Card>
 
         {/* Overview Card */}
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="glass-card glass-card-hover border-violet-500/20">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">
               Total Overview
             </CardTitle>
-            <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-violet-500/20 to-violet-600/10 border border-violet-500/30">
               <Activity className="h-5 w-5 text-violet-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold text-white">
+            <div className="text-3xl font-bold text-white">
               {statsLoading ? "..." : stats?.overview.total_wallets || 0}
             </div>
             <div className="flex items-center gap-3 mt-1">
@@ -235,10 +235,12 @@ export default function AdminDashboard() {
 
       {/* Alert Ticker */}
       {alerts && alerts.length > 0 && (
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3 overflow-hidden">
+        <div className="glass-card rounded-xl p-4 overflow-hidden animate-fade-in border-red-500/20">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 shrink-0">
-              <ShieldAlert className="h-5 w-5 text-red-400" />
+              <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30 animate-pulse-glow">
+                <ShieldAlert className="h-5 w-5 text-red-400" />
+              </div>
               <span className="text-sm font-medium text-white">
                 Latest Alerts
               </span>
@@ -273,7 +275,7 @@ export default function AdminDashboard() {
       )}
 
       {/* Suspicious Accounts Table */}
-      <Card className="border-slate-700/50 bg-slate-800/30">
+      <Card className="glass-card glass-card-hover animate-slide-up border-slate-700/30">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-white">

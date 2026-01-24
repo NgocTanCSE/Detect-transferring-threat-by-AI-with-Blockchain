@@ -1,15 +1,165 @@
 """Multi-Agent AI Detection Engine for blockchain fraud detection."""
 
 import logging
+import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, Optional
 from collections import defaultdict
 
 import pandas as pd
 import numpy as np
+import joblib
 from sqlalchemy.orm import Session
 
+from app.services.feature_extractor import extract_transaction_features
+from app.core.config import (
+    MODEL_DIRECTORY,
+    RISK_MODEL_FILENAME,
+    SCALER_FILENAME,
+    FEATURES_FILENAME
+)
+
 logger = logging.getLogger(__name__)
+
+
+class MLRiskPredictor:
+    """
+    Machine Learning-based risk predictor using trained Random Forest model.
+
+    Loads the pre-trained model artifacts and provides probability-based
+    risk scoring for wallet transaction patterns.
+    """
+
+    _instance: Optional['MLRiskPredictor'] = None
+    _initialized: bool = False
+
+    def __new__(cls):
+        """Singleton pattern to avoid reloading model on each request."""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        """Load model artifacts on first initialization."""
+        if MLRiskPredictor._initialized:
+            return
+
+        self.model = None
+        self.scaler = None
+        self.feature_names = None
+        self.is_available = False
+
+        self._load_model_artifacts()
+        MLRiskPredictor._initialized = True
+
+    def _load_model_artifacts(self) -> None:
+        """Attempt to load trained model, scaler, and feature names."""
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            model_dir = os.path.join(base_dir, MODEL_DIRECTORY)
+
+            model_path = os.path.join(model_dir, RISK_MODEL_FILENAME)
+            scaler_path = os.path.join(model_dir, SCALER_FILENAME)
+            features_path = os.path.join(model_dir, FEATURES_FILENAME)
+
+            if not all(os.path.exists(p) for p in [model_path, scaler_path, features_path]):
+                logger.warning(f"Model artifacts not found in {model_dir}. ML predictions disabled.")
+                return
+
+            self.model = joblib.load(model_path)
+            self.scaler = joblib.load(scaler_path)
+            self.feature_names = joblib.load(features_path)
+            self.is_available = True
+
+            logger.info(f"ML model loaded successfully from {model_dir}")
+            logger.info(f"Model expects {len(self.feature_names)} features")
+
+        except Exception as e:
+            logger.error(f"Failed to load ML model: {e}")
+            self.is_available = False
+
+    def predict_risk(
+        self,
+        wallet_address: str,
+        transactions: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Predict fraud probability using the trained ML model.
+
+        Args:
+            wallet_address: Target wallet address
+            transactions: List of transaction dictionaries
+
+        Returns:
+            Dictionary with 'ml_score' (0-100), 'ml_confidence', and 'ml_available'
+        """
+        if not self.is_available or not transactions:
+            return {
+                'ml_score': 0.0,
+                'ml_confidence': 0.0,
+                'ml_available': False,
+                'ml_reason': 'Model not available or no transactions'
+            }
+
+        try:
+            # Extract features from transactions
+            features_df = extract_transaction_features(wallet_address, transactions)
+
+            # Align features with training schema
+            aligned_features = self._align_features(features_df)
+
+            # Scale features
+            scaled_features = self.scaler.transform(aligned_features)
+
+            # Predict probability
+            fraud_proba = self.model.predict_proba(scaled_features)[0]
+
+            # Index 1 is usually the "fraud" class probability
+            fraud_probability = float(fraud_proba[1]) if len(fraud_proba) > 1 else float(fraud_proba[0])
+
+            # Convert to 0-100 score
+            ml_score = fraud_probability * 100.0
+
+            # Confidence based on how far from 0.5 (decision boundary)
+            confidence = abs(fraud_probability - 0.5) * 2
+
+            logger.info(f"ML prediction for {wallet_address[:10]}...: score={ml_score:.1f}, conf={confidence:.2f}")
+
+            return {
+                'ml_score': ml_score,
+                'ml_confidence': confidence,
+                'ml_available': True,
+                'ml_reason': f'Random Forest prediction: {fraud_probability:.2%} fraud probability'
+            }
+
+        except Exception as e:
+            logger.warning(f"ML prediction failed for {wallet_address}: {e}")
+            return {
+                'ml_score': 0.0,
+                'ml_confidence': 0.0,
+                'ml_available': False,
+                'ml_reason': f'Prediction error: {str(e)}'
+            }
+
+    def _align_features(self, features_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Align extracted features with the model's expected feature schema.
+
+        Handles missing columns and extra columns gracefully.
+        """
+        aligned = pd.DataFrame(columns=self.feature_names)
+
+        for col in self.feature_names:
+            if col in features_df.columns:
+                aligned[col] = features_df[col].values
+            else:
+                aligned[col] = 0.0
+
+        # Fill any NaN values
+        aligned = aligned.fillna(0.0)
+
+        return aligned
+
 
 # Known Mixer/Tumbler addresses (lowercase)
 KNOWN_MIXERS = {
@@ -37,13 +187,14 @@ class MultiAgentDetectionEngine:
 
     def __init__(self, database_session: Session = None):
         """
-        Initialize detection engine.
+        Initialize detection engine with ML predictor.
 
         Args:
             database_session: Optional SQLAlchemy session for blacklist checking
         """
         self.db_session = database_session
-        logger.info("Multi-Agent Detection Engine initialized")
+        self.ml_predictor = MLRiskPredictor()
+        logger.info(f"Multi-Agent Detection Engine initialized (ML available: {self.ml_predictor.is_available})")
 
     def analyze_wallet(
         self,
@@ -69,7 +220,7 @@ class MultiAgentDetectionEngine:
             wallet_age_days = self._calculate_wallet_age(transactions)
 
         # Run all detection agents
-        ml_result = self.detect_money_laundering(transactions, normalized_address)
+        laundering_result = self.detect_money_laundering(transactions, normalized_address)
         wt_result = self.detect_wash_trading(transactions, normalized_address)
         scam_result = self.detect_scam_behavior(
             transactions,
@@ -77,12 +228,21 @@ class MultiAgentDetectionEngine:
             wallet_age_days or 365
         )
 
-        # Aggregate risk score
-        final_risk = self.aggregate_risk(ml_result, wt_result, scam_result)
+        # Run ML-based prediction
+        ml_prediction = self.ml_predictor.predict_risk(normalized_address, transactions)
+
+        # Aggregate risk score (blend heuristics + ML)
+        final_risk = self.aggregate_risk(
+            laundering_result=laundering_result,
+            wt_result=wt_result,
+            scam_result=scam_result,
+            ml_prediction=ml_prediction,
+            transactions=transactions
+        )
 
         logger.info(
             f"Risk analysis complete for {normalized_address[:10]}... "
-            f"Score: {final_risk['total_score']}"
+            f"Score: {final_risk['total_score']} (ML: {ml_prediction.get('ml_score', 0):.1f})"
         )
 
         return final_risk
@@ -244,72 +404,113 @@ class MultiAgentDetectionEngine:
 
     def aggregate_risk(
         self,
-        ml_result: Dict[str, Any],
+        laundering_result: Dict[str, Any],
         wt_result: Dict[str, Any],
-        scam_result: Dict[str, Any]
+        scam_result: Dict[str, Any],
+        ml_prediction: Dict[str, Any] = None,
+        transactions: List[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Aggregate results from all detection agents.
+        Aggregate results from all detection agents and ML model.
 
-        Risk scoring logic:
-        - Blacklist match: 99 (override)
-        - Money laundering: 90
-        - Wash trading: 70
-        - Scam behavior: 85
-        - Multiple flags: Maximum + 5
+        Hybrid scoring strategy:
+        - If ML available: 60% ML score + 40% heuristic score
+        - If ML unavailable: 100% heuristic score
+        - Blacklist always overrides to 99
 
         Args:
-            ml_result: Money laundering detection result
+            laundering_result: Money laundering detection result
             wt_result: Wash trading detection result
             scam_result: Scam detection result
+            ml_prediction: ML model prediction (optional)
+            transactions: Original transactions for context
 
         Returns:
-            Final risk assessment
+            Final risk assessment with blended score
         """
-        total_score = 0
+        heuristic_score = 0
         detection_count = 0
+        ml_prediction = ml_prediction or {}
 
-        # Check for blacklist (highest priority)
+        # Check for blacklist (highest priority - overrides everything)
         if scam_result['detected'] and any('Blacklist' in r for r in scam_result['reasons']):
-            total_score = 99
+            return {
+                'total_score': 99.0,
+                'risk_level': 'CRITICAL',
+                'breakdown': {
+                    'money_laundering': laundering_result,
+                    'wash_trading': wt_result,
+                    'scam': scam_result,
+                    'ml_prediction': ml_prediction
+                },
+                'detection_count': 1,
+                'model': 'Blacklist-Override',
+                'ml_contribution': 0.0,
+                'heuristic_contribution': 99.0
+            }
+
+        # Calculate heuristic score
+        if laundering_result['detected']:
+            heuristic_score = max(heuristic_score, 90)
+            detection_count += 1
+
+        if wt_result['detected']:
+            heuristic_score = max(heuristic_score, 70)
+            detection_count += 1
+
+        if scam_result['detected']:
+            heuristic_score = max(heuristic_score, 85)
+            detection_count += 1
+
+        # Bonus for multiple flags
+        if detection_count >= 2:
+            heuristic_score = min(99, heuristic_score + 5)
+
+        # Blend ML and heuristic scores
+        ml_available = ml_prediction.get('ml_available', False)
+        ml_score = ml_prediction.get('ml_score', 0.0)
+        ml_confidence = ml_prediction.get('ml_confidence', 0.0)
+
+        if ml_available and ml_confidence > 0.3:
+            # Weighted blend: 60% ML + 40% heuristic
+            # Adjust weights based on ML confidence
+            ml_weight = 0.6 * ml_confidence
+            heuristic_weight = 1.0 - ml_weight
+            total_score = (ml_score * ml_weight) + (heuristic_score * heuristic_weight)
+            model_name = 'Hybrid-ML-v2.0'
         else:
-            # Weighted scoring
-            if ml_result['detected']:
-                total_score = max(total_score, 90)
-                detection_count += 1
+            # Fallback to pure heuristic
+            total_score = float(heuristic_score)
+            ml_weight = 0.0
+            heuristic_weight = 1.0
+            model_name = 'Multi-Agent-v1.0'
 
-            if wt_result['detected']:
-                total_score = max(total_score, 70)
-                detection_count += 1
-
-            if scam_result['detected']:
-                total_score = max(total_score, 85)
-                detection_count += 1
-
-            # Bonus for multiple flags
-            if detection_count >= 2:
-                total_score = min(99, total_score + 5)
+        # Ensure score is in valid range
+        total_score = max(0.0, min(99.0, total_score))
 
         # Determine risk level
         if total_score >= RISK_THRESHOLD_CRITICAL:
-            risk_level = "CRITICAL"
+            risk_level = 'CRITICAL'
         elif total_score >= RISK_THRESHOLD_HIGH:
-            risk_level = "HIGH"
+            risk_level = 'HIGH'
         elif total_score >= RISK_THRESHOLD_MEDIUM:
-            risk_level = "MEDIUM"
+            risk_level = 'MEDIUM'
         else:
-            risk_level = "LOW"
+            risk_level = 'LOW'
 
         return {
-            'total_score': float(total_score),
+            'total_score': round(total_score, 2),
             'risk_level': risk_level,
             'breakdown': {
-                'money_laundering': ml_result,
+                'money_laundering': laundering_result,
                 'wash_trading': wt_result,
-                'scam': scam_result
+                'scam': scam_result,
+                'ml_prediction': ml_prediction
             },
             'detection_count': detection_count,
-            'model': 'Multi-Agent-v1.0'
+            'model': model_name,
+            'ml_contribution': round(ml_score * ml_weight, 2) if ml_available else 0.0,
+            'heuristic_contribution': round(heuristic_score * heuristic_weight, 2)
         }
 
     # ==================== PRIVATE HELPER METHODS ====================
