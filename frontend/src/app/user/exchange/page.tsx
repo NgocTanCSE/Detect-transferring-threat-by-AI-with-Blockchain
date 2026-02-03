@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import {
   Wallet,
   Send,
@@ -17,6 +18,7 @@ import {
   AlertOctagon,
   Info,
   Loader2,
+  LogOut,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,16 +43,31 @@ import {
   type TransferResponse,
 } from "@/lib/api";
 import { formatAddress, formatEth, formatDate } from "@/lib/utils";
-
-// Demo wallet address (in real app, this would come from auth context)
-const DEMO_WALLET = "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD08";
+import { useAuth } from "@/lib/auth-context";
 
 export default function UserExchange() {
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+
   const [fromWalletId, setFromWalletId] = useState("");
   const [toWalletId, setToWalletId] = useState("");
   const [toAddress, setToAddress] = useState("");
   const [amount, setAmount] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // Auto-fill sender wallet from authenticated user
+  useEffect(() => {
+    if (user?.wallet_address && !fromWalletId) {
+      setFromWalletId(user.wallet_address);
+    }
+  }, [user, fromWalletId]);
+
+  // Redirect to login if not authenticated (after loading)
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   // Sender wallet balance state
   const [senderBalance, setSenderBalance] = useState<WalletBalance | null>(null);
@@ -73,7 +90,7 @@ export default function UserExchange() {
   const [transferResponse, setTransferResponse] = useState<TransferResponse | null>(
     null
   );
-  const [currentWarnings, setCurrentWarnings] = useState(0);
+  const [currentWarnings, setCurrentWarnings] = useState(user?.warning_count || 0);
 
   // Fetch sender balance and transaction history when address changes
   const fetchSenderBalanceHandler = useCallback(async (address: string) => {

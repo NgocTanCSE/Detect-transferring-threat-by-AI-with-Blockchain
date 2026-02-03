@@ -41,7 +41,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
@@ -50,6 +50,20 @@ export default function HomePage() {
               <span className="text-sm text-emerald-400 font-medium">
                 System Online
               </span>
+            </div>
+
+            {/* Auth Buttons */}
+            <div className="flex items-center gap-2">
+              <Link href="/login">
+                <Button variant="ghost" className="text-slate-400 hover:text-white hover:bg-slate-800">
+                  Đăng nhập
+                </Button>
+              </Link>
+              <Link href="/register">
+                <Button className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white">
+                  Đăng ký
+                </Button>
+              </Link>
             </div>
           </div>
         </header>

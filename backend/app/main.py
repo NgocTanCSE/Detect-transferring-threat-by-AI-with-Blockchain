@@ -87,6 +87,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount authentication router
+from app.auth import router as auth_router
+app.include_router(auth_router)
+
 
 @app.get("/", tags=["Health"])
 def health_check() -> Dict[str, str]:
@@ -570,6 +574,16 @@ def protected_transfer(
         raise HTTPException(
             status_code=400,
             detail="from_wallet_id, to_wallet_id, and amount_eth are required"
+        )
+
+    # Rate limiting check
+    from app.services.rate_limiter import check_transfer_rate_limit, record_transfer
+    rate_allowed, rate_error, retry_after = check_transfer_rate_limit(from_wallet_id)
+    if not rate_allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=rate_error,
+            headers={"Retry-After": str(retry_after)} if retry_after else None
         )
 
     # Helper function to find wallet by ID or address

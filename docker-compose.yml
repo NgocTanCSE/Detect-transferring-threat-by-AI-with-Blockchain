@@ -12,6 +12,7 @@ services:
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY:-}
       - DEMO_FUNDED_ADDRESS=${DEMO_FUNDED_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
       - DEMO_INITIAL_BALANCE_ETH=${DEMO_INITIAL_BALANCE_ETH:-1000}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-blockchain-sentinel-change-me-in-production}
     volumes:
       - ./backend:/app
     depends_on:
