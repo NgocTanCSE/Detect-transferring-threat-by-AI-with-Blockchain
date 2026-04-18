@@ -12,10 +12,9 @@ if [ -n "$DATABASE_URL" ]; then
     cd /app/backend
     python migrate.py || echo "Migration failed (DB might not be ready yet), continuing..."
     
-    if [ "$SEED_DB" = "true" ]; then
-        echo "SEED_DB is true. Seeding database..."
-        python seed_wallets.py || echo "Seeding failed, continuing..."
-    fi
+    cd /app/backend
+    python migrate.py || echo "Migration failed (DB might not be ready yet), continuing..."
+    cd /app
     cd /app
 else
     echo "DATABASE_URL is not set. Skipping migrations."
