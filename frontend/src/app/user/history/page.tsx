@@ -20,10 +20,10 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "../../../components/ui/card";
-import { Badge } from "../../../components/ui/badge";
-import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -31,10 +31,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../../../components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
-import { fetchUserHistory, fetchWalletBalance, type UserHistory, type WalletBalance } from "../../../lib/api";
-import { formatAddress, formatDate, getRiskColor } from "../../../lib/utils";
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchUserHistory, fetchWalletBalance, type UserHistory, type WalletBalance } from "@/lib/api";
+import { formatAddress, formatDate, getRiskColor } from "@/lib/utils";
 
 // Demo wallet - in real app this would come from auth context
 const DEFAULT_WALLET = "0x742d35cc6634c0532925a3b844bc454e4438f44e";

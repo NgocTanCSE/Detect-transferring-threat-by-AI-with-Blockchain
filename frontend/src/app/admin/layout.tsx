@@ -14,10 +14,10 @@ import {
   LogOut,
   ShieldX,
 } from "lucide-react";
-import { cn } from "../../lib/utils";
-import { Button } from "../../components/ui/button";
-import { Separator } from "../../components/ui/separator";
-import { useAuth } from "../../lib/auth-context";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/lib/auth-context";
 
 const sidebarItems = [
   {
