@@ -41,7 +41,7 @@ import {
   type DashboardStats,
   type Wallet,
   type Alert,
-} from "@/lib/api";
+} from "../../../lib/api";
 import {
   formatAddress,
   formatNumber,
@@ -49,7 +49,7 @@ import {
   getRiskLevel,
   getStatusColor,
   formatDate,
-} from "@/lib/utils";
+} from "../../../lib/utils";
 
 const categoryIcons = {
   money_laundering: Droplets,

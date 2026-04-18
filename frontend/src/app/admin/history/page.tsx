@@ -31,8 +31,8 @@ import {
   fetchFlowStats,
   type BlockedTransfer,
   type FlowStats,
-} from "@/lib/api";
-import { formatAddress, getRiskColor, formatDate } from "@/lib/utils";
+} from "../../../lib/api";
+import { formatAddress, getRiskColor, formatDate } from "../../../lib/utils";
 import {
   XAxis,
   YAxis,
