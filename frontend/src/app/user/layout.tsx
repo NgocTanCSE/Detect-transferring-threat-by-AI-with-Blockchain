@@ -11,7 +11,7 @@ import {
   LogOut,
   Loader2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "../../components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,8 +19,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useAuth } from "@/lib/auth-context";
+} from "../../components/ui/dropdown-menu";
+import { useAuth } from "../../lib/auth-context";
 
 export default function UserLayout({
   children,

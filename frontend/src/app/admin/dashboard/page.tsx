@@ -14,17 +14,17 @@ import {
   Search,
   Filter,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+import { Badge } from "../../../components/ui/badge";
+import { Input } from "../../../components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "../../../components/ui/select";
 import {
   Table,
   TableBody,
@@ -32,7 +32,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "../../../components/ui/table";
 import {
   fetchDashboardStats,
   fetchWallets,
@@ -41,7 +41,7 @@ import {
   type DashboardStats,
   type Wallet,
   type Alert,
-} from "@/lib/api";
+} from "../../../lib/api";
 import {
   formatAddress,
   formatNumber,
@@ -49,7 +49,7 @@ import {
   getRiskLevel,
   getStatusColor,
   formatDate,
-} from "@/lib/utils";
+} from "../../../lib/utils";
 
 const categoryIcons = {
   money_laundering: Droplets,
