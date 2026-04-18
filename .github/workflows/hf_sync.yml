@@ -28,8 +28,5 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          if [ -z "$HF_TOKEN" ]; then
-            echo "::error::LỖI: Bạn chưa cài đặt 'HF_TOKEN' trong GitHub Secrets nhé !"
-            exit 1
-          fi
-          huggingface-cli upload tancse2005/Detect-transferring-threat-by-AI-with-Blockchain . --repo-type space --token $HF_TOKEN
+          pip install --upgrade huggingface_hub
+          python -m huggingface_hub.commands.huggingface_cli upload tancse2005/Detect-transferring-threat-by-AI-with-Blockchain . . --repo-type space --token $HF_TOKEN
