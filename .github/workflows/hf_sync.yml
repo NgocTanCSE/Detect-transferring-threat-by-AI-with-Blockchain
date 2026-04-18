@@ -29,4 +29,4 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           pip install --upgrade huggingface_hub
-          python -m huggingface_hub.commands.huggingface_cli upload tancse2005/Detect-transferring-threat-by-AI-with-Blockchain . . --repo-type space --token $HF_TOKEN
+          python -c "import os; from huggingface_hub import HfApi; api = HfApi(); api.upload_folder(repo_id='tancse2005/Detect-transferring-threat-by-AI-with-Blockchain', folder_path='.', repo_type='space', token=os.environ['HF_TOKEN'])"
