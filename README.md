@@ -73,6 +73,17 @@ docker ps
 - **Backend API**: [http://localhost:8000](http://localhost:8000)
 - **API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
+### Hugging Face single-space deployment
+Use the root `Dockerfile` to run the frontend, backend, and scanner in one Hugging Face Space.
+
+Required env vars:
+- `DATABASE_URL` pointing to Supabase with `sslmode=require`
+- `ALCHEMY_API_KEY`
+- `JWT_SECRET_KEY`
+- `AUTH_DISABLED=false`
+
+The frontend proxies `/api` requests to the backend inside the same container, so one Space is enough.
+
 ---
 
 ## 🏗️ Project Structure

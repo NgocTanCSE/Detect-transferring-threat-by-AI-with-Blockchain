@@ -1,11 +1,11 @@
-# Deploy on Hugging Face Spaces + Supabase (No Docker)
+# Deploy on Hugging Face Spaces + Supabase (Single Space)
 
-This guide focuses on running backend directly on Hugging Face native runtime (no Docker), with PostgreSQL on Supabase.
+This guide uses one Hugging Face Space with the repository root Dockerfile to run:
+- Next.js frontend
+- FastAPI backend
+- background scanner
 
-Current practical topology:
-- Backend: Hugging Face Space native Python runtime (FastAPI)
-- Database: Supabase PostgreSQL
-- Frontend: deploy separately (recommended Vercel/Netlify) and point to backend HF URL
+Supabase provides PostgreSQL, so the Space does not need a local database container.
 
 ## 1) Create Supabase database URL
 
@@ -17,17 +17,15 @@ In Supabase:
 Example:
 `postgresql://postgres:YOUR_PASSWORD@db.xxx.supabase.co:5432/postgres?sslmode=require`
 
-## 2) Create backend Space (Native Python, no Docker)
+## 2) Create one HF Space (Docker)
 
 Create a Space:
-- SDK: Gradio
-- Suggested name: `yourname-blockchain-backend`
+- SDK: Docker
+- Suggested name: `yourname-blockchain-app`
 
-Upload files from `backend/` folder to the Space root.
+Push the full repository to the Space.
 
-Important:
-- Keep `backend/app.py` as entrypoint file in Space root.
-- HF will run this process and expose port 7860.
+The root `Dockerfile`, `entrypoint.sh`, and `supervisord.conf` already start the frontend, backend, and scanner together.
 
 Set backend Space Variables/Secrets:
 - `DATABASE_URL` = your Supabase URI
@@ -35,14 +33,13 @@ Set backend Space Variables/Secrets:
 - `HF_TOKEN` = your Hugging Face token (if used by AI analyst)
 - `JWT_SECRET_KEY` = long random secret
 - `AUTH_DISABLED` = `false`
-- `API_PORT` = `7860`
-- `CORS_ALLOWED_ORIGINS` = frontend Space URL(s), comma-separated
+- `CORS_ALLOWED_ORIGINS` = `*` or your custom domain if you want direct browser access
 
 Example:
-`https://yourname-blockchain-frontend.hf.space`
+`https://yourname-blockchain-app.hf.space`
 
 After deploy, verify health endpoint:
-- `https://yourname-blockchain-backend.hf.space/`
+- `https://yourname-blockchain-app.hf.space/`
 
 ## 3) Run DB initialization and seed once
 
@@ -54,20 +51,15 @@ Run in order:
 
 If you use SQL Editor, paste/run each file in chunks.
 
-## 4) Frontend connection to HF backend
+## 4) Frontend and backend in the same Space
 
-Because this repository frontend is Next.js server runtime, non-Docker HF Space is not suitable for hosting it directly.
+The frontend proxies API calls to `/api`, and the reverse proxy in the same container forwards those calls to backend on `http://localhost:8000`.
 
-Recommended:
-- Deploy frontend on Vercel/Netlify
-- Set frontend env to use backend HF URL
-- Allow that frontend domain in `CORS_ALLOWED_ORIGINS`
-
-If you still want frontend on HF, keep using Docker Space specifically for frontend.
+No extra frontend deployment is needed for this single-Space setup.
 
 ## 5) Important HF notes
 
-- One Space = one public endpoint. Native HF setup here runs backend only.
+- One Space = one public endpoint. This setup uses a single Docker Space for the full app.
 - Free Spaces can sleep when idle; first request after idle can be slow.
 - Scanner/background jobs are not ideal on sleeping Spaces; for always-on scanning, use a dedicated worker host.
 
