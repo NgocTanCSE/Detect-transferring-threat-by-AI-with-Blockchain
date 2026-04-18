@@ -35,7 +35,7 @@ def seed_wallets():
         test_wallets = [
             {
                 "id": uuid.UUID("550e8400-e29b-41d4-a716-446655440001"),
-                "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD08",
+                "address": "0x742d35cc6634c0532925a3b844bc9e7595f2bd08",
                 "label": "Alice User Account",
                 "entity_type": "User",
                 "account_status": "active",
@@ -49,7 +49,7 @@ def seed_wallets():
             },
             {
                 "id": uuid.UUID("550e8400-e29b-41d4-a716-446655440002"),
-                "address": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+                "address": "0x8ba1f109551bd432803012645ac136ddd64dba72",
                 "label": "Bob Suspected Account",
                 "entity_type": "User",
                 "account_status": "active",
@@ -63,7 +63,7 @@ def seed_wallets():
             },
             {
                 "id": uuid.UUID("550e8400-e29b-41d4-a716-446655440003"),
-                "address": "0x9f8c5e6F5e6E1e1E1e1e1e1e1e1e1e1e1e1e1e1e",
+                "address": "0x9f8c5e6f5e6e1e1e1e1e1e1e1e1e1e1e1e1e1e1e",
                 "label": "Charlie Trading Account",
                 "entity_type": "User",
                 "account_status": "active",
@@ -77,7 +77,7 @@ def seed_wallets():
             },
             {
                 "id": uuid.UUID("550e8400-e29b-41d4-a716-446655440004"),
-                "address": "0xDead1000000000000000000000000000000Dead",
+                "address": "0xdead1000000000000000000000000000000dead",
                 "label": "Scam Wallet",
                 "entity_type": "Unknown",
                 "account_status": "frozen",
@@ -112,7 +112,7 @@ def seed_wallets():
                 "block_number": 18000000,
                 "timestamp": datetime.utcnow() - timedelta(days=30),
                 "from_address": "0x0000000000000000000000000000000000000000",
-                "to_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD08",
+                "to_address": "0x742d35cc6634c0532925a3b844bc9e7595f2bd08",
                 "value": int(10e18),
                 "gas_price": 20000000000,
                 "gas_used": 21000,
@@ -125,8 +125,8 @@ def seed_wallets():
                 "tx_hash": "0x2234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
                 "block_number": 18000100,
                 "timestamp": datetime.utcnow() - timedelta(days=29),
-                "from_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD08",
-                "to_address": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+                "from_address": "0x742d35cc6634c0532925a3b844bc9e7595f2bd08",
+                "to_address": "0x8ba1f109551bd432803012645ac136ddd64dba72",
                 "value": int(1e18),
                 "gas_price": 20000000000,
                 "gas_used": 21000,
@@ -140,7 +140,7 @@ def seed_wallets():
                 "block_number": 18000200,
                 "timestamp": datetime.utcnow() - timedelta(days=28),
                 "from_address": "0x0000000000000000000000000000000000000000",
-                "to_address": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+                "to_address": "0x8ba1f109551bd432803012645ac136ddd64dba72",
                 "value": int(5.2e18),
                 "gas_price": 20000000000,
                 "gas_used": 21000,
@@ -154,7 +154,7 @@ def seed_wallets():
                 "block_number": 18000300,
                 "timestamp": datetime.utcnow() - timedelta(days=90),
                 "from_address": "0x0000000000000000000000000000000000000000",
-                "to_address": "0x9f8c5e6F5e6E1e1E1e1e1e1e1e1e1e1e1e1e1e1e",
+                "to_address": "0x9f8c5e6f5e6e1e1e1e1e1e1e1e1e1e1e1e1e1e1e",
                 "value": int(15e18),
                 "gas_price": 20000000000,
                 "gas_used": 21000,
@@ -167,8 +167,8 @@ def seed_wallets():
                 "tx_hash": "0x5234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
                 "block_number": 18000400,
                 "timestamp": datetime.utcnow() - timedelta(days=60),
-                "from_address": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
-                "to_address": "0x9f8c5e6F5e6E1e1E1e1e1e1e1e1e1e1e1e1e1e1e",
+                "from_address": "0x8ba1f109551bd432803012645ac136ddd64dba72",
+                "to_address": "0x9f8c5e6f5e6e1e1e1e1e1e1e1e1e1e1e1e1e1e1e",
                 "value": int(3.5e18),
                 "gas_price": 20000000000,
                 "gas_used": 21000,
@@ -191,12 +191,12 @@ def seed_wallets():
 
         # Add blacklist entry for scam wallet
         existing_blacklist = db.query(Blacklist).filter(
-            Blacklist.address == "0xDead1000000000000000000000000000000Dead"
+            Blacklist.address == "0xdead1000000000000000000000000000000dead"
         ).first()
 
         if not existing_blacklist:
             blacklist = Blacklist(
-                address="0xDead1000000000000000000000000000000Dead",
+                address="0xdead1000000000000000000000000000000dead",
                 category="scam",
                 source="Internal Detection",
                 severity="CRITICAL",

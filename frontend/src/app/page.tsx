@@ -12,6 +12,21 @@ import {
   Shield,
   UserCog,
 } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 type RoleKey = "system_admin" | "ai_data_engineer" | "security_analyst" | "compliance_risk_manager";
 
@@ -705,6 +720,14 @@ const TONAL_STYLES: Record<string, string> = {
   slate: "border-slate-500/20 bg-slate-500/10 text-slate-100",
 };
 
+const SIDEBAR_GROUPS: Array<{ title: string; start: number; end: number }> = [
+  { title: "Overview", start: 0, end: 2 },
+  { title: "Functions", start: 2, end: 4 },
+  { title: "Data", start: 4, end: 6 },
+];
+
+const CHART_COLORS = ["#22d3ee", "#8b5cf6", "#fb7185", "#f59e0b", "#10b981", "#38bdf8"];
+
 export default function HomePage() {
   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
   const [activeFeatureIndex, setActiveFeatureIndex] = useState<number>(0);
@@ -856,6 +879,36 @@ export default function HomePage() {
   const activeSection = getSectionFromFeatureIndex(activeFeatureIndex);
   const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace Module";
   const activeModule = MODULE_BLUEPRINTS[role.key][activeFeatureIndex] ?? MODULE_BLUEPRINTS[role.key][0];
+  const pipelineChartData = pipelineMetrics
+    .slice()
+    .reverse()
+    .slice(-10)
+    .map((item, index) => ({
+      name: `P${index + 1}`,
+      throughput: Number(item.throughput_tps ?? 0),
+      ingest: Number(item.ingestion_latency_ms ?? 0),
+      decode: Number(item.decode_latency_ms ?? 0),
+    }));
+  const aiFeatureChartData = [
+    { name: "Enabled", value: dashboardStats.aiDataEngineer.enabledFeatures },
+    {
+      name: "Disabled",
+      value: Math.max(0, dashboardStats.aiDataEngineer.featureConfigs - dashboardStats.aiDataEngineer.enabledFeatures),
+    },
+  ];
+  const securityCaseChartData = [
+    { name: "Pending", value: Number(caseSummary.totals.PENDING ?? 0) },
+    { name: "Verified", value: Number(caseSummary.totals.VERIFIED ?? 0) },
+    { name: "Fraud", value: Number(caseSummary.totals.FRAUD ?? 0) },
+    { name: "Ignored", value: Number(caseSummary.totals.IGNORED ?? 0) },
+  ];
+  const complianceKpiChartData = [
+    { name: "Alerts", value: Number(complianceReport?.kpis.alerts_total ?? 0) },
+    { name: "Critical", value: Number(complianceReport?.kpis.critical_alerts ?? 0) },
+    { name: "Blocked", value: Number(complianceReport?.kpis.blocked_total ?? 0) },
+    { name: "Policies", value: Number(complianceReport?.kpis.policy_rules_active ?? 0) },
+    { name: "Notifications", value: Number(complianceReport?.kpis.notifications_sent ?? 0) },
+  ];
 
   const fetchJson = async (url: string, options?: RequestInit) => {
     const response = await fetch(url, options);
@@ -1377,34 +1430,35 @@ export default function HomePage() {
             </div>
 
             <div className="space-y-2">
-              {role.sidebarFeatures.map((feature, index) => {
-                const Icon = sidebarIcons[index % sidebarIcons.length];
-                const isActiveFeature = index === activeFeatureIndex;
-                const sectionForFeature = getSectionFromFeatureIndex(index);
-                return (
-                  <button
-                    key={feature}
-                    type="button"
-                    onClick={() => setActiveFeatureIndex(index)}
-                    className={[
-                      "w-full rounded-lg border px-3 py-2 text-left text-sm transition",
-                      isActiveFeature
-                        ? "border-slate-500 bg-slate-700/70 text-white"
-                        : "border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-600 hover:bg-slate-800",
-                    ].join(" ")}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-2">
-                        <Icon className={isActiveFeature ? "h-4 w-4 text-white" : "h-4 w-4 text-slate-400"} />
-                        <span>{feature}</span>
-                      </span>
-                      <span className="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
-                        {sectionForFeature}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+              {SIDEBAR_GROUPS.map((group) => (
+                <div key={group.title} className="space-y-2">
+                  <p className="px-1 text-[11px] uppercase tracking-wide text-slate-500">{group.title}</p>
+                  {role.sidebarFeatures.slice(group.start, group.end).map((feature, offset) => {
+                    const index = group.start + offset;
+                    const Icon = sidebarIcons[index % sidebarIcons.length];
+                    const isActiveFeature = index === activeFeatureIndex;
+
+                    return (
+                      <button
+                        key={feature}
+                        type="button"
+                        onClick={() => setActiveFeatureIndex(index)}
+                        className={[
+                          "w-full rounded-lg border px-3 py-2 text-left text-sm transition",
+                          isActiveFeature
+                            ? "border-slate-500 bg-slate-700/70 text-white"
+                            : "border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-600 hover:bg-slate-800",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon className={isActiveFeature ? "h-4 w-4 text-white" : "h-4 w-4 text-slate-400"} />
+                          <span>{feature}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </aside>
 
@@ -1412,45 +1466,6 @@ export default function HomePage() {
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Role Workspace</h2>
               <span className="text-sm text-slate-400">Module: {activeFeatureLabel}</span>
-            </div>
-
-            <div className="mb-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveFeatureIndex(0)}
-                className={[
-                  "rounded-lg border px-2.5 py-1 text-xs uppercase tracking-wide",
-                  activeSection === "overview"
-                    ? "border-slate-500 bg-slate-700/70 text-white"
-                    : "border-slate-700 bg-slate-800/50 text-slate-300",
-                ].join(" ")}
-              >
-                Overview
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveFeatureIndex(2)}
-                className={[
-                  "rounded-lg border px-2.5 py-1 text-xs uppercase tracking-wide",
-                  activeSection === "actions"
-                    ? "border-slate-500 bg-slate-700/70 text-white"
-                    : "border-slate-700 bg-slate-800/50 text-slate-300",
-                ].join(" ")}
-              >
-                Actions
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveFeatureIndex(4)}
-                className={[
-                  "rounded-lg border px-2.5 py-1 text-xs uppercase tracking-wide",
-                  activeSection === "data"
-                    ? "border-slate-500 bg-slate-700/70 text-white"
-                    : "border-slate-700 bg-slate-800/50 text-slate-300",
-                ].join(" ")}
-              >
-                Data
-              </button>
             </div>
 
             {uiMessage ? (
@@ -1725,771 +1740,835 @@ export default function HomePage() {
                       <button
                         type="button"
                         onClick={() => loadRoleFacts(role.key)}
-                        className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700"
-                      >
-                        Refresh role data
-                      </button>
-                    </div>
-                  </article>
+                          <>
+                        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          {role.key === "system_admin" ? (
+                            <>
+                              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-cyan-200">Node endpoints</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.systemAdmin.totalNodeEndpoints}</p>
+                                <p className="text-xs text-cyan-100/80">Active {dashboardStats.systemAdmin.activeNodes}</p>
+                              </div>
+                              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-cyan-200">Throughput</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.systemAdmin.avgThroughputTps.toFixed(2)}</p>
+                                <p className="text-xs text-cyan-100/80">TPS average</p>
+                              </div>
+                              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-cyan-200">Latency</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.systemAdmin.avgIngestLatencyMs.toFixed(0)} ms</p>
+                                <p className="text-xs text-cyan-100/80">Ingest average</p>
+                              </div>
+                              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-cyan-200">Availability</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{systemSloMetrics?.endpoint_health.availability_pct ?? 0}%</p>
+                                <p className="text-xs text-cyan-100/80">Burn {systemSloMetrics?.endpoint_health.error_budget_burn_pct ?? 0}%</p>
+                              </div>
+                            </>
+                          ) : null}
 
-                  {role.key === "system_admin" ? (
-                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Node Endpoint</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          <input
-                            value={nodeForm.provider_name}
-                            onChange={(e) => setNodeForm((prev) => ({ ...prev, provider_name: e.target.value }))}
-                            placeholder="Provider"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <input
-                            value={nodeForm.chain}
-                            onChange={(e) => setNodeForm((prev) => ({ ...prev, chain: e.target.value }))}
-                            placeholder="Chain"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <input
-                            value={nodeForm.endpoint_url}
-                            onChange={(e) => setNodeForm((prev) => ({ ...prev, endpoint_url: e.target.value }))}
-                            placeholder="Endpoint URL"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <div className="grid grid-cols-2 gap-2">
-                            <select
-                              value={nodeForm.protocol}
-                              onChange={(e) => setNodeForm((prev) => ({ ...prev, protocol: e.target.value }))}
-                              className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                            >
-                              <option value="http">http</option>
-                              <option value="websocket">websocket</option>
-                            </select>
-                            <input
-                              type="number"
-                              value={nodeForm.priority}
-                              onChange={(e) => setNodeForm((prev) => ({ ...prev, priority: Number(e.target.value) || 100 }))}
-                              placeholder="Priority"
-                              className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={createNodeEndpoint}
-                            className="rounded border border-cyan-500/40 bg-cyan-500/15 px-2 py-1.5 text-xs text-cyan-200"
-                          >
-                            Save Endpoint
-                          </button>
+                          {role.key === "ai_data_engineer" ? (
+                            <>
+                              <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-violet-200">Feature configs</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.aiDataEngineer.featureConfigs}</p>
+                                <p className="text-xs text-violet-100/80">Enabled {dashboardStats.aiDataEngineer.enabledFeatures}</p>
+                              </div>
+                              <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-violet-200">Model versions</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.aiDataEngineer.modelVersions}</p>
+                                <p className="text-xs text-violet-100/80">Active {dashboardStats.aiDataEngineer.activeModels}</p>
+                              </div>
+                              <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-violet-200">Active version</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.aiDataEngineer.activeVersion}</p>
+                                <p className="text-xs text-violet-100/80">{dashboardStats.aiDataEngineer.activeFramework}</p>
+                              </div>
+                              <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-violet-200">Lifecycle</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">Live</p>
+                                <p className="text-xs text-violet-100/80">Registry + feature store</p>
+                              </div>
+                            </>
+                          ) : null}
+
+                          {role.key === "security_analyst" ? (
+                            <>
+                              <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-rose-200">Alerts today</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.alertsToday}</p>
+                                <p className="text-xs text-rose-100/80">Critical {dashboardStats.securityAnalyst.criticalAlerts}</p>
+                              </div>
+                              <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-rose-200">Open cases</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.openCases}</p>
+                                <p className="text-xs text-rose-100/80">Recent {dashboardStats.securityAnalyst.recentAlerts}</p>
+                              </div>
+                              <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-rose-200">Top case risk</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.topCaseRisk ?? "N/A"}</p>
+                                <p className="text-xs text-rose-100/80">Pending {dashboardStats.securityAnalyst.pendingCases}</p>
+                              </div>
+                              <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-rose-200">Notifications</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.notificationEvents}</p>
+                                <p className="text-xs text-rose-100/80">Fraud cases {dashboardStats.securityAnalyst.fraudCases}</p>
+                              </div>
+                            </>
+                          ) : null}
+
+                          {role.key === "compliance_risk_manager" ? (
+                            <>
+                              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-amber-200">Total wallets</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.complianceRiskManager.totalWallets}</p>
+                                <p className="text-xs text-amber-100/80">Critical {dashboardStats.complianceRiskManager.criticalAlerts}</p>
+                              </div>
+                              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-amber-200">Blocked transfers</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.complianceRiskManager.blockedTotal}</p>
+                                <p className="text-xs text-amber-100/80">Today {dashboardStats.complianceRiskManager.blockedToday}</p>
+                              </div>
+                              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-amber-200">Blocked value</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.complianceRiskManager.blockedValueEth.toFixed(2)}</p>
+                                <p className="text-xs text-amber-100/80">ETH protected</p>
+                              </div>
+                              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                                <p className="text-xs uppercase tracking-wide text-amber-200">Governance</p>
+                                <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.complianceRiskManager.activePolicyRules}</p>
+                                <p className="text-xs text-amber-100/80">Active policy rules</p>
+                              </div>
+                            </>
+                          ) : null}
                         </div>
-                      </div>
 
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Update Node Health</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          <select
-                            value={healthForm.endpoint_id}
-                            onChange={(e) => setHealthForm((prev) => ({ ...prev, endpoint_id: e.target.value }))}
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          >
-                            <option value="">Select endpoint</option>
-                            {nodeEndpoints.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.provider_name} - {item.chain}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            value={healthForm.health_status}
-                            onChange={(e) => setHealthForm((prev) => ({ ...prev, health_status: e.target.value }))}
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          >
-                            <option value="healthy">healthy</option>
-                            <option value="degraded">degraded</option>
-                            <option value="down">down</option>
-                            <option value="unknown">unknown</option>
-                          </select>
-                          <input
-                            value={healthForm.last_error}
-                            onChange={(e) => setHealthForm((prev) => ({ ...prev, last_error: e.target.value }))}
-                            placeholder="Last error (optional)"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <button
-                            type="button"
-                            onClick={updateNodeHealth}
-                            className="rounded border border-cyan-500/40 bg-cyan-500/15 px-2 py-1.5 text-xs text-cyan-200"
-                          >
-                            Update Health
-                          </button>
-                        </div>
-                      </div>
+                        <div className="mb-4 rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+                          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Data Visualization</h3>
+                          {role.key === "system_admin" ? (
+                            <div className="h-72 w-full">
+                              <ResponsiveContainer>
+                                <LineChart data={pipelineChartData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                  <XAxis dataKey="name" stroke="#94a3b8" />
+                                  <YAxis stroke="#94a3b8" />
+                                  <RechartsTooltip />
+                                  <Legend />
+                                  <Line type="monotone" dataKey="throughput" stroke="#22d3ee" strokeWidth={2} name="TPS" />
+                                  <Line type="monotone" dataKey="ingest" stroke="#8b5cf6" strokeWidth={2} name="Ingest ms" />
+                                  <Line type="monotone" dataKey="decode" stroke="#fb7185" strokeWidth={2} name="Decode ms" />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          ) : null}
 
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Control Summary</p>
-                        <div className="space-y-2 text-sm text-slate-300">
-                          <p>Nodes are listed and can be updated from the same screen.</p>
-                          <p>Health changes are persisted and reflected in the dashboard cards.</p>
-                          <p>Audit logs exist for operational traceability.</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
+                          {role.key === "ai_data_engineer" ? (
+                            <div className="h-72 w-full">
+                              <ResponsiveContainer>
+                                <PieChart>
+                                  <Pie data={aiFeatureChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
+                                    {aiFeatureChartData.map((entry, index) => (
+                                      <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                    ))}
+                                  </Pie>
+                                  <RechartsTooltip />
+                                  <Legend />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          ) : null}
 
-                  {role.key === "ai_data_engineer" ? (
-                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Feature Config</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          <input
-                            value={featureForm.feature_key}
-                            onChange={(e) => setFeatureForm((prev) => ({ ...prev, feature_key: e.target.value }))}
-                            placeholder="Feature key"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <input
-                            value={featureForm.expression}
-                            onChange={(e) => setFeatureForm((prev) => ({ ...prev, expression: e.target.value }))}
-                            placeholder="Expression"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <label className="flex items-center gap-2 text-xs text-slate-300">
-                            <input
-                              type="checkbox"
-                              checked={featureForm.enabled}
-                              onChange={(e) => setFeatureForm((prev) => ({ ...prev, enabled: e.target.checked }))}
-                            />
-                            Enabled
-                          </label>
-                          <button
-                            type="button"
-                            onClick={createFeatureConfig}
-                            className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1.5 text-xs text-violet-200"
-                          >
-                            Save Feature
-                          </button>
-                        </div>
-                      </div>
+                          {role.key === "security_analyst" ? (
+                            <div className="h-72 w-full">
+                              <ResponsiveContainer>
+                                <BarChart data={securityCaseChartData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                  <XAxis dataKey="name" stroke="#94a3b8" />
+                                  <YAxis stroke="#94a3b8" />
+                                  <RechartsTooltip />
+                                  <Bar dataKey="value" fill="#fb7185" radius={[6, 6, 0, 0]} />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          ) : null}
 
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Model Entry</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          <input
-                            value={modelForm.model_name}
-                            onChange={(e) => setModelForm((prev) => ({ ...prev, model_name: e.target.value }))}
-                            placeholder="Model name"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <input
-                            value={modelForm.version}
-                            onChange={(e) => setModelForm((prev) => ({ ...prev, version: e.target.value }))}
-                            placeholder="Version"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <input
-                            value={modelForm.artifact_uri}
-                            onChange={(e) => setModelForm((prev) => ({ ...prev, artifact_uri: e.target.value }))}
-                            placeholder="Artifact URI"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <select
-                            value={modelForm.framework}
-                            onChange={(e) => setModelForm((prev) => ({ ...prev, framework: e.target.value }))}
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          >
-                            <option value="pkl">pkl</option>
-                            <option value="onnx">onnx</option>
-                            <option value="pt">pt</option>
-                          </select>
-                          <button
-                            type="button"
-                            onClick={createModelRegistryItem}
-                            className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1.5 text-xs text-violet-200"
-                          >
-                            Save Model
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Model Lifecycle</p>
-                        <div className="space-y-2 text-sm text-slate-300">
-                          <p>Create a version, mark active, and audit promotion.</p>
-                          <p>Active model is surfaced in the dashboard card.</p>
-                          <p>Backtesting and replay are planned follow-up modules.</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {role.key === "security_analyst" ? (
-                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case Action Console</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          <input
-                            value={caseActionForm.tx_hash}
-                            onChange={(e) => setCaseActionForm((prev) => ({ ...prev, tx_hash: e.target.value }))}
-                            placeholder="Transaction hash"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <select
-                            value={caseActionForm.action}
-                            onChange={(e) => setCaseActionForm((prev) => ({ ...prev, action: e.target.value }))}
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          >
-                            <option value="ESCALATE">ESCALATE</option>
-                            <option value="CONFIRM_FRAUD">CONFIRM_FRAUD</option>
-                            <option value="DISMISS">DISMISS</option>
-                          </select>
-                          <input
-                            value={caseActionForm.note}
-                            onChange={(e) => setCaseActionForm((prev) => ({ ...prev, note: e.target.value }))}
-                            placeholder="Analyst note"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <button
-                            type="button"
-                            onClick={submitCaseAction}
-                            className="rounded border border-rose-500/40 bg-rose-500/15 px-2 py-1.5 text-xs text-rose-200"
-                          >
-                            Apply Case Action
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Notification Test</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          <select
-                            value={notificationForm.channel}
-                            onChange={(e) => setNotificationForm((prev) => ({ ...prev, channel: e.target.value }))}
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          >
-                            <option value="telegram">telegram</option>
-                            <option value="slack">slack</option>
-                            <option value="email">email</option>
-                            <option value="webhook">webhook</option>
-                          </select>
-                          <input
-                            value={notificationForm.recipient}
-                            onChange={(e) => setNotificationForm((prev) => ({ ...prev, recipient: e.target.value }))}
-                            placeholder="Recipient"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <select
-                            value={notificationForm.severity}
-                            onChange={(e) => setNotificationForm((prev) => ({ ...prev, severity: e.target.value }))}
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          >
-                            <option value="LOW">LOW</option>
-                            <option value="MEDIUM">MEDIUM</option>
-                            <option value="HIGH">HIGH</option>
-                            <option value="CRITICAL">CRITICAL</option>
-                          </select>
-                          <input
-                            value={notificationForm.message}
-                            onChange={(e) => setNotificationForm((prev) => ({ ...prev, message: e.target.value }))}
-                            placeholder="Message"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <button
-                            type="button"
-                            onClick={sendTestNotification}
-                            className="rounded border border-rose-500/40 bg-rose-500/15 px-2 py-1.5 text-xs text-rose-200"
-                          >
-                            Send Test Notification
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case State Snapshot</p>
-                        <div className="space-y-2 text-sm text-slate-300">
-                          <p>Pending: {caseSummary.totals.PENDING}</p>
-                          <p>Verified: {caseSummary.totals.VERIFIED}</p>
-                          <p>Fraud: {caseSummary.totals.FRAUD}</p>
-                          <p>Ignored: {caseSummary.totals.IGNORED}</p>
-                          <p>High-risk unassigned: {caseSummary.high_risk_unassigned}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {role.key === "compliance_risk_manager" ? (
-                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Rule Builder</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          <input
-                            value={policyRuleForm.rule_name}
-                            onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, rule_name: e.target.value }))}
-                            placeholder="Rule name"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <input
-                            value={policyRuleForm.description}
-                            onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, description: e.target.value }))}
-                            placeholder="Description"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              type="number"
-                              value={policyRuleForm.min_risk_score}
-                              onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, min_risk_score: Number(e.target.value) || 80 }))}
-                              placeholder="Min risk score"
-                              className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                            />
-                            <input
-                              type="number"
-                              value={policyRuleForm.priority}
-                              onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, priority: Number(e.target.value) || 100 }))}
-                              placeholder="Priority"
-                              className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={createPolicyRule}
-                            className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1.5 text-xs text-amber-200"
-                          >
-                            Save Policy Rule
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Simulation</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          <input
-                            type="number"
-                            value={policyEvalForm.risk_score}
-                            onChange={(e) => setPolicyEvalForm((prev) => ({ ...prev, risk_score: Number(e.target.value) || 0 }))}
-                            placeholder="Risk score"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <select
-                            value={policyEvalForm.account_status}
-                            onChange={(e) => setPolicyEvalForm((prev) => ({ ...prev, account_status: e.target.value }))}
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          >
-                            <option value="active">active</option>
-                            <option value="under_review">under_review</option>
-                            <option value="suspended">suspended</option>
-                            <option value="frozen">frozen</option>
-                          </select>
-                          <label className="flex items-center gap-2 text-xs text-slate-300">
-                            <input
-                              type="checkbox"
-                              checked={policyEvalForm.is_blacklisted}
-                              onChange={(e) => setPolicyEvalForm((prev) => ({ ...prev, is_blacklisted: e.target.checked }))}
-                            />
-                            Is blacklisted
-                          </label>
-                          <button
-                            type="button"
-                            onClick={evaluatePolicyRule}
-                            className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1.5 text-xs text-amber-200"
-                          >
-                            Evaluate Policy
-                          </button>
-                          {policyEvalResult ? (
-                            <div className="rounded border border-slate-700 bg-slate-950/50 px-2 py-2 text-xs text-slate-300">
-                              Decision: {policyEvalResult.decision} | Matched rules: {policyEvalResult.matched_count}
+                          {role.key === "compliance_risk_manager" ? (
+                            <div className="h-72 w-full">
+                              <ResponsiveContainer>
+                                <BarChart data={complianceKpiChartData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                  <XAxis dataKey="name" stroke="#94a3b8" />
+                                  <YAxis stroke="#94a3b8" />
+                                  <RechartsTooltip />
+                                  <Bar dataKey="value" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+                                </BarChart>
+                              </ResponsiveContainer>
                             </div>
                           ) : null}
                         </div>
-                      </div>
-
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Reporting and Export</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          <input
-                            type="number"
-                            min={1}
-                            max={365}
-                            value={reportDays}
-                            onChange={(e) => setReportDays(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
-                            placeholder="Report window (days)"
-                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => loadRoleFacts("compliance_risk_manager")}
-                            className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-200"
-                          >
-                            Refresh Reporting KPIs
-                          </button>
-                          <button
-                            type="button"
-                            onClick={generateComplianceExport}
-                            className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1.5 text-xs text-amber-200"
-                          >
-                            Generate Compliance Export
-                          </button>
-                          <button
-                            type="button"
-                            onClick={downloadComplianceCsv}
-                            className="rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-xs text-slate-200"
-                          >
-                            Download CSV
-                          </button>
-                          <div className="rounded border border-slate-700 bg-slate-950/50 px-2 py-2 text-xs text-slate-300">
-                            Completeness: {auditCompleteness?.completeness_pct ?? 0}% | Gaps: {complianceAuditGaps?.missing_count ?? 0}
-                          </div>
-                        </div>
-                      </div>
+                      </>
+                      <p>Audit logs exist for operational traceability.</p>
                     </div>
+                  </div>
+                </div>
                   ) : null}
-                </>
+
+              {role.key === "ai_data_engineer" ? (
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Feature Config</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        value={featureForm.feature_key}
+                        onChange={(e) => setFeatureForm((prev) => ({ ...prev, feature_key: e.target.value }))}
+                        placeholder="Feature key"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <input
+                        value={featureForm.expression}
+                        onChange={(e) => setFeatureForm((prev) => ({ ...prev, expression: e.target.value }))}
+                        placeholder="Expression"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <label className="flex items-center gap-2 text-xs text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={featureForm.enabled}
+                          onChange={(e) => setFeatureForm((prev) => ({ ...prev, enabled: e.target.checked }))}
+                        />
+                        Enabled
+                      </label>
+                      <button
+                        type="button"
+                        onClick={createFeatureConfig}
+                        className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1.5 text-xs text-violet-200"
+                      >
+                        Save Feature
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Model Entry</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        value={modelForm.model_name}
+                        onChange={(e) => setModelForm((prev) => ({ ...prev, model_name: e.target.value }))}
+                        placeholder="Model name"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <input
+                        value={modelForm.version}
+                        onChange={(e) => setModelForm((prev) => ({ ...prev, version: e.target.value }))}
+                        placeholder="Version"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <input
+                        value={modelForm.artifact_uri}
+                        onChange={(e) => setModelForm((prev) => ({ ...prev, artifact_uri: e.target.value }))}
+                        placeholder="Artifact URI"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <select
+                        value={modelForm.framework}
+                        onChange={(e) => setModelForm((prev) => ({ ...prev, framework: e.target.value }))}
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      >
+                        <option value="pkl">pkl</option>
+                        <option value="onnx">onnx</option>
+                        <option value="pt">pt</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={createModelRegistryItem}
+                        className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1.5 text-xs text-violet-200"
+                      >
+                        Save Model
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Model Lifecycle</p>
+                    <div className="space-y-2 text-sm text-slate-300">
+                      <p>Create a version, mark active, and audit promotion.</p>
+                      <p>Active model is surfaced in the dashboard card.</p>
+                      <p>Backtesting and replay are planned follow-up modules.</p>
+                    </div>
+                  </div>
+                </div>
               ) : null}
 
-              {activeSection === "data" ? (
-                <>
-                  {role.key === "system_admin" ? (
-                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Node Endpoints</p>
-                        <div className="max-h-72 overflow-auto text-xs">
-                          <table className="w-full text-left">
-                            <thead className="text-slate-400">
-                              <tr>
-                                <th className="pb-1">Provider</th>
-                                <th className="pb-1">Chain</th>
-                                <th className="pb-1">Protocol</th>
-                                <th className="pb-1">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {nodeEndpoints.map((row) => (
-                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                                  <td className="py-1">{row.provider_name}</td>
-                                  <td className="py-1">{row.chain}</td>
-                                  <td className="py-1">{row.protocol}</td>
-                                  <td className="py-1">{row.health_status}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+              {role.key === "security_analyst" ? (
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case Action Console</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        value={caseActionForm.tx_hash}
+                        onChange={(e) => setCaseActionForm((prev) => ({ ...prev, tx_hash: e.target.value }))}
+                        placeholder="Transaction hash"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <select
+                        value={caseActionForm.action}
+                        onChange={(e) => setCaseActionForm((prev) => ({ ...prev, action: e.target.value }))}
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      >
+                        <option value="ESCALATE">ESCALATE</option>
+                        <option value="CONFIRM_FRAUD">CONFIRM_FRAUD</option>
+                        <option value="DISMISS">DISMISS</option>
+                      </select>
+                      <input
+                        value={caseActionForm.note}
+                        onChange={(e) => setCaseActionForm((prev) => ({ ...prev, note: e.target.value }))}
+                        placeholder="Analyst note"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={submitCaseAction}
+                        className="rounded border border-rose-500/40 bg-rose-500/15 px-2 py-1.5 text-xs text-rose-200"
+                      >
+                        Apply Case Action
+                      </button>
+                    </div>
+                  </div>
 
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Pipeline Metrics</p>
-                        <div className="max-h-72 overflow-auto text-xs">
-                          <table className="w-full text-left">
-                            <thead className="text-slate-400">
-                              <tr>
-                                <th className="pb-1">Block</th>
-                                <th className="pb-1">TPS</th>
-                                <th className="pb-1">Ingest ms</th>
-                                <th className="pb-1">Decode ms</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {pipelineMetrics.map((row) => (
-                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                                  <td className="py-1">{row.block_number ?? "N/A"}</td>
-                                  <td className="py-1">{row.throughput_tps ?? "N/A"}</td>
-                                  <td className="py-1">{row.ingestion_latency_ms ?? "N/A"}</td>
-                                  <td className="py-1">{row.decode_latency_ms ?? "N/A"}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Notification Test</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <select
+                        value={notificationForm.channel}
+                        onChange={(e) => setNotificationForm((prev) => ({ ...prev, channel: e.target.value }))}
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      >
+                        <option value="telegram">telegram</option>
+                        <option value="slack">slack</option>
+                        <option value="email">email</option>
+                        <option value="webhook">webhook</option>
+                      </select>
+                      <input
+                        value={notificationForm.recipient}
+                        onChange={(e) => setNotificationForm((prev) => ({ ...prev, recipient: e.target.value }))}
+                        placeholder="Recipient"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <select
+                        value={notificationForm.severity}
+                        onChange={(e) => setNotificationForm((prev) => ({ ...prev, severity: e.target.value }))}
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      >
+                        <option value="LOW">LOW</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="CRITICAL">CRITICAL</option>
+                      </select>
+                      <input
+                        value={notificationForm.message}
+                        onChange={(e) => setNotificationForm((prev) => ({ ...prev, message: e.target.value }))}
+                        placeholder="Message"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={sendTestNotification}
+                        className="rounded border border-rose-500/40 bg-rose-500/15 px-2 py-1.5 text-xs text-rose-200"
+                      >
+                        Send Test Notification
+                      </button>
+                    </div>
+                  </div>
 
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">SLO Hardening</p>
-                        <div className="space-y-2 text-sm text-slate-300">
-                          <p>Window: {systemSloMetrics?.period_days ?? 0} days</p>
-                          <p>Healthy active endpoints: {systemSloMetrics?.endpoint_health.healthy_active ?? 0}/{systemSloMetrics?.endpoint_health.active ?? 0}</p>
-                          <p>Ingest p95: {systemSloMetrics?.latency_slo.ingest_p95_ms ?? 0} ms</p>
-                          <p>Decode p95: {systemSloMetrics?.latency_slo.decode_p95_ms ?? 0} ms</p>
-                          <p>Ingest breaches: {systemSloMetrics?.latency_slo.ingest_breaches ?? 0}</p>
-                          <p>Decode breaches: {systemSloMetrics?.latency_slo.decode_breaches ?? 0}</p>
-                          <p>Latest block: {dashboardStats.systemAdmin.lastBlock ?? "N/A"}</p>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case State Snapshot</p>
+                    <div className="space-y-2 text-sm text-slate-300">
+                      <p>Pending: {caseSummary.totals.PENDING}</p>
+                      <p>Verified: {caseSummary.totals.VERIFIED}</p>
+                      <p>Fraud: {caseSummary.totals.FRAUD}</p>
+                      <p>Ignored: {caseSummary.totals.IGNORED}</p>
+                      <p>High-risk unassigned: {caseSummary.high_risk_unassigned}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {role.key === "compliance_risk_manager" ? (
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Rule Builder</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        value={policyRuleForm.rule_name}
+                        onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, rule_name: e.target.value }))}
+                        placeholder="Rule name"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <input
+                        value={policyRuleForm.description}
+                        onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, description: e.target.value }))}
+                        placeholder="Description"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          value={policyRuleForm.min_risk_score}
+                          onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, min_risk_score: Number(e.target.value) || 80 }))}
+                          placeholder="Min risk score"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                        <input
+                          type="number"
+                          value={policyRuleForm.priority}
+                          onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, priority: Number(e.target.value) || 100 }))}
+                          placeholder="Priority"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={createPolicyRule}
+                        className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1.5 text-xs text-amber-200"
+                      >
+                        Save Policy Rule
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Simulation</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        type="number"
+                        value={policyEvalForm.risk_score}
+                        onChange={(e) => setPolicyEvalForm((prev) => ({ ...prev, risk_score: Number(e.target.value) || 0 }))}
+                        placeholder="Risk score"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <select
+                        value={policyEvalForm.account_status}
+                        onChange={(e) => setPolicyEvalForm((prev) => ({ ...prev, account_status: e.target.value }))}
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      >
+                        <option value="active">active</option>
+                        <option value="under_review">under_review</option>
+                        <option value="suspended">suspended</option>
+                        <option value="frozen">frozen</option>
+                      </select>
+                      <label className="flex items-center gap-2 text-xs text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={policyEvalForm.is_blacklisted}
+                          onChange={(e) => setPolicyEvalForm((prev) => ({ ...prev, is_blacklisted: e.target.checked }))}
+                        />
+                        Is blacklisted
+                      </label>
+                      <button
+                        type="button"
+                        onClick={evaluatePolicyRule}
+                        className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1.5 text-xs text-amber-200"
+                      >
+                        Evaluate Policy
+                      </button>
+                      {policyEvalResult ? (
+                        <div className="rounded border border-slate-700 bg-slate-950/50 px-2 py-2 text-xs text-slate-300">
+                          Decision: {policyEvalResult.decision} | Matched rules: {policyEvalResult.matched_count}
                         </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Reporting and Export</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={reportDays}
+                        onChange={(e) => setReportDays(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
+                        placeholder="Report window (days)"
+                        className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => loadRoleFacts("compliance_risk_manager")}
+                        className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-200"
+                      >
+                        Refresh Reporting KPIs
+                      </button>
+                      <button
+                        type="button"
+                        onClick={generateComplianceExport}
+                        className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1.5 text-xs text-amber-200"
+                      >
+                        Generate Compliance Export
+                      </button>
+                      <button
+                        type="button"
+                        onClick={downloadComplianceCsv}
+                        className="rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-xs text-slate-200"
+                      >
+                        Download CSV
+                      </button>
+                      <div className="rounded border border-slate-700 bg-slate-950/50 px-2 py-2 text-xs text-slate-300">
+                        Completeness: {auditCompleteness?.completeness_pct ?? 0}% | Gaps: {complianceAuditGaps?.missing_count ?? 0}
                       </div>
                     </div>
-                  ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </>
+              ) : null}
 
-                  {role.key === "ai_data_engineer" ? (
-                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Feature Store</p>
-                        <div className="max-h-72 overflow-auto text-xs">
-                          <table className="w-full text-left">
-                            <thead className="text-slate-400">
-                              <tr>
-                                <th className="pb-1">Feature</th>
-                                <th className="pb-1">Enabled</th>
-                                <th className="pb-1">Expression</th>
+            {activeSection === "data" ? (
+              <>
+                {role.key === "system_admin" ? (
+                  <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Node Endpoints</p>
+                      <div className="max-h-72 overflow-auto text-xs">
+                        <table className="w-full text-left">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="pb-1">Provider</th>
+                              <th className="pb-1">Chain</th>
+                              <th className="pb-1">Protocol</th>
+                              <th className="pb-1">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {nodeEndpoints.map((row) => (
+                              <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                <td className="py-1">{row.provider_name}</td>
+                                <td className="py-1">{row.chain}</td>
+                                <td className="py-1">{row.protocol}</td>
+                                <td className="py-1">{row.health_status}</td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {featureConfigs.map((row) => (
-                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                                  <td className="py-1">{row.feature_key}</td>
-                                  <td className="py-1">{row.enabled ? "Yes" : "No"}</td>
-                                  <td className="py-1">{row.expression ?? "N/A"}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Model Registry</p>
-                        <div className="max-h-72 overflow-auto text-xs">
-                          <table className="w-full text-left">
-                            <thead className="text-slate-400">
-                              <tr>
-                                <th className="pb-1">Model</th>
-                                <th className="pb-1">Version</th>
-                                <th className="pb-1">Active</th>
-                                <th className="pb-1">Action</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {modelRegistryItems.map((row) => (
-                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                                  <td className="py-1">{row.model_name}</td>
-                                  <td className="py-1">{row.version}</td>
-                                  <td className="py-1">{row.is_active ? "Yes" : "No"}</td>
-                                  <td className="py-1">
-                                    {!row.is_active ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => activateModel(row.id)}
-                                        className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1 text-[10px] text-violet-200"
-                                      >
-                                        Activate
-                                      </button>
-                                    ) : (
-                                      "-"
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
-                  ) : null}
 
-                  {role.key === "security_analyst" ? (
-                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Recent Alerts</p>
-                        <div className="max-h-72 overflow-auto text-xs">
-                          <table className="w-full text-left">
-                            <thead className="text-slate-400">
-                              <tr>
-                                <th className="pb-1">Type</th>
-                                <th className="pb-1">Severity</th>
-                                <th className="pb-1">Risk</th>
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Pipeline Metrics</p>
+                      <div className="max-h-72 overflow-auto text-xs">
+                        <table className="w-full text-left">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="pb-1">Block</th>
+                              <th className="pb-1">TPS</th>
+                              <th className="pb-1">Ingest ms</th>
+                              <th className="pb-1">Decode ms</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pipelineMetrics.map((row) => (
+                              <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                <td className="py-1">{row.block_number ?? "N/A"}</td>
+                                <td className="py-1">{row.throughput_tps ?? "N/A"}</td>
+                                <td className="py-1">{row.ingestion_latency_ms ?? "N/A"}</td>
+                                <td className="py-1">{row.decode_latency_ms ?? "N/A"}</td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {alertItems.map((row) => (
-                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                                  <td className="py-1">{row.alert_type}</td>
-                                  <td className="py-1">{row.severity}</td>
-                                  <td className="py-1">{row.risk_score ?? "N/A"}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div className="mt-3 grid grid-cols-3 gap-2">
-                          <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-2 py-2 text-[11px] text-slate-400">Critical queue</div>
-                          <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-2 py-2 text-[11px] text-slate-400">Case action</div>
-                          <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-2 py-2 text-[11px] text-slate-400">Timeline ready</div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case Queue</p>
-                        <div className="max-h-72 overflow-auto text-xs">
-                          <table className="w-full text-left">
-                            <thead className="text-slate-400">
-                              <tr>
-                                <th className="pb-1">Tx Hash</th>
-                                <th className="pb-1">Status</th>
-                                <th className="pb-1">Risk</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {caseItems.map((row) => (
-                                <tr key={row.tx_hash} className="border-t border-slate-700/60 text-slate-200">
-                                  <td className="py-1">{row.tx_hash.slice(0, 12)}...</td>
-                                  <td className="py-1">{row.status}</td>
-                                  <td className="py-1">{row.risk_score ?? "N/A"}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
-                          Case states are ready to be acted on from /cases routes.
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Notification Events</p>
-                        <div className="max-h-72 overflow-auto text-xs">
-                          <table className="w-full text-left">
-                            <thead className="text-slate-400">
-                              <tr>
-                                <th className="pb-1">Channel</th>
-                                <th className="pb-1">Severity</th>
-                                <th className="pb-1">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {notificationEvents.length > 0 ? notificationEvents.map((row) => (
-                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                                  <td className="py-1">{row.channel}</td>
-                                  <td className="py-1">{row.severity}</td>
-                                  <td className="py-1">{row.status}</td>
-                                </tr>
-                              )) : (
-                                <tr>
-                                  <td className="py-3 text-slate-500" colSpan={3}>No notification events yet.</td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
-                  ) : null}
 
-                  {role.key === "compliance_risk_manager" ? (
-                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Blocked Transfers</p>
-                        <div className="max-h-72 overflow-auto text-xs">
-                          <table className="w-full text-left">
-                            <thead className="text-slate-400">
-                              <tr>
-                                <th className="pb-1">Sender</th>
-                                <th className="pb-1">Receiver</th>
-                                <th className="pb-1">Amount ETH</th>
-                                <th className="pb-1">Risk</th>
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">SLO Hardening</p>
+                      <div className="space-y-2 text-sm text-slate-300">
+                        <p>Window: {systemSloMetrics?.period_days ?? 0} days</p>
+                        <p>Healthy active endpoints: {systemSloMetrics?.endpoint_health.healthy_active ?? 0}/{systemSloMetrics?.endpoint_health.active ?? 0}</p>
+                        <p>Ingest p95: {systemSloMetrics?.latency_slo.ingest_p95_ms ?? 0} ms</p>
+                        <p>Decode p95: {systemSloMetrics?.latency_slo.decode_p95_ms ?? 0} ms</p>
+                        <p>Ingest breaches: {systemSloMetrics?.latency_slo.ingest_breaches ?? 0}</p>
+                        <p>Decode breaches: {systemSloMetrics?.latency_slo.decode_breaches ?? 0}</p>
+                        <p>Latest block: {dashboardStats.systemAdmin.lastBlock ?? "N/A"}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {role.key === "ai_data_engineer" ? (
+                  <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Feature Store</p>
+                      <div className="max-h-72 overflow-auto text-xs">
+                        <table className="w-full text-left">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="pb-1">Feature</th>
+                              <th className="pb-1">Enabled</th>
+                              <th className="pb-1">Expression</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {featureConfigs.map((row) => (
+                              <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                <td className="py-1">{row.feature_key}</td>
+                                <td className="py-1">{row.enabled ? "Yes" : "No"}</td>
+                                <td className="py-1">{row.expression ?? "N/A"}</td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {blockedTransfers.length > 0 ? blockedTransfers.map((row) => (
-                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                                  <td className="py-1">{row.sender_address.slice(0, 10)}...</td>
-                                  <td className="py-1">{row.receiver_address.slice(0, 10)}...</td>
-                                  <td className="py-1">{row.amount_eth}</td>
-                                  <td className="py-1">{row.risk_score}</td>
-                                </tr>
-                              )) : (
-                                <tr>
-                                  <td className="py-3 text-slate-500" colSpan={4}>No blocked transfers yet.</td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
+                    </div>
 
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Rules</p>
-                        <div className="max-h-72 overflow-auto text-xs">
-                          <table className="w-full text-left">
-                            <thead className="text-slate-400">
-                              <tr>
-                                <th className="pb-1">Rule</th>
-                                <th className="pb-1">Min risk</th>
-                                <th className="pb-1">Active</th>
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Model Registry</p>
+                      <div className="max-h-72 overflow-auto text-xs">
+                        <table className="w-full text-left">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="pb-1">Model</th>
+                              <th className="pb-1">Version</th>
+                              <th className="pb-1">Active</th>
+                              <th className="pb-1">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {modelRegistryItems.map((row) => (
+                              <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                <td className="py-1">{row.model_name}</td>
+                                <td className="py-1">{row.version}</td>
+                                <td className="py-1">{row.is_active ? "Yes" : "No"}</td>
+                                <td className="py-1">
+                                  {!row.is_active ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => activateModel(row.id)}
+                                      className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1 text-[10px] text-violet-200"
+                                    >
+                                      Activate
+                                    </button>
+                                  ) : (
+                                    "-"
+                                  )}
+                                </td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {policyRules.length > 0 ? policyRules.map((row) => (
-                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                                  <td className="py-1">{row.rule_name}</td>
-                                  <td className="py-1">{row.min_risk_score}</td>
-                                  <td className="py-1">{row.is_active ? "Yes" : "No"}</td>
-                                </tr>
-                              )) : (
-                                <tr>
-                                  <td className="py-3 text-slate-500" colSpan={3}>No policy rules yet.</td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
+                    </div>
+                  </div>
+                ) : null}
 
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Control Effectiveness</p>
-                        <div className="space-y-2 text-sm text-slate-300">
-                          <p>Actionable alerts: {complianceEffectiveness?.inputs.actionable_alerts ?? 0}</p>
-                          <p>Blocked total: {complianceEffectiveness?.inputs.blocked_total ?? 0}</p>
-                          <p>Block rate: {complianceEffectiveness?.metrics.block_rate_pct ?? 0}%</p>
-                          <p>Fraud precision proxy: {complianceEffectiveness?.metrics.fraud_precision_proxy_pct ?? 0}%</p>
-                          <p>Decision coverage: {complianceEffectiveness?.metrics.decision_coverage ?? 0}</p>
-                        </div>
+                {role.key === "security_analyst" ? (
+                  <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Recent Alerts</p>
+                      <div className="max-h-72 overflow-auto text-xs">
+                        <table className="w-full text-left">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="pb-1">Type</th>
+                              <th className="pb-1">Severity</th>
+                              <th className="pb-1">Risk</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {alertItems.map((row) => (
+                              <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                <td className="py-1">{row.alert_type}</td>
+                                <td className="py-1">{row.severity}</td>
+                                <td className="py-1">{row.risk_score ?? "N/A"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-2 py-2 text-[11px] text-slate-400">Critical queue</div>
+                        <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-2 py-2 text-[11px] text-slate-400">Case action</div>
+                        <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-2 py-2 text-[11px] text-slate-400">Timeline ready</div>
+                      </div>
+                    </div>
 
-                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Audit Completeness</p>
-                        <div className="space-y-2 text-sm text-slate-300">
-                          <p>Required actions: {auditCompleteness?.required_actions ?? 0}</p>
-                          <p>Present actions: {auditCompleteness?.present_actions ?? 0}</p>
-                          <p>Completeness: {auditCompleteness?.completeness_pct ?? 0}%</p>
-                          <p>Audit events: {complianceReport?.kpis.audit_events ?? 0}</p>
-                        </div>
-                        <div className="mt-2 max-h-28 overflow-auto rounded border border-slate-700 bg-slate-950/50 px-2 py-2 text-[11px] text-slate-400">
-                          {(auditCompleteness?.checks ?? []).map((item) => (
-                            <div key={item.action_type} className="flex items-center justify-between border-b border-slate-800 py-1 last:border-b-0">
-                              <span>{item.action_type}</span>
-                              <span>{item.count}</span>
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case Queue</p>
+                      <div className="max-h-72 overflow-auto text-xs">
+                        <table className="w-full text-left">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="pb-1">Tx Hash</th>
+                              <th className="pb-1">Status</th>
+                              <th className="pb-1">Risk</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {caseItems.map((row) => (
+                              <tr key={row.tx_hash} className="border-t border-slate-700/60 text-slate-200">
+                                <td className="py-1">{row.tx_hash.slice(0, 12)}...</td>
+                                <td className="py-1">{row.status}</td>
+                                <td className="py-1">{row.risk_score ?? "N/A"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+                        Case states are ready to be acted on from /cases routes.
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Notification Events</p>
+                      <div className="max-h-72 overflow-auto text-xs">
+                        <table className="w-full text-left">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="pb-1">Channel</th>
+                              <th className="pb-1">Severity</th>
+                              <th className="pb-1">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {notificationEvents.length > 0 ? notificationEvents.map((row) => (
+                              <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                <td className="py-1">{row.channel}</td>
+                                <td className="py-1">{row.severity}</td>
+                                <td className="py-1">{row.status}</td>
+                              </tr>
+                            )) : (
+                              <tr>
+                                <td className="py-3 text-slate-500" colSpan={3}>No notification events yet.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {role.key === "compliance_risk_manager" ? (
+                  <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Blocked Transfers</p>
+                      <div className="max-h-72 overflow-auto text-xs">
+                        <table className="w-full text-left">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="pb-1">Sender</th>
+                              <th className="pb-1">Receiver</th>
+                              <th className="pb-1">Amount ETH</th>
+                              <th className="pb-1">Risk</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {blockedTransfers.length > 0 ? blockedTransfers.map((row) => (
+                              <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                <td className="py-1">{row.sender_address.slice(0, 10)}...</td>
+                                <td className="py-1">{row.receiver_address.slice(0, 10)}...</td>
+                                <td className="py-1">{row.amount_eth}</td>
+                                <td className="py-1">{row.risk_score}</td>
+                              </tr>
+                            )) : (
+                              <tr>
+                                <td className="py-3 text-slate-500" colSpan={4}>No blocked transfers yet.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Rules</p>
+                      <div className="max-h-72 overflow-auto text-xs">
+                        <table className="w-full text-left">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="pb-1">Rule</th>
+                              <th className="pb-1">Min risk</th>
+                              <th className="pb-1">Active</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {policyRules.length > 0 ? policyRules.map((row) => (
+                              <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                <td className="py-1">{row.rule_name}</td>
+                                <td className="py-1">{row.min_risk_score}</td>
+                                <td className="py-1">{row.is_active ? "Yes" : "No"}</td>
+                              </tr>
+                            )) : (
+                              <tr>
+                                <td className="py-3 text-slate-500" colSpan={3}>No policy rules yet.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Control Effectiveness</p>
+                      <div className="space-y-2 text-sm text-slate-300">
+                        <p>Actionable alerts: {complianceEffectiveness?.inputs.actionable_alerts ?? 0}</p>
+                        <p>Blocked total: {complianceEffectiveness?.inputs.blocked_total ?? 0}</p>
+                        <p>Block rate: {complianceEffectiveness?.metrics.block_rate_pct ?? 0}%</p>
+                        <p>Fraud precision proxy: {complianceEffectiveness?.metrics.fraud_precision_proxy_pct ?? 0}%</p>
+                        <p>Decision coverage: {complianceEffectiveness?.metrics.decision_coverage ?? 0}</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Audit Completeness</p>
+                      <div className="space-y-2 text-sm text-slate-300">
+                        <p>Required actions: {auditCompleteness?.required_actions ?? 0}</p>
+                        <p>Present actions: {auditCompleteness?.present_actions ?? 0}</p>
+                        <p>Completeness: {auditCompleteness?.completeness_pct ?? 0}%</p>
+                        <p>Audit events: {complianceReport?.kpis.audit_events ?? 0}</p>
+                      </div>
+                      <div className="mt-2 max-h-28 overflow-auto rounded border border-slate-700 bg-slate-950/50 px-2 py-2 text-[11px] text-slate-400">
+                        {(auditCompleteness?.checks ?? []).map((item) => (
+                          <div key={item.action_type} className="flex items-center justify-between border-b border-slate-800 py-1 last:border-b-0">
+                            <span>{item.action_type}</span>
+                            <span>{item.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {(complianceAuditGaps?.missing_actions?.length ?? 0) > 0 ? (
+                        <div className="mt-2 max-h-28 overflow-auto rounded border border-amber-500/30 bg-amber-500/10 px-2 py-2 text-[11px] text-amber-100">
+                          {complianceAuditGaps?.missing_actions.map((item) => (
+                            <div key={item.action_type} className="border-b border-amber-500/20 py-1 last:border-b-0">
+                              <p className="font-semibold">{item.action_type} ({item.owner_role})</p>
+                              <p>{item.reason}</p>
                             </div>
                           ))}
                         </div>
-                        {(complianceAuditGaps?.missing_actions?.length ?? 0) > 0 ? (
-                          <div className="mt-2 max-h-28 overflow-auto rounded border border-amber-500/30 bg-amber-500/10 px-2 py-2 text-[11px] text-amber-100">
-                            {complianceAuditGaps?.missing_actions.map((item) => (
-                              <div key={item.action_type} className="border-b border-amber-500/20 py-1 last:border-b-0">
-                                <p className="font-semibold">{item.action_type} ({item.owner_role})</p>
-                                <p>{item.reason}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="md:col-span-2 rounded-xl border border-dashed border-slate-600 p-3 text-xs text-slate-400 min-h-[120px]">
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                      <span>Data note: {roleFacts.note}</span>
-                      <span>{isLoadingFacts ? "loading..." : "ready"}{factsError ? ` | error: ${factsError}` : ""}</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2">Linked to active role module</div>
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2">Data shown only for active section</div>
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2">Workspace remains inherited across roles</div>
+                      ) : null}
                     </div>
                   </div>
-                </>
-              ) : null}
-            </section>
-          </main>
-        </div>
+                ) : null}
 
-        <footer className="mt-4 text-center text-xs text-slate-500">
-          Home-only mode enabled for rapid role-based testing
-        </footer>
+                <div className="md:col-span-2 rounded-xl border border-dashed border-slate-600 p-3 text-xs text-slate-400 min-h-[120px]">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <span>Data note: {roleFacts.note}</span>
+                    <span>{isLoadingFacts ? "loading..." : "ready"}{factsError ? ` | error: ${factsError}` : ""}</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2">Linked to active role module</div>
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2">Data shown only for active section</div>
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2">Workspace remains inherited across roles</div>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </section>
+        </main>
       </div>
+
+      <footer className="mt-4 text-center text-xs text-slate-500">
+        Home-only mode enabled for rapid role-based testing
+      </footer>
     </div>
+    </div >
   );
 }
