@@ -1,9 +1,26 @@
 """Configuration constants for the backend application."""
 
 import os
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _normalize_database_url(raw_url: str) -> str:
+    """Strip provider-specific query parameters that psycopg2 cannot parse."""
+    if not raw_url:
+        return raw_url
+
+    parsed = urlsplit(raw_url)
+    if not parsed.query:
+        return raw_url
+
+    allowed_query_keys = {"sslmode", "connect_timeout", "application_name", "target_session_attrs"}
+    filtered_query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key in allowed_query_keys]
+
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(filtered_query), parsed.fragment))
 
 # API Configuration
 ETHERSCAN_API_KEY: str = os.getenv("ETHERSCAN_API_KEY", "")
@@ -23,6 +40,7 @@ DATABASE_URL: str = os.getenv(
     "DATABASE_URL",
     "postgresql://user:password@db:5432/blockchain_db"
 )
+DATABASE_URL = _normalize_database_url(DATABASE_URL)
 
 # Model Paths
 MODEL_DIRECTORY: str = "app/services"

@@ -102,6 +102,40 @@ type BlockedTransferItem = {
   blocked_at: string | null;
 };
 
+type DashboardStats = {
+  systemAdmin: {
+    totalNodeEndpoints: number;
+    activeNodes: number;
+    avgThroughputTps: number;
+    avgIngestLatencyMs: number;
+    avgDecodeLatencyMs: number;
+    metricPoints: number;
+    lastBlock: number | null;
+  };
+  aiDataEngineer: {
+    featureConfigs: number;
+    enabledFeatures: number;
+    modelVersions: number;
+    activeModels: number;
+    activeVersion: string;
+    activeFramework: string;
+  };
+  securityAnalyst: {
+    alertsToday: number;
+    criticalAlerts: number;
+    recentAlerts: number;
+    openCases: number;
+    topCaseRisk: number | null;
+  };
+  complianceRiskManager: {
+    totalWallets: number;
+    criticalAlerts: number;
+    blockedTotal: number;
+    blockedToday: number;
+    blockedValueEth: number;
+  };
+};
+
 const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     key: "system_admin",
@@ -220,6 +254,39 @@ export default function HomePage() {
     framework: "onnx",
     is_active: true,
   });
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    systemAdmin: {
+      totalNodeEndpoints: 0,
+      activeNodes: 0,
+      avgThroughputTps: 0,
+      avgIngestLatencyMs: 0,
+      avgDecodeLatencyMs: 0,
+      metricPoints: 0,
+      lastBlock: null,
+    },
+    aiDataEngineer: {
+      featureConfigs: 0,
+      enabledFeatures: 0,
+      modelVersions: 0,
+      activeModels: 0,
+      activeVersion: "N/A",
+      activeFramework: "N/A",
+    },
+    securityAnalyst: {
+      alertsToday: 0,
+      criticalAlerts: 0,
+      recentAlerts: 0,
+      openCases: 0,
+      topCaseRisk: null,
+    },
+    complianceRiskManager: {
+      totalWallets: 0,
+      criticalAlerts: 0,
+      blockedTotal: 0,
+      blockedToday: 0,
+      blockedValueEth: 0,
+    },
+  });
   const [roleFacts, setRoleFacts] = useState<RoleFacts>({
     p1: ["No data yet"],
     p2: ["No data yet"],
@@ -295,6 +362,18 @@ export default function HomePage() {
           ],
           note: "Data source: /ops/system/* APIs backed by database metrics",
         });
+        setDashboardStats((prev) => ({
+          ...prev,
+          systemAdmin: {
+            totalNodeEndpoints: Number(nodes.count ?? 0),
+            activeNodes: ((nodes.items ?? []) as Array<{ is_active?: boolean }>).filter((x) => x.is_active).length,
+            avgThroughputTps: Number(summary.avg_throughput_tps ?? 0),
+            avgIngestLatencyMs: Number(summary.avg_ingestion_latency_ms ?? 0),
+            avgDecodeLatencyMs: Number(summary.avg_decode_latency_ms ?? 0),
+            metricPoints: Number(metrics.count ?? 0),
+            lastBlock: summary.last_block_number ?? null,
+          },
+        }));
       } else if (targetRole === "ai_data_engineer") {
         const [features, models, activeModels] = await Promise.all([
           fetchJson("/api/ops/ai/feature-store"),
@@ -330,6 +409,17 @@ export default function HomePage() {
           ],
           note: "Data source: /ops/ai/* APIs with model registry + feature store",
         });
+        setDashboardStats((prev) => ({
+          ...prev,
+          aiDataEngineer: {
+            featureConfigs: Number(features.count ?? 0),
+            enabledFeatures: enabledFeatureCount,
+            modelVersions: Number(models.count ?? 0),
+            activeModels: Number(activeModels.count ?? 0),
+            activeVersion: String(activeModels.items?.[0]?.version ?? "N/A"),
+            activeFramework: String(activeModels.items?.[0]?.framework ?? "N/A"),
+          },
+        }));
       } else if (targetRole === "security_analyst") {
         const [alerts, cases] = await Promise.all([
           fetchJson("/api/alerts/recent?limit=20"),
@@ -362,6 +452,16 @@ export default function HomePage() {
           ],
           note: "Data source: /alerts/recent and /cases",
         });
+        setDashboardStats((prev) => ({
+          ...prev,
+          securityAnalyst: {
+            alertsToday: Number(alerts.statistics?.total_alerts_today ?? 0),
+            criticalAlerts: Number(alerts.statistics?.critical_count ?? 0),
+            recentAlerts: Number(alerts.statistics?.total_recent ?? 0),
+            openCases: Number(cases.count ?? 0),
+            topCaseRisk: cases.cases?.[0]?.risk_score ?? null,
+          },
+        }));
       } else {
         const [dashboard, blocked] = await Promise.all([
           fetchJson("/api/statistics/dashboard"),
@@ -393,6 +493,16 @@ export default function HomePage() {
           ],
           note: "Data source: /statistics/dashboard and /blocked-transfers",
         });
+        setDashboardStats((prev) => ({
+          ...prev,
+          complianceRiskManager: {
+            totalWallets: Number(dashboard.overview?.total_wallets ?? 0),
+            criticalAlerts: Number(dashboard.overview?.critical_alerts ?? 0),
+            blockedTotal: Number(blocked.statistics?.total_blocked ?? 0),
+            blockedToday: Number(blocked.statistics?.blocked_today ?? 0),
+            blockedValueEth: Number(blocked.statistics?.total_value_blocked_eth ?? 0),
+          },
+        }));
       }
     } catch (error) {
       setFactsError(error instanceof Error ? error.message : "Failed to fetch role facts");
@@ -712,6 +822,110 @@ export default function HomePage() {
             {uiMessage ? (
               <div className="mb-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
                 {uiMessage}
+              </div>
+            ) : null}
+
+            {activeSection === "data" ? (
+              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {role.key === "system_admin" ? (
+                  <>
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-cyan-200">Node endpoints</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.systemAdmin.totalNodeEndpoints}</p>
+                      <p className="text-xs text-cyan-100/80">Active {dashboardStats.systemAdmin.activeNodes}</p>
+                    </div>
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-cyan-200">Throughput</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.systemAdmin.avgThroughputTps.toFixed(2)}</p>
+                      <p className="text-xs text-cyan-100/80">TPS average</p>
+                    </div>
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-cyan-200">Latency</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.systemAdmin.avgIngestLatencyMs.toFixed(0)} ms</p>
+                      <p className="text-xs text-cyan-100/80">Ingest average</p>
+                    </div>
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-cyan-200">Latest block</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.systemAdmin.lastBlock ?? "N/A"}</p>
+                      <p className="text-xs text-cyan-100/80">{dashboardStats.systemAdmin.metricPoints} points</p>
+                    </div>
+                  </>
+                ) : null}
+
+                {role.key === "ai_data_engineer" ? (
+                  <>
+                    <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-violet-200">Feature configs</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.aiDataEngineer.featureConfigs}</p>
+                      <p className="text-xs text-violet-100/80">Enabled {dashboardStats.aiDataEngineer.enabledFeatures}</p>
+                    </div>
+                    <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-violet-200">Model versions</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.aiDataEngineer.modelVersions}</p>
+                      <p className="text-xs text-violet-100/80">Active {dashboardStats.aiDataEngineer.activeModels}</p>
+                    </div>
+                    <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-violet-200">Active version</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.aiDataEngineer.activeVersion}</p>
+                      <p className="text-xs text-violet-100/80">{dashboardStats.aiDataEngineer.activeFramework}</p>
+                    </div>
+                    <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-violet-200">Lifecycle</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">Live</p>
+                      <p className="text-xs text-violet-100/80">Registry + feature store</p>
+                    </div>
+                  </>
+                ) : null}
+
+                {role.key === "security_analyst" ? (
+                  <>
+                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-rose-200">Alerts today</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.alertsToday}</p>
+                      <p className="text-xs text-rose-100/80">Critical {dashboardStats.securityAnalyst.criticalAlerts}</p>
+                    </div>
+                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-rose-200">Open cases</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.openCases}</p>
+                      <p className="text-xs text-rose-100/80">Recent {dashboardStats.securityAnalyst.recentAlerts}</p>
+                    </div>
+                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-rose-200">Top case risk</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.topCaseRisk ?? "N/A"}</p>
+                      <p className="text-xs text-rose-100/80">Min risk queue</p>
+                    </div>
+                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-rose-200">Investigation</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">Active</p>
+                      <p className="text-xs text-rose-100/80">Alerts + case triage</p>
+                    </div>
+                  </>
+                ) : null}
+
+                {role.key === "compliance_risk_manager" ? (
+                  <>
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-amber-200">Total wallets</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.complianceRiskManager.totalWallets}</p>
+                      <p className="text-xs text-amber-100/80">Critical {dashboardStats.complianceRiskManager.criticalAlerts}</p>
+                    </div>
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-amber-200">Blocked transfers</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.complianceRiskManager.blockedTotal}</p>
+                      <p className="text-xs text-amber-100/80">Today {dashboardStats.complianceRiskManager.blockedToday}</p>
+                    </div>
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-amber-200">Blocked value</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.complianceRiskManager.blockedValueEth.toFixed(2)}</p>
+                      <p className="text-xs text-amber-100/80">ETH protected</p>
+                    </div>
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-amber-200">Governance</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">Live</p>
+                      <p className="text-xs text-amber-100/80">Reporting + controls</p>
+                    </div>
+                  </>
+                ) : null}
               </div>
             ) : null}
 

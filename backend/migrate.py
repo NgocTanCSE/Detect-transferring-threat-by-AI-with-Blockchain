@@ -4,9 +4,8 @@ Run this inside the backend container or connect to database directly
 """
 
 import psycopg2
-import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@db:5432/blockchain_db")
+from app.core.config import DATABASE_URL
 
 def run_migration():
     conn = psycopg2.connect(DATABASE_URL)

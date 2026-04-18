@@ -11,11 +11,6 @@ if [ -n "$DATABASE_URL" ]; then
     echo "DATABASE_URL is set. Attempting migrations..."
     cd /app/backend
     python migrate.py || echo "Migration failed (DB might not be ready yet), continuing..."
-    
-    cd /app/backend
-    python migrate.py || echo "Migration failed (DB might not be ready yet), continuing..."
-    cd /app
-    cd /app
 else
     echo "DATABASE_URL is not set. Skipping migrations."
 fi

@@ -14,6 +14,7 @@ from sqlalchemy import func, case
 from app.core.database import engine, get_db, Base, ensure_schema
 from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase
 from blockchain_client import fetch_wallet_history
+from app.core.config import ALCHEMY_API_KEY, ALCHEMY_RPC_URL
 from app.services.ai_engine import MultiAgentDetectionEngine
 
 
@@ -104,6 +105,54 @@ app.include_router(phase2_ops_router)
 def health_check() -> Dict[str, str]:
     """API health check endpoint."""
     return {"status": "operational", "service": "Blockchain Risk Assessment API v3.0"}
+
+
+@app.get("/diagnostics/alchemy/{wallet_address}", tags=["Diagnostics"])
+def diagnose_alchemy_wallet(wallet_address: str) -> Dict[str, Any]:
+    """Check whether Alchemy returns fresh transfer data for a wallet address."""
+    normalized_address = wallet_address.lower().strip()
+
+    if not ALCHEMY_API_KEY:
+        return {
+            "configured": False,
+            "wallet_address": normalized_address,
+            "data_available": False,
+            "transfer_count": 0,
+            "sample_transfer": None,
+            "note": "ALCHEMY_API_KEY is missing",
+        }
+
+    try:
+        transfers = fetch_wallet_history(normalized_address, max_count=10)
+        sample_transfer = transfers[0] if transfers else None
+
+        return {
+            "configured": True,
+            "rpc_url_ready": bool(ALCHEMY_RPC_URL),
+            "wallet_address": normalized_address,
+            "data_available": len(transfers) > 0,
+            "transfer_count": len(transfers),
+            "sample_transfer": {
+                "tx_hash": sample_transfer.get("tx_hash") if sample_transfer else None,
+                "from_address": sample_transfer.get("from_address") if sample_transfer else None,
+                "to_address": sample_transfer.get("to_address") if sample_transfer else None,
+                "category": sample_transfer.get("category") if sample_transfer else None,
+                "block_number": sample_transfer.get("block_number") if sample_transfer else None,
+                "timestamp": sample_transfer.get("timestamp").isoformat() if sample_transfer and sample_transfer.get("timestamp") else None,
+            },
+            "note": "Alchemy fetch executed directly from live RPC endpoint",
+        }
+    except Exception as error:
+        return {
+            "configured": True,
+            "rpc_url_ready": bool(ALCHEMY_RPC_URL),
+            "wallet_address": normalized_address,
+            "data_available": False,
+            "transfer_count": 0,
+            "sample_transfer": None,
+            "error": str(error),
+            "note": "Alchemy call failed",
+        }
 
 
 @app.get("/analyze/{wallet_address}", tags=["Risk Assessment"])
