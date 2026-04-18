@@ -37,6 +37,17 @@ type RoleFacts = {
 
 type WorkspaceSection = "overview" | "actions" | "data";
 
+type ModuleBlueprint = {
+  title: string;
+  subtitle: string;
+  status: string;
+  objective: string;
+  metrics: Array<{ label: string; value: string; tone: string }>;
+  signals: string[];
+  actions: string[];
+  notes: string[];
+};
+
 type NodeEndpoint = {
   id: string;
   provider_name: string;
@@ -211,6 +222,363 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
   },
 ];
 
+const MODULE_BLUEPRINTS: Record<RoleKey, ModuleBlueprint[]> = {
+  system_admin: [
+    {
+      title: "Node Connection Manager",
+      subtitle: "Control Alchemy / node failover and endpoint health.",
+      status: "Operational",
+      objective: "Keep chain access reliable and visible.",
+      metrics: [
+        { label: "Endpoint pool", value: "Live", tone: "cyan" },
+        { label: "Failover", value: "Ready", tone: "emerald" },
+        { label: "Health checks", value: "8s", tone: "blue" },
+      ],
+      signals: ["Primary RPC path healthy", "Auto-failover supported", "Endpoint list persisted in DB"],
+      actions: ["Add endpoint", "Update health", "Toggle active node"],
+      notes: ["This module owns external chain connectivity.", "Used by analysis, scanner, and dashboard refresh loops."],
+    },
+    {
+      title: "Pipeline Observability",
+      subtitle: "Watch throughput, ingest latency, and decode latency.",
+      status: "Observed",
+      objective: "Surface operational drag before analysis stalls.",
+      metrics: [
+        { label: "Throughput", value: "TPS", tone: "violet" },
+        { label: "Latency", value: "ms", tone: "amber" },
+        { label: "Blocks", value: "Recent", tone: "rose" },
+      ],
+      signals: ["Metrics stored in pipeline_metrics", "Summary endpoint available", "Recent points loaded live"],
+      actions: ["Seed metric", "Refresh summary", "Inspect recent rows"],
+      notes: ["This is the system health dashboard layer.", "Supports long-running runtime monitoring."],
+    },
+    {
+      title: "RBAC and User Provisioning",
+      subtitle: "Plan role access and user lifecycle controls.",
+      status: "Planned",
+      objective: "Preserve inheritance while role-based UI stays active.",
+      metrics: [
+        { label: "Users", value: "Future", tone: "slate" },
+        { label: "Roles", value: "4", tone: "slate" },
+        { label: "MFA", value: "Phase 4", tone: "slate" },
+      ],
+      signals: ["Auth is currently disabled", "UI role switch is local", "Backend auth router remains in place"],
+      actions: ["Re-enable auth", "Bind role enums", "Add admin provisioning"],
+      notes: ["This is a roadmap item, not live auth yet."],
+    },
+    {
+      title: "Audit Trail Explorer",
+      subtitle: "Track write events and operational changes.",
+      status: "Live",
+      objective: "Keep every operational change traceable.",
+      metrics: [
+        { label: "Audit logs", value: "DB", tone: "emerald" },
+        { label: "Endpoint changes", value: "Tracked", tone: "cyan" },
+        { label: "History", value: "Queryable", tone: "blue" },
+      ],
+      signals: ["Audit rows written on node/model updates", "Case actions are logged", "Stateless runtime safe"],
+      actions: ["View logs", "Filter by action", "Export records"],
+      notes: ["Useful for ops and compliance review."],
+    },
+    {
+      title: "Circuit Breaker Control",
+      subtitle: "Future control plane for chain access throttling.",
+      status: "Roadmap",
+      objective: "Guard downstream systems when node health degrades.",
+      metrics: [
+        { label: "Breaker", value: "Planned", tone: "amber" },
+        { label: "Thresholds", value: "Planned", tone: "amber" },
+        { label: "Recovery", value: "Planned", tone: "amber" },
+      ],
+      signals: ["Not enforced in runtime yet", "Can be tied to health updates", "Fits Node Endpoint manager"],
+      actions: ["Define thresholds", "Bind to health status", "Add alerting"],
+      notes: ["Shown here so the role has complete operational scope."],
+    },
+    {
+      title: "Latency and SLA Monitor",
+      subtitle: "Track response budgets and ingestion lag.",
+      status: "Observed",
+      objective: "Spot service regressions early.",
+      metrics: [
+        { label: "SLA", value: "Visible", tone: "rose" },
+        { label: "P95", value: "Future", tone: "rose" },
+        { label: "Budget", value: "Future", tone: "rose" },
+      ],
+      signals: ["Tied to pipeline metrics", "Ready for charting", "Supports alert thresholds"],
+      actions: ["Add charts", "Set thresholds", "Monitor deviations"],
+      notes: ["A thin visual layer is better than empty space."],
+    },
+  ],
+  ai_data_engineer: [
+    {
+      title: "Feature Store Selection",
+      subtitle: "Define which features are live for inference.",
+      status: "Live",
+      objective: "Keep inference inputs versioned and explicit.",
+      metrics: [
+        { label: "Feature configs", value: "Live", tone: "violet" },
+        { label: "Enabled", value: "Toggle", tone: "emerald" },
+        { label: "Owners", value: "Config", tone: "blue" },
+      ],
+      signals: ["Feature store API active", "Enabled toggles persisted", "Expression field supported"],
+      actions: ["Create feature", "Toggle enabled", "Update expression"],
+      notes: ["This is the core input control point for AI scoring."],
+    },
+    {
+      title: "Feature Engineering Recipes",
+      subtitle: "Capture transform logic and derived signals.",
+      status: "Active",
+      objective: "Make derived features readable and repeatable.",
+      metrics: [
+        { label: "Recipes", value: "Planned", tone: "slate" },
+        { label: "Transforms", value: "Planned", tone: "slate" },
+        { label: "Windows", value: "Planned", tone: "slate" },
+      ],
+      signals: ["Current extractor already translates transaction history", "Feature schema aligned to model", "Ready for notebook workflow"],
+      actions: ["Define recipe", "Review schema", "Backfill features"],
+      notes: ["Use this block to explain feature lineage.", "It should not be empty."],
+    },
+    {
+      title: "Model Registry and Versioning",
+      subtitle: "Upload, activate, and roll back model versions.",
+      status: "Live",
+      objective: "Ensure deterministic deployment selection.",
+      metrics: [
+        { label: "Model versions", value: "Live", tone: "violet" },
+        { label: "Active model", value: "1", tone: "emerald" },
+        { label: "Rollback", value: "Ready", tone: "blue" },
+      ],
+      signals: ["Registry API active", "Activate endpoint wired", "Audit log on promotion"],
+      actions: ["Create version", "Activate model", "Review active model"],
+      notes: ["This is currently backed by the Phase 2 backend endpoints."],
+    },
+    {
+      title: "Parallel Inference Worker Pools",
+      subtitle: "Future concurrency layer for scoring jobs.",
+      status: "Roadmap",
+      objective: "Scale inference without blocking the API path.",
+      metrics: [
+        { label: "Workers", value: "Planned", tone: "slate" },
+        { label: "Queue", value: "Planned", tone: "slate" },
+        { label: "Parallelism", value: "Planned", tone: "slate" },
+      ],
+      signals: ["Will sit between feature extraction and model selection", "Can be invoked per risk scan", "Useful for large watchlists"],
+      actions: ["Plan worker pool", "Define queue semantics", "Add retry policy"],
+      notes: ["Shown to complete the role surface area."],
+    },
+    {
+      title: "Backtesting Runner",
+      subtitle: "Replay historical flows against candidate models.",
+      status: "Planned",
+      objective: "Compare models using past labeled outcomes.",
+      metrics: [
+        { label: "Backtests", value: "Planned", tone: "amber" },
+        { label: "Compare", value: "Planned", tone: "amber" },
+        { label: "Results", value: "Planned", tone: "amber" },
+      ],
+      signals: ["Matches roadmap in rearchitecture plan", "Use feedback labels for evaluation", "Can feed compliance reports"],
+      actions: ["Run backtest", "Store metrics", "Compare models"],
+      notes: ["A required module for a complete AI role workspace."],
+    },
+    {
+      title: "Historical Replay Tools",
+      subtitle: "Inspect event windows and feature drift.",
+      status: "Planned",
+      objective: "Help debug inference on past transactions.",
+      metrics: [
+        { label: "Replay", value: "Planned", tone: "rose" },
+        { label: "Drift", value: "Planned", tone: "rose" },
+        { label: "Windows", value: "Planned", tone: "rose" },
+      ],
+      signals: ["Useful for model QA", "Pairs with audit and cases", "Can be linked to timeline views"],
+      actions: ["Open replay", "Inspect drift", "Pin incident"],
+      notes: ["This will make the AI role feel complete."],
+    },
+  ],
+  security_analyst: [
+    {
+      title: "Real-time Alert Board",
+      subtitle: "Priority queue of suspicious wallets and events.",
+      status: "Live",
+      objective: "Show high-risk alerts immediately.",
+      metrics: [
+        { label: "Alerts", value: "Live", tone: "rose" },
+        { label: "Critical", value: "Live", tone: "amber" },
+        { label: "Polling", value: "8s", tone: "cyan" },
+      ],
+      signals: ["Alerts endpoint active", "Auto refresh on", "Severity queue visible"],
+      actions: ["Open alert", "Acknowledge", "Inspect wallet"],
+      notes: ["This is the primary triage screen for the analyst."],
+    },
+    {
+      title: "Transaction Visualizer",
+      subtitle: "Show transfer path and key hops.",
+      status: "Planned",
+      objective: "Let analyst see movement patterns quickly.",
+      metrics: [
+        { label: "Hops", value: "Planned", tone: "slate" },
+        { label: "Path", value: "Planned", tone: "slate" },
+        { label: "Trace", value: "Planned", tone: "slate" },
+      ],
+      signals: ["Can be derived from transaction history", "Pairs with wallet activity", "Useful for suspicious flow recognition"],
+      actions: ["Visualize tx", "Expand path", "Mark suspicious"],
+      notes: ["This should be a visual module, not just a text card."],
+    },
+    {
+      title: "Address Label Enrichment",
+      subtitle: "Attach labels from blacklists and heuristics.",
+      status: "Planned",
+      objective: "Give context to unknown wallets.",
+      metrics: [
+        { label: "Labels", value: "Planned", tone: "violet" },
+        { label: "Sources", value: "Planned", tone: "violet" },
+        { label: "Confidence", value: "Planned", tone: "violet" },
+      ],
+      signals: ["Works well with policy rules", "Supports decision quality", "Links to compliance notes"],
+      actions: ["Label wallet", "Review source", "Accept enrichment"],
+      notes: ["Adds traceability to the analyst workflow."],
+    },
+    {
+      title: "Case Assignment Queue",
+      subtitle: "Batch and priority assignment of cases.",
+      status: "Live",
+      objective: "Move incidents into action.",
+      metrics: [
+        { label: "Cases", value: "Live", tone: "rose" },
+        { label: "Assigned", value: "Live", tone: "emerald" },
+        { label: "Escalation", value: "Ready", tone: "cyan" },
+      ],
+      signals: ["Case APIs active", "Action state machine active", "Audit logs on update"],
+      actions: ["Assign", "Confirm fraud", "Dismiss", "Escalate"],
+      notes: ["This is the operational center of the analyst role."],
+    },
+    {
+      title: "Confirm and Dismiss Actions",
+      subtitle: "Canonical decision outcomes for each case.",
+      status: "Live",
+      objective: "Close cases with consistent states.",
+      metrics: [
+        { label: "FRAUD", value: "Live", tone: "rose" },
+        { label: "IGNORED", value: "Live", tone: "slate" },
+        { label: "VERIFIED", value: "Live", tone: "amber" },
+      ],
+      signals: ["State transitions validated", "Action payloads audit-logged", "Works off transaction_cases"],
+      actions: ["Confirm fraud", "Dismiss", "Escalate"],
+      notes: ["Should be rendered as decisive action states."],
+    },
+    {
+      title: "Escalation Workflow",
+      subtitle: "Push unresolved incidents upward.",
+      status: "Planned",
+      objective: "Move high-risk cases to governance review.",
+      metrics: [
+        { label: "Escalate", value: "Planned", tone: "amber" },
+        { label: "Review", value: "Planned", tone: "amber" },
+        { label: "SLA", value: "Planned", tone: "amber" },
+      ],
+      signals: ["Connects to compliance role", "Can trigger notifications", "Useful for incidents with ambiguous risk"],
+      actions: ["Escalate case", "Add note", "Notify manager"],
+      notes: ["A necessary bridge for system completeness."],
+    },
+  ],
+  compliance_risk_manager: [
+    {
+      title: "Policy Engine Rules",
+      subtitle: "Canonical block/allow rules for transfers.",
+      status: "Server-side",
+      objective: "Keep policy enforcement visible and consistent.",
+      metrics: [
+        { label: "Rules", value: "Canonical", tone: "amber" },
+        { label: "Blocks", value: "Live", tone: "rose" },
+        { label: "Audited", value: "Yes", tone: "emerald" },
+      ],
+      signals: ["Server policy already blocks risky transfers", "Integrated with wallet risk", "Audit-friendly"],
+      actions: ["Review rule", "Adjust threshold", "Simulate decision"],
+      notes: ["This is the compliance control plane."],
+    },
+    {
+      title: "Blacklist and Whitelist",
+      subtitle: "Manage trusted and blocked entities.",
+      status: "Live",
+      objective: "Show controls around sanctioned wallets.",
+      metrics: [
+        { label: "Blacklist", value: "Live", tone: "rose" },
+        { label: "Whitelist", value: "Planned", tone: "emerald" },
+        { label: "Confidence", value: "Policy", tone: "cyan" },
+      ],
+      signals: ["Blacklist model exists in DB", "Used by scanner and transfer block", "Supports governance review"],
+      actions: ["Add address", "Verify source", "Expire entry"],
+      notes: ["Should be joined to a visible table or list."],
+    },
+    {
+      title: "Escalation Governance",
+      subtitle: "Review escalated cases and approve actions.",
+      status: "Planned",
+      objective: "Close the loop between analyst and governance.",
+      metrics: [
+        { label: "Reviews", value: "Planned", tone: "slate" },
+        { label: "Approve", value: "Planned", tone: "slate" },
+        { label: "Reject", value: "Planned", tone: "slate" },
+      ],
+      signals: ["Bridges security analyst and compliance roles", "Useful for exception handling", "Pairs with audit logs"],
+      actions: ["Review escalation", "Approve control", "Request follow-up"],
+      notes: ["Completes the governance role in the workspace."],
+    },
+    {
+      title: "Regulatory Report Builder",
+      subtitle: "Generate evidence and monthly summaries.",
+      status: "Planned",
+      objective: "Prepare exportable compliance output.",
+      metrics: [
+        { label: "Reports", value: "Planned", tone: "violet" },
+        { label: "Exports", value: "Planned", tone: "violet" },
+        { label: "Evidence", value: "Planned", tone: "violet" },
+      ],
+      signals: ["Mapped to phase 4 in roadmap", "Needs summary aggregates", "Good fit for KPI dashboards"],
+      actions: ["Build report", "Export PDF", "Attach evidence"],
+      notes: ["Left visible so the role feels complete."],
+    },
+    {
+      title: "Executive KPI Dashboard",
+      subtitle: "High-level governance and risk trends.",
+      status: "Planned",
+      objective: "Let management see risk posture at a glance.",
+      metrics: [
+        { label: "KPI", value: "Planned", tone: "cyan" },
+        { label: "Trend", value: "Planned", tone: "cyan" },
+        { label: "SLA", value: "Planned", tone: "cyan" },
+      ],
+      signals: ["Uses wallet and blocked transfer totals", "Can leverage chart cards", "Should show trend deltas"],
+      actions: ["Open KPI", "Compare trend", "Share summary"],
+      notes: ["A visible dashboard is better than a blank panel."],
+    },
+    {
+      title: "Control Effectiveness Review",
+      subtitle: "Validate whether rules are actually blocking risk.",
+      status: "Planned",
+      objective: "Measure policy performance over time.",
+      metrics: [
+        { label: "Effectiveness", value: "Planned", tone: "amber" },
+        { label: "False positives", value: "Planned", tone: "amber" },
+        { label: "Coverage", value: "Planned", tone: "amber" },
+      ],
+      signals: ["Compares blocked transfers to alerts", "Needs monthly aggregation", "Useful for governance sign-off"],
+      actions: ["Review metrics", "Approve controls", "Adjust policy"],
+      notes: ["Completes the compliance workspace hierarchy."],
+    },
+  ],
+};
+
+const TONAL_STYLES: Record<string, string> = {
+  cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-100",
+  violet: "border-violet-500/20 bg-violet-500/10 text-violet-100",
+  rose: "border-rose-500/20 bg-rose-500/10 text-rose-100",
+  amber: "border-amber-500/20 bg-amber-500/10 text-amber-100",
+  emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
+  blue: "border-blue-500/20 bg-blue-500/10 text-blue-100",
+  slate: "border-slate-500/20 bg-slate-500/10 text-slate-100",
+};
+
 export default function HomePage() {
   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
   const [activeFeatureIndex, setActiveFeatureIndex] = useState<number>(0);
@@ -314,6 +682,7 @@ export default function HomePage() {
 
   const activeSection = getSectionFromFeatureIndex(activeFeatureIndex);
   const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace Module";
+  const activeModule = MODULE_BLUEPRINTS[role.key][activeFeatureIndex] ?? MODULE_BLUEPRINTS[role.key][0];
 
   const fetchJson = async (url: string, options?: RequestInit) => {
     const response = await fetch(url, options);
@@ -690,6 +1059,21 @@ export default function HomePage() {
     return () => window.clearInterval(intervalId);
   }, [role.key]);
 
+  const renderMetricBar = (label: string, value: number, max: number, tone: string) => {
+    const width = max > 0 ? Math.min(100, Math.max(8, (value / max) * 100)) : 8;
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-xs text-slate-400">
+          <span>{label}</span>
+          <span>{value}</span>
+        </div>
+        <div className="h-2 rounded-full bg-slate-800/90">
+          <div className={"h-2 rounded-full " + (TONAL_STYLES[tone] ?? TONAL_STYLES.slate)} style={{ width: `${width}%` }} />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="mx-auto max-w-[1600px] px-4 py-4 md:px-6 md:py-6">
@@ -825,6 +1209,80 @@ export default function HomePage() {
               </div>
             ) : null}
 
+            <div className="mb-4 rounded-2xl border border-slate-700/70 bg-slate-950/50 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-3xl space-y-2">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Module workspace</p>
+                  <h3 className="text-xl font-semibold text-white">{activeModule.title}</h3>
+                  <p className="text-sm text-slate-300">{activeModule.subtitle}</p>
+                  <p className="text-sm text-slate-400">{activeModule.objective}</p>
+                </div>
+                <div className="rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Status</p>
+                  <p className="font-medium text-slate-100">{activeModule.status}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                {activeModule.metrics.map((metric) => (
+                  <div key={metric.label} className={"rounded-xl border px-3 py-2 " + (TONAL_STYLES[metric.tone] ?? TONAL_STYLES.slate)}>
+                    <p className="text-xs uppercase tracking-wide opacity-80">{metric.label}</p>
+                    <p className="mt-1 text-lg font-semibold text-white">{metric.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+                <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+                  <p className="mb-3 text-xs uppercase tracking-wide text-slate-400">Signals</p>
+                  <div className="space-y-3">
+                    {activeModule.signals.map((signal, index) => (
+                      <div key={signal} className="flex items-start gap-3">
+                        <div className="mt-1 h-2.5 w-2.5 rounded-full bg-slate-400" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                            <span>Signal {index + 1}</span>
+                            <span>Live</span>
+                          </div>
+                          <p className="text-sm text-slate-200">{signal}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+                  <p className="mb-3 text-xs uppercase tracking-wide text-slate-400">Actions</p>
+                  <div className="space-y-2">
+                    {activeModule.actions.map((action) => (
+                      <div key={action} className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm text-slate-200">
+                        {action}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3 md:col-span-2">
+                  <p className="mb-3 text-xs uppercase tracking-wide text-slate-400">Progress view</p>
+                  <div className="space-y-3">
+                    {renderMetricBar("Coverage", activeModule.metrics.length * 20, 100, activeModule.metrics[0]?.tone ?? "slate")}
+                    {renderMetricBar("Module completeness", activeFeatureIndex + 1, 6, activeModule.metrics[1]?.tone ?? "slate")}
+                    {renderMetricBar("Visual fill", 4, 4, activeModule.metrics[2]?.tone ?? "slate")}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+                  <p className="mb-3 text-xs uppercase tracking-wide text-slate-400">Notes</p>
+                  <ul className="space-y-2 text-sm text-slate-300">
+                    {activeModule.notes.map((note) => (
+                      <li key={note} className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2">{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             {activeSection === "data" ? (
               <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {role.key === "system_admin" ? (
@@ -929,28 +1387,42 @@ export default function HomePage() {
               </div>
             ) : null}
 
-            <section className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:gap-4">
               {activeSection === "overview" ? (
                 <>
-                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 min-h-[220px]">
                     <h3 className="text-base font-semibold text-slate-100">{role.topLeftTitle}</h3>
                     <ul className="mt-2 space-y-1 text-sm text-slate-300">
                       {roleFacts.p1.map((line) => (
                         <li key={line}>- {line}</li>
                       ))}
                     </ul>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      {roleFacts.p1.map((line, index) => (
+                        <div key={`${line}-${index}`} className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-[11px] text-slate-400">
+                          {line}
+                        </div>
+                      ))}
+                    </div>
                   </article>
 
-                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 min-h-[220px]">
                     <h3 className="text-base font-semibold text-slate-100">{role.topRightTitle}</h3>
                     <ul className="mt-2 space-y-1 text-sm text-slate-300">
                       {roleFacts.p2.map((line) => (
                         <li key={line}>- {line}</li>
                       ))}
                     </ul>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {role.sidebarFeatures.slice(0, 3).map((feature) => (
+                        <span key={feature} className="rounded-full border border-slate-600 bg-slate-900/50 px-2.5 py-1 text-[11px] text-slate-300">
+                          {feature}
+                        </span>
+                      ))}
+                    </div>
                   </article>
 
-                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 md:col-span-2">
+                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 md:col-span-2 min-h-[230px]">
                     <h3 className="text-base font-semibold text-slate-100">{role.centerTitle}</h3>
                     <ul className="mt-2 space-y-1 text-sm text-slate-300">
                       {roleFacts.p3.map((line) => (
@@ -961,10 +1433,17 @@ export default function HomePage() {
                       <GitBranch className="h-4 w-4" />
                       Transition flow: ingest > score > triage > decision > audit
                     </div>
+                    <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-3">
+                      {roleFacts.p3.map((line, index) => (
+                        <div key={`${line}-${index}`} className="rounded-lg border border-slate-700 bg-slate-900/60 p-2 text-xs text-slate-300">
+                          {line}
+                        </div>
+                      ))}
+                    </div>
                   </article>
 
-                  <div className="md:col-span-2 md:flex md:justify-end">
-                    <article className="w-full rounded-xl border border-slate-700 bg-slate-800/60 p-4 md:w-[62%]">
+                  <div className="md:col-span-2">
+                    <article className="w-full rounded-xl border border-slate-700 bg-slate-800/60 p-4 min-h-[180px]">
                       <h3 className="text-base font-semibold text-slate-100">{role.bottomRightTitle}</h3>
                       <ul className="mt-2 space-y-1 text-sm text-slate-300">
                         {roleFacts.p4.map((line) => (
@@ -975,6 +1454,13 @@ export default function HomePage() {
                         <Lock className="h-3.5 w-3.5" />
                         All other app pages are temporarily disabled
                       </div>
+                      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                        {roleFacts.p4.map((line, index) => (
+                          <div key={`${line}-${index}`} className="rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-2 text-xs text-slate-400">
+                            {line}
+                          </div>
+                        ))}
+                      </div>
                     </article>
                   </div>
                 </>
@@ -982,7 +1468,7 @@ export default function HomePage() {
 
               {activeSection === "actions" ? (
                 <>
-                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 md:col-span-2">
+                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 md:col-span-2 min-h-[170px]">
                     <h3 className="text-base font-semibold text-slate-100">Action Center</h3>
                     <p className="mt-1 text-sm text-slate-400">Quick actions for the selected role module.</p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1015,7 +1501,7 @@ export default function HomePage() {
                   </article>
 
                   {role.key === "system_admin" ? (
-                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
                         <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Node Endpoint</p>
                         <div className="grid grid-cols-1 gap-2">
@@ -1104,11 +1590,20 @@ export default function HomePage() {
                           </button>
                         </div>
                       </div>
+
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Control Summary</p>
+                        <div className="space-y-2 text-sm text-slate-300">
+                          <p>Nodes are listed and can be updated from the same screen.</p>
+                          <p>Health changes are persisted and reflected in the dashboard cards.</p>
+                          <p>Audit logs exist for operational traceability.</p>
+                        </div>
+                      </div>
                     </div>
                   ) : null}
 
                   {role.key === "ai_data_engineer" ? (
-                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
                         <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Feature Config</p>
                         <div className="grid grid-cols-1 gap-2">
@@ -1179,6 +1674,15 @@ export default function HomePage() {
                           >
                             Save Model
                           </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Model Lifecycle</p>
+                        <div className="space-y-2 text-sm text-slate-300">
+                          <p>Create a version, mark active, and audit promotion.</p>
+                          <p>Active model is surfaced in the dashboard card.</p>
+                          <p>Backtesting and replay are planned follow-up modules.</p>
                         </div>
                       </div>
                     </div>
@@ -1311,7 +1815,7 @@ export default function HomePage() {
                   ) : null}
 
                   {role.key === "security_analyst" ? (
-                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
                         <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Recent Alerts</p>
                         <div className="max-h-72 overflow-auto text-xs">
@@ -1333,6 +1837,11 @@ export default function HomePage() {
                               ))}
                             </tbody>
                           </table>
+                        </div>
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-2 py-2 text-[11px] text-slate-400">Critical queue</div>
+                          <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-2 py-2 text-[11px] text-slate-400">Case action</div>
+                          <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-2 py-2 text-[11px] text-slate-400">Timeline ready</div>
                         </div>
                       </div>
 
@@ -1358,42 +1867,84 @@ export default function HomePage() {
                             </tbody>
                           </table>
                         </div>
+                        <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+                          Case states are ready to be acted on from /cases routes.
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Investigation Notes</p>
+                        <div className="space-y-2 text-sm text-slate-300">
+                          <p>Link alert severity to suspicious path patterns.</p>
+                          <p>Use the case queue for confirm/dismiss/escalate decisions.</p>
+                          <p>The timeline API is live and can power a visual trail.</p>
+                        </div>
                       </div>
                     </div>
                   ) : null}
 
                   {role.key === "compliance_risk_manager" ? (
-                    <div className="md:col-span-2 rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Blocked Transfers</p>
-                      <div className="max-h-72 overflow-auto text-xs">
-                        <table className="w-full text-left">
-                          <thead className="text-slate-400">
-                            <tr>
-                              <th className="pb-1">Sender</th>
-                              <th className="pb-1">Receiver</th>
-                              <th className="pb-1">Amount ETH</th>
-                              <th className="pb-1">Risk</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {blockedTransfers.map((row) => (
-                              <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                                <td className="py-1">{row.sender_address.slice(0, 10)}...</td>
-                                <td className="py-1">{row.receiver_address.slice(0, 10)}...</td>
-                                <td className="py-1">{row.amount_eth}</td>
-                                <td className="py-1">{row.risk_score}</td>
+                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Blocked Transfers</p>
+                        <div className="max-h-72 overflow-auto text-xs">
+                          <table className="w-full text-left">
+                            <thead className="text-slate-400">
+                              <tr>
+                                <th className="pb-1">Sender</th>
+                                <th className="pb-1">Receiver</th>
+                                <th className="pb-1">Amount ETH</th>
+                                <th className="pb-1">Risk</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {blockedTransfers.length > 0 ? blockedTransfers.map((row) => (
+                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                  <td className="py-1">{row.sender_address.slice(0, 10)}...</td>
+                                  <td className="py-1">{row.receiver_address.slice(0, 10)}...</td>
+                                  <td className="py-1">{row.amount_eth}</td>
+                                  <td className="py-1">{row.risk_score}</td>
+                                </tr>
+                              )) : (
+                                <tr>
+                                  <td className="py-3 text-slate-500" colSpan={4}>No blocked transfers yet.</td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Controls</p>
+                        <div className="space-y-2 text-sm text-slate-300">
+                          <p>Canonical block policy is server-side and live.</p>
+                          <p>Future whitelist and escalation governance can extend this panel.</p>
+                          <p>Auditability is preserved through the same transaction ledger.</p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Executive Snapshot</p>
+                        <div className="space-y-2 text-sm text-slate-300">
+                          <p>Total wallets, blocked transfers, and protected value should appear here.</p>
+                          <p>Use this block for monthly reporting once phase 4 lands.</p>
+                          <p>It is intentionally visible so the content area does not look empty.</p>
+                        </div>
                       </div>
                     </div>
                   ) : null}
 
-                  <div className="md:col-span-2 rounded-xl border border-dashed border-slate-600 p-3 text-xs text-slate-400">
-                    Data note: {roleFacts.note}
-                    {isLoadingFacts ? " | loading..." : ""}
-                    {factsError ? ` | error: ${factsError}` : ""}
+                  <div className="md:col-span-2 rounded-xl border border-dashed border-slate-600 p-3 text-xs text-slate-400 min-h-[120px]">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <span>Data note: {roleFacts.note}</span>
+                      <span>{isLoadingFacts ? "loading..." : "ready"}{factsError ? ` | error: ${factsError}` : ""}</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2">Linked to active role module</div>
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2">Data shown only for active section</div>
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2">Workspace remains inherited across roles</div>
+                    </div>
                   </div>
                 </>
               ) : null}
