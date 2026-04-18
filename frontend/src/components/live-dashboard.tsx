@@ -409,18 +409,29 @@ export default function LiveDashboard() {
   const updateQuery = useCallback(
     (patch: Record<string, string | number | null | undefined>) => {
       const params = new URLSearchParams(searchParams.toString());
+      let hasChanges = false;
+
       for (const [key, value] of Object.entries(patch)) {
+        const currentValue = params.get(key);
+
         if (value == null || value === "") {
-          params.delete(key);
+          if (currentValue !== null) {
+            params.delete(key);
+            hasChanges = true;
+          }
           continue;
         }
-        params.set(key, String(value));
+
+        const nextValue = String(value);
+        if (currentValue !== nextValue) {
+          params.set(key, nextValue);
+          hasChanges = true;
+        }
       }
 
-      const current = searchParams.toString();
-      const next = params.toString();
-      if (current === next) return;
+      if (!hasChanges) return;
 
+      const next = params.toString();
       router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
     },
     [pathname, router, searchParams]
