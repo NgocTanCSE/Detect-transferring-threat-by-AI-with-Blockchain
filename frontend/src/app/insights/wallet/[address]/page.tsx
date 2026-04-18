@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Link2, Wallet } from "lucide-react";
 import { fetchWalletConnections, fetchWalletStats, fetchWalletTransactionHistory } from "@/lib/api";
@@ -19,7 +20,12 @@ function formatDateTime(value: string | null | undefined): string {
 
 export default function WalletInsightPage() {
   const params = useParams<{ address: string }>();
+  const searchParams = useSearchParams();
   const address = decodeURIComponent(params.address || "").toLowerCase();
+  const role = searchParams.get("role");
+  const feature = searchParams.get("feature");
+  const backQuery = role || feature ? `?${new URLSearchParams({ role: role ?? "system_admin", feature: feature ?? "0" }).toString()}` : "";
+  const backHref = `/${backQuery}`;
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["walletInsightStats", address],
@@ -42,14 +48,19 @@ export default function WalletInsightPage() {
   return (
     <div className="min-h-screen bg-slate-950 p-4 md:p-6">
       <div className="mx-auto max-w-6xl space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-white">Wallet Drill-down</h1>
             <p className="mt-1 font-mono text-sm text-slate-400">{address}</p>
           </div>
-          <Link href="/" className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 hover:border-cyan-500/50">
+          <div className="text-xs text-slate-500">
+            <Link href={backHref} className="hover:text-slate-300">Dashboard</Link>
+            <span className="mx-2">/</span>
+            <span className="text-slate-300">Wallet insight</span>
+          </div>
+          <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
-            Back dashboard
+            Back to context
           </Link>
         </div>
 

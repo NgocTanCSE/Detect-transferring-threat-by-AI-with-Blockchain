@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
@@ -35,7 +36,12 @@ function formatDateTime(value: string | null): string {
 
 export default function PolicyInsightPage() {
   const params = useParams<{ policyId: string }>();
+  const searchParams = useSearchParams();
   const policyId = decodeURIComponent(params.policyId || "");
+  const role = searchParams.get("role");
+  const feature = searchParams.get("feature");
+  const backQuery = role || feature ? `?${new URLSearchParams({ role: role ?? "system_admin", feature: feature ?? "0" }).toString()}` : "";
+  const backHref = `/${backQuery}`;
 
   const { data: policies, isLoading, error } = useQuery({
     queryKey: ["policyInsightRules"],
@@ -47,14 +53,19 @@ export default function PolicyInsightPage() {
   return (
     <div className="min-h-screen bg-slate-950 p-4 md:p-6">
       <div className="mx-auto max-w-4xl space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-white">Policy Drill-down</h1>
             <p className="mt-1 text-xs text-slate-400">Policy ID: {policyId}</p>
           </div>
-          <Link href="/" className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 hover:border-cyan-500/50">
+          <div className="text-xs text-slate-500">
+            <Link href={backHref} className="hover:text-slate-300">Dashboard</Link>
+            <span className="mx-2">/</span>
+            <span className="text-slate-300">Policy insight</span>
+          </div>
+          <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
-            Back dashboard
+            Back to context
           </Link>
         </div>
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   BadgeInfo,
@@ -360,6 +361,7 @@ function CardShell({ title, subtitle, children, icon: Icon }: { title: string; s
 }
 
 export default function LiveDashboard() {
+  const searchParams = useSearchParams();
   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -393,6 +395,22 @@ export default function LiveDashboard() {
   useEffect(() => {
     setActiveFeatureIndex(0);
   }, [activeRole]);
+
+  useEffect(() => {
+    const roleParam = searchParams.get("role") as RoleKey | null;
+    if (roleParam && ROLE_DEFINITIONS.some((entry) => entry.key === roleParam) && roleParam !== activeRole) {
+      setActiveRole(roleParam);
+    }
+  }, [activeRole, searchParams]);
+
+  useEffect(() => {
+    const featureParamRaw = searchParams.get("feature");
+    if (!featureParamRaw) return;
+    const parsed = Number(featureParamRaw);
+    if (Number.isInteger(parsed) && parsed >= 0 && parsed < 6 && parsed !== activeFeatureIndex) {
+      setActiveFeatureIndex(parsed);
+    }
+  }, [activeFeatureIndex, searchParams]);
 
   async function loadLiveData(roleKey: RoleKey) {
     setIsLoading(true);
@@ -528,6 +546,10 @@ export default function LiveDashboard() {
   }, [activeModels.length, alertsSummary, auditCompleteness, blockedTransfers.length, caseSummary, dashboardStats, featureConfigs.length, modelRegistry.length, notificationEvents.length, pipelineSummary, reportingSummary, role.key, sloMetrics]);
 
   const chartPalette = ROLE_COLORS[role.key];
+  const contextQuery = useMemo(() => {
+    const query = new URLSearchParams({ role: role.key, feature: String(activeFeatureIndex) });
+    return `?${query.toString()}`;
+  }, [activeFeatureIndex, role.key]);
 
   const selectedPanel = useMemo(() => {
     if (role.key === "system_admin") {
@@ -597,9 +619,9 @@ export default function LiveDashboard() {
     if (role.key === "security_analyst") {
       switch (activeFeatureIndex) {
         case 0:
-          return { title: "Alert queue", description: "Recent alerts and severity distribution from the backend.", content: <AlertQueuePanel alerts={recentAlerts} alertsSummary={alertsSummary} /> };
+          return { title: "Alert queue", description: "Recent alerts and severity distribution from the backend.", content: <AlertQueuePanel alerts={recentAlerts} alertsSummary={alertsSummary} contextQuery={contextQuery} /> };
         case 1:
-          return { title: "Case queue", description: "High-risk cases that need analyst attention.", content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} /> };
+          return { title: "Case queue", description: "High-risk cases that need analyst attention.", content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} contextQuery={contextQuery} /> };
         case 2:
           return { title: "Case actions", description: "Live case workflow state from the analyst queue.", content: <CaseActionPanel caseSummary={caseSummary} /> };
         case 3:
@@ -607,13 +629,13 @@ export default function LiveDashboard() {
         case 4:
           return { title: "Alert data", description: "Raw alert volume and severity chart from live data.", content: <AlertChartPanel alerts={recentAlerts} alertsSummary={alertsSummary} /> };
         default:
-          return { title: "Case data", description: "Case states and assignment pressure.", content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} /> };
+          return { title: "Case data", description: "Case states and assignment pressure.", content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} contextQuery={contextQuery} /> };
       }
     }
 
     switch (activeFeatureIndex) {
       case 0:
-        return { title: "Policy state", description: "Live policy rules and their enforcement posture.", content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} /> };
+        return { title: "Policy state", description: "Live policy rules and their enforcement posture.", content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} contextQuery={contextQuery} /> };
       case 1:
         return { title: "Audit state", description: "Evidence coverage and missing audit actions.", content: <AuditPanel auditCompleteness={auditCompleteness} auditGaps={auditGaps} /> };
       case 2:
@@ -621,7 +643,7 @@ export default function LiveDashboard() {
       case 3:
         return { title: "Reporting", description: "30-day KPI export surface built from live records.", content: <ReportingSummaryPanel reportingSummary={reportingSummary} controlEffectiveness={controlEffectiveness} auditCompleteness={auditCompleteness} /> };
       case 4:
-        return { title: "Policy data", description: "Current policy rules and priorities.", content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} /> };
+        return { title: "Policy data", description: "Current policy rules and priorities.", content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} contextQuery={contextQuery} /> };
       default:
         return { title: "Audit data", description: "Gap analysis and missing controls.", content: <AuditPanel auditCompleteness={auditCompleteness} auditGaps={auditGaps} /> };
     }
@@ -645,6 +667,7 @@ export default function LiveDashboard() {
     recentAlerts,
     reportingSummary,
     role.key,
+    contextQuery,
     sloMetrics,
   ]);
 
@@ -1077,9 +1100,15 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
   );
 }
 
-function AlertQueuePanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSummary: AlertsSummary | null }) {
+function AlertQueuePanel({ alerts, alertsSummary, contextQuery }: { alerts: Alert[]; alertsSummary: AlertsSummary | null; contextQuery: string }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"time" | "severity" | "wallet" | "type">("time");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+
+  const pageSize = 8;
+  const severityRank: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
 
   const filteredAlerts = useMemo(() => {
     return alerts.filter((alert) => {
@@ -1093,6 +1122,40 @@ function AlertQueuePanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSum
       return matchesSeverity && matchesKeyword;
     });
   }, [alerts, searchTerm, severityFilter]);
+
+  const sortedAlerts = useMemo(() => {
+    const sorted = [...filteredAlerts].sort((left, right) => {
+      const multiplier = sortDir === "asc" ? 1 : -1;
+      if (sortBy === "wallet") return left.wallet_address.localeCompare(right.wallet_address) * multiplier;
+      if (sortBy === "type") return left.alert_type.localeCompare(right.alert_type) * multiplier;
+      if (sortBy === "severity") return ((severityRank[left.severity] || 0) - (severityRank[right.severity] || 0)) * multiplier;
+      return (new Date(left.detected_at).getTime() - new Date(right.detected_at).getTime()) * multiplier;
+    });
+    return sorted;
+  }, [filteredAlerts, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedAlerts.length / pageSize));
+  const pagedAlerts = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return sortedAlerts.slice(startIndex, startIndex + pageSize);
+  }, [page, sortedAlerts]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, severityFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  function onSort(column: "time" | "severity" | "wallet" | "type") {
+    if (sortBy === column) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(column);
+    setSortDir(column === "time" ? "desc" : "asc");
+  }
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
@@ -1124,31 +1187,37 @@ function AlertQueuePanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSum
           <table className="min-w-full divide-y divide-slate-800 text-sm">
             <thead className="bg-slate-900/80 text-slate-400">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Wallet</th>
-                <th className="px-4 py-3 text-left font-medium">Severity</th>
-                <th className="px-4 py-3 text-left font-medium">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Time</th>
+                <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("wallet")} className="hover:text-white">Wallet</button></th>
+                <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("severity")} className="hover:text-white">Severity</button></th>
+                <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("type")} className="hover:text-white">Type</button></th>
+                <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("time")} className="hover:text-white">Time</button></th>
                 <th className="px-4 py-3 text-left font-medium">Detail</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-              {filteredAlerts.slice(0, 8).map((alert) => (
+              {pagedAlerts.map((alert) => (
                 <tr key={alert.alert_id}>
                   <td className="px-4 py-3">{formatAddress(alert.wallet_address)}</td>
                   <td className="px-4 py-3"><SeverityPill severity={alert.severity} /></td>
                   <td className="px-4 py-3">{alert.alert_type}</td>
                   <td className="px-4 py-3">{formatDateTime(alert.detected_at)}</td>
                   <td className="px-4 py-3">
-                    <Link href={`/insights/wallet/${encodeURIComponent(alert.wallet_address)}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                    <Link href={`/insights/wallet/${encodeURIComponent(alert.wallet_address)}${contextQuery}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
                       Wallet
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
                   </td>
                 </tr>
               ))}
+              {pagedAlerts.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No alerts match current filters.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
+        <TablePager page={page} totalPages={totalPages} onPrev={() => setPage((prev) => Math.max(1, prev - 1))} onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))} itemCount={sortedAlerts.length} pageSize={pageSize} />
       </div>
       <div className="space-y-3">
         <AlertSeverityCard alertsSummary={alertsSummary} alerts={filteredAlerts} />
@@ -1195,9 +1264,13 @@ function AlertSeverityCard({ alertsSummary, alerts }: { alertsSummary: AlertsSum
   );
 }
 
-function CaseQueuePanel({ cases, caseSummary }: { cases: CaseItem[]; caseSummary: CaseSummary | null }) {
+function CaseQueuePanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]; caseSummary: CaseSummary | null; contextQuery: string }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"risk" | "status" | "tx">("risk");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const filteredCases = useMemo(() => {
     return cases.filter((item) => {
@@ -1212,6 +1285,39 @@ function CaseQueuePanel({ cases, caseSummary }: { cases: CaseItem[]; caseSummary
       return matchesStatus && matchesKeyword;
     });
   }, [cases, searchTerm, statusFilter]);
+
+  const sortedCases = useMemo(() => {
+    const sorted = [...filteredCases].sort((left, right) => {
+      const multiplier = sortDir === "asc" ? 1 : -1;
+      if (sortBy === "status") return left.status.localeCompare(right.status) * multiplier;
+      if (sortBy === "tx") return left.tx_hash.localeCompare(right.tx_hash) * multiplier;
+      return ((left.risk_score ?? 0) - (right.risk_score ?? 0)) * multiplier;
+    });
+    return sorted;
+  }, [filteredCases, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedCases.length / pageSize));
+  const pagedCases = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return sortedCases.slice(startIndex, startIndex + pageSize);
+  }, [page, sortedCases]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  function onSort(column: "risk" | "status" | "tx") {
+    if (sortBy === column) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(column);
+    setSortDir(column === "risk" ? "desc" : "asc");
+  }
 
   return (
     <div className="space-y-4">
@@ -1249,31 +1355,37 @@ function CaseQueuePanel({ cases, caseSummary }: { cases: CaseItem[]; caseSummary
         <table className="min-w-full divide-y divide-slate-800 text-sm">
           <thead className="bg-slate-900/80 text-slate-400">
             <tr>
-              <th className="px-4 py-3 text-left font-medium">TX Hash</th>
-              <th className="px-4 py-3 text-left font-medium">Risk</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
+              <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("tx")} className="hover:text-white">TX Hash</button></th>
+              <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("risk")} className="hover:text-white">Risk</button></th>
+              <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("status")} className="hover:text-white">Status</button></th>
               <th className="px-4 py-3 text-left font-medium">Flag</th>
               <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {filteredCases.slice(0, 8).map((item) => (
+            {pagedCases.map((item) => (
               <tr key={item.tx_hash}>
                 <td className="px-4 py-3 font-mono text-xs">{formatAddress(item.tx_hash)}</td>
                 <td className="px-4 py-3">{item.risk_score != null ? formatPercent(item.risk_score * 100) : "-"}</td>
                 <td className="px-4 py-3">{item.status}</td>
                 <td className="px-4 py-3">{item.flag_reason ?? (item.is_flagged ? "Flagged" : "-")}</td>
                 <td className="px-4 py-3">
-                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
                     Case
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Link>
                 </td>
               </tr>
             ))}
+            {pagedCases.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No cases match current filters.</td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
+      <TablePager page={page} totalPages={totalPages} onPrev={() => setPage((prev) => Math.max(1, prev - 1))} onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))} itemCount={sortedCases.length} pageSize={pageSize} />
     </div>
   );
 }
@@ -1370,9 +1482,13 @@ function AlertChartPanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSum
   );
 }
 
-function PolicyRulesPanel({ policies, reportingSummary }: { policies: PolicyRuleItem[]; reportingSummary: ReportingSummary | null }) {
+function PolicyRulesPanel({ policies, reportingSummary, contextQuery }: { policies: PolicyRuleItem[]; reportingSummary: ReportingSummary | null; contextQuery: string }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"rule" | "priority" | "threshold" | "active">("priority");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const filteredPolicies = useMemo(() => {
     return policies.filter((policy) => {
@@ -1385,6 +1501,40 @@ function PolicyRulesPanel({ policies, reportingSummary }: { policies: PolicyRule
       return matchesActive && matchesKeyword;
     });
   }, [activeFilter, policies, searchTerm]);
+
+  const sortedPolicies = useMemo(() => {
+    const sorted = [...filteredPolicies].sort((left, right) => {
+      const multiplier = sortDir === "asc" ? 1 : -1;
+      if (sortBy === "rule") return left.rule_name.localeCompare(right.rule_name) * multiplier;
+      if (sortBy === "priority") return (left.priority - right.priority) * multiplier;
+      if (sortBy === "threshold") return (left.min_risk_score - right.min_risk_score) * multiplier;
+      return (Number(left.is_active) - Number(right.is_active)) * multiplier;
+    });
+    return sorted;
+  }, [filteredPolicies, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedPolicies.length / pageSize));
+  const pagedPolicies = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return sortedPolicies.slice(startIndex, startIndex + pageSize);
+  }, [page, sortedPolicies]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, activeFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  function onSort(column: "rule" | "priority" | "threshold" | "active") {
+    if (sortBy === column) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(column);
+    setSortDir(column === "rule" ? "asc" : "desc");
+  }
 
   if (!policies.length) {
     return <EmptyState message="No policy rules are stored in the backend yet." />;
@@ -1424,30 +1574,70 @@ function PolicyRulesPanel({ policies, reportingSummary }: { policies: PolicyRule
         <table className="min-w-full divide-y divide-slate-800 text-sm">
           <thead className="bg-slate-900/80 text-slate-400">
             <tr>
-              <th className="px-4 py-3 text-left font-medium">Rule</th>
-              <th className="px-4 py-3 text-left font-medium">Threshold</th>
-              <th className="px-4 py-3 text-left font-medium">Priority</th>
-              <th className="px-4 py-3 text-left font-medium">Active</th>
+              <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("rule")} className="hover:text-white">Rule</button></th>
+              <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("threshold")} className="hover:text-white">Threshold</button></th>
+              <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("priority")} className="hover:text-white">Priority</button></th>
+              <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("active")} className="hover:text-white">Active</button></th>
               <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {filteredPolicies.slice(0, 8).map((policy) => (
+            {pagedPolicies.map((policy) => (
               <tr key={policy.id}>
                 <td className="px-4 py-3">{policy.rule_name}</td>
                 <td className="px-4 py-3">{policy.min_risk_score}</td>
                 <td className="px-4 py-3">{policy.priority}</td>
                 <td className="px-4 py-3">{policy.is_active ? "Yes" : "No"}</td>
                 <td className="px-4 py-3">
-                  <Link href={`/insights/policy/${encodeURIComponent(policy.id)}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                  <Link href={`/insights/policy/${encodeURIComponent(policy.id)}${contextQuery}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
                     Policy
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Link>
                 </td>
               </tr>
             ))}
+            {pagedPolicies.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No policies match current filters.</td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
+      </div>
+      <TablePager page={page} totalPages={totalPages} onPrev={() => setPage((prev) => Math.max(1, prev - 1))} onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))} itemCount={sortedPolicies.length} pageSize={pageSize} />
+    </div>
+  );
+}
+
+function TablePager({
+  page,
+  totalPages,
+  onPrev,
+  onNext,
+  itemCount,
+  pageSize,
+}: {
+  page: number;
+  totalPages: number;
+  onPrev: () => void;
+  onNext: () => void;
+  itemCount: number;
+  pageSize: number;
+}) {
+  const start = itemCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(itemCount, page * pageSize);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+      <span>Showing {start}-{end} of {itemCount}</span>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={onPrev} disabled={page <= 1} className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500">
+          Prev
+        </button>
+        <span>Page {page}/{totalPages}</span>
+        <button type="button" onClick={onNext} disabled={page >= totalPages} className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500">
+          Next
+        </button>
       </div>
     </div>
   );
