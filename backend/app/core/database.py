@@ -49,6 +49,249 @@ def ensure_schema() -> None:
     """
     try:
         with engine.begin() as connection:
+            # Ensure core table exists in long-lived dev volumes where create_all may have been skipped.
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS alerts (
+                        id UUID PRIMARY KEY,
+                        wallet_address VARCHAR(255) NOT NULL,
+                        alert_type VARCHAR(100) NOT NULL,
+                        severity VARCHAR(20) NOT NULL,
+                        message TEXT NOT NULL,
+                        risk_score DOUBLE PRECISION,
+                        metadata JSONB,
+                        detected_at TIMESTAMPTZ DEFAULT NOW(),
+                        acknowledged BOOLEAN DEFAULT false,
+                        acknowledged_at TIMESTAMPTZ,
+                        acknowledged_by VARCHAR(255)
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_alerts_wallet ON alerts (wallet_address)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_alerts_detected ON alerts (detected_at DESC)"))
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS blacklist (
+                        id UUID PRIMARY KEY,
+                        address VARCHAR(255) NOT NULL UNIQUE,
+                        category VARCHAR(100),
+                        source VARCHAR(255),
+                        description TEXT,
+                        severity VARCHAR(20) DEFAULT 'HIGH',
+                        is_active BOOLEAN DEFAULT true,
+                        reported_at TIMESTAMPTZ DEFAULT NOW(),
+                        verified_at TIMESTAMPTZ,
+                        expires_at TIMESTAMPTZ
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_blacklist_address ON blacklist (address)"))
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS blocked_transfers (
+                        id UUID PRIMARY KEY,
+                        sender_address VARCHAR(255) NOT NULL,
+                        receiver_address VARCHAR(255) NOT NULL,
+                        amount NUMERIC(78,0) NOT NULL,
+                        risk_score DOUBLE PRECISION,
+                        block_reason VARCHAR(100) NOT NULL,
+                        user_warning_count INTEGER DEFAULT 0,
+                        sender_user_id UUID,
+                        blocked_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_blocked_transfers_blocked_at ON blocked_transfers (blocked_at DESC)"))
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS audit_logs (
+                        id UUID PRIMARY KEY,
+                        action_type VARCHAR(50) NOT NULL,
+                        entity_type VARCHAR(50) NOT NULL,
+                        entity_id UUID,
+                        user_identifier VARCHAR(255),
+                        ip_address INET,
+                        details JSONB,
+                        timestamp TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_logs_time ON audit_logs (timestamp DESC)"))
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS node_endpoints (
+                        id UUID PRIMARY KEY,
+                        provider_name VARCHAR(100) NOT NULL,
+                        chain VARCHAR(50) NOT NULL,
+                        endpoint_url VARCHAR(1024) NOT NULL,
+                        protocol VARCHAR(20) NOT NULL DEFAULT 'http',
+                        priority INTEGER NOT NULL DEFAULT 100,
+                        is_active BOOLEAN DEFAULT true,
+                        health_status VARCHAR(20) NOT NULL DEFAULT 'unknown',
+                        last_error TEXT,
+                        last_checked_at TIMESTAMPTZ,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_node_endpoints_chain ON node_endpoints (chain)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_node_endpoints_active ON node_endpoints (is_active)"))
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS pipeline_metrics (
+                        id BIGSERIAL PRIMARY KEY,
+                        chain VARCHAR(50) NOT NULL,
+                        block_number BIGINT,
+                        throughput_tps NUMERIC(10,2),
+                        ingestion_latency_ms INTEGER,
+                        decode_latency_ms INTEGER,
+                        inserted_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_pipeline_metrics_inserted_at ON pipeline_metrics (inserted_at DESC)"))
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS feature_store_configs (
+                        id UUID PRIMARY KEY,
+                        feature_key VARCHAR(100) NOT NULL UNIQUE,
+                        enabled BOOLEAN DEFAULT true,
+                        expression TEXT,
+                        owner_user_id UUID,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS model_registry (
+                        id UUID PRIMARY KEY,
+                        model_name VARCHAR(100) NOT NULL,
+                        version VARCHAR(50) NOT NULL,
+                        artifact_uri VARCHAR(1024) NOT NULL,
+                        framework VARCHAR(20) NOT NULL DEFAULT 'pkl',
+                        is_active BOOLEAN DEFAULT false,
+                        promoted_by UUID,
+                        promoted_at TIMESTAMPTZ,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS policy_rules (
+                        id UUID PRIMARY KEY,
+                        rule_name VARCHAR(120) NOT NULL UNIQUE,
+                        description TEXT,
+                        min_risk_score DOUBLE PRECISION NOT NULL DEFAULT 80.0,
+                        block_blacklisted BOOLEAN DEFAULT true,
+                        block_suspended BOOLEAN DEFAULT true,
+                        notify_on_block BOOLEAN DEFAULT true,
+                        priority INTEGER NOT NULL DEFAULT 100,
+                        is_active BOOLEAN DEFAULT true,
+                        created_by UUID,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS notification_events (
+                        id UUID PRIMARY KEY,
+                        channel VARCHAR(30) NOT NULL,
+                        recipient VARCHAR(255) NOT NULL,
+                        severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
+                        message TEXT NOT NULL,
+                        status VARCHAR(20) NOT NULL DEFAULT 'queued',
+                        metadata JSONB,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        sent_at TIMESTAMPTZ
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_notification_events_channel ON notification_events (channel)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_notification_events_status ON notification_events (status)"))
+
+            transactions_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_name = 'transactions'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if transactions_exists:
+                tx_hash_unique_index_exists = connection.execute(
+                    text(
+                        """
+                        SELECT 1
+                        FROM pg_indexes
+                        WHERE schemaname = 'public'
+                          AND tablename = 'transactions'
+                          AND indexdef ILIKE 'CREATE UNIQUE INDEX% (tx_hash%'
+                        LIMIT 1
+                        """
+                    )
+                ).scalar()
+
+                if not tx_hash_unique_index_exists:
+                    duplicate_tx_hash = connection.execute(
+                        text(
+                            """
+                            SELECT tx_hash
+                            FROM transactions
+                            WHERE tx_hash IS NOT NULL
+                            GROUP BY tx_hash
+                            HAVING COUNT(*) > 1
+                            LIMIT 1
+                            """
+                        )
+                    ).scalar()
+
+                    if duplicate_tx_hash:
+                        logger.warning(
+                            "Schema precondition skipped: duplicate transactions.tx_hash found; "
+                            "cannot create unique index required for FK tables"
+                        )
+                    else:
+                        logger.warning(
+                            "Skipping transactions.tx_hash unique index migration on legacy/partitioned schema"
+                        )
+
             status_exists = connection.execute(
                 text(
                     """
@@ -299,6 +542,83 @@ def ensure_schema() -> None:
             if not blacklist_expires_exists:
                 logger.warning("Applying schema fix: adding blacklist.expires_at")
                 connection.execute(text("ALTER TABLE blacklist ADD COLUMN expires_at TIMESTAMPTZ"))
+
+            # notification_events: keep backward compatibility with old schema variants
+            notification_severity_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'notification_events'
+                      AND column_name = 'severity'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if not notification_severity_exists:
+                logger.warning("Applying schema fix: adding notification_events.severity")
+                connection.execute(
+                    text("ALTER TABLE notification_events ADD COLUMN severity VARCHAR(20) DEFAULT 'MEDIUM'")
+                )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_notification_events_severity ON notification_events (severity)"))
+
+            # Old deployments may have event_type NOT NULL, while ORM does not provide it.
+            notification_event_type_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'notification_events'
+                      AND column_name = 'event_type'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if notification_event_type_exists:
+                logger.warning("Applying schema fix: relaxing notification_events.event_type")
+                connection.execute(
+                    text(
+                        """
+                        ALTER TABLE notification_events
+                        ALTER COLUMN event_type DROP NOT NULL,
+                        ALTER COLUMN event_type SET DEFAULT 'GENERIC'
+                        """
+                    )
+                )
+
+            notification_message_nullable = connection.execute(
+                text(
+                    """
+                    SELECT is_nullable
+                    FROM information_schema.columns
+                    WHERE table_name = 'notification_events'
+                      AND column_name = 'message'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if notification_message_nullable == 'YES':
+                connection.execute(text("UPDATE notification_events SET message = '' WHERE message IS NULL"))
+                connection.execute(
+                    text("ALTER TABLE notification_events ALTER COLUMN message SET NOT NULL")
+                )
+
+            notification_recipient_nullable = connection.execute(
+                text(
+                    """
+                    SELECT is_nullable
+                    FROM information_schema.columns
+                    WHERE table_name = 'notification_events'
+                      AND column_name = 'recipient'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if notification_recipient_nullable == 'YES':
+                connection.execute(text("UPDATE notification_events SET recipient = 'system' WHERE recipient IS NULL"))
+                connection.execute(
+                    text("ALTER TABLE notification_events ALTER COLUMN recipient SET NOT NULL")
+                )
     except Exception as schema_error:
         # Don't hard-fail startup on best-effort migration.
         logger.error(f"Schema ensure failed: {schema_error}")

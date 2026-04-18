@@ -43,11 +43,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def _initialize_database() -> None:
+    ensure_schema()
     try:
         Base.metadata.create_all(bind=engine)
-        ensure_schema()
     except Exception as error:
-        logger.warning(f"Database initialization skipped or failed: {error}")
+        logger.warning(f"Database metadata initialization skipped or failed: {error}")
+    ensure_schema()
 
 
 _initialize_database()

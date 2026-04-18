@@ -261,6 +261,7 @@ type DashboardStats = {
     topCaseRisk: number | null;
     pendingCases: number;
     fraudCases: number;
+    notificationEvents: number;
   };
   complianceRiskManager: {
     totalWallets: number;
@@ -816,6 +817,7 @@ export default function HomePage() {
       topCaseRisk: null,
       pendingCases: 0,
       fraudCases: 0,
+      notificationEvents: 0,
     },
     complianceRiskManager: {
       totalWallets: 0,
@@ -1008,6 +1010,7 @@ export default function HomePage() {
             topCaseRisk: cases.cases?.[0]?.risk_score ?? null,
             pendingCases: Number(summary.totals?.PENDING ?? 0),
             fraudCases: Number(summary.totals?.FRAUD ?? 0),
+            notificationEvents: Number(notifications.count ?? 0),
           },
         }));
       } else {
@@ -1600,9 +1603,9 @@ export default function HomePage() {
                       <p className="text-xs text-rose-100/80">Pending {dashboardStats.securityAnalyst.pendingCases}</p>
                     </div>
                     <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
-                      <p className="text-xs uppercase tracking-wide text-rose-200">Investigation</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.fraudCases}</p>
-                      <p className="text-xs text-rose-100/80">Fraud cases</p>
+                      <p className="text-xs uppercase tracking-wide text-rose-200">Notifications</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.notificationEvents}</p>
+                      <p className="text-xs text-rose-100/80">Fraud cases {dashboardStats.securityAnalyst.fraudCases}</p>
                     </div>
                   </>
                 ) : null}
