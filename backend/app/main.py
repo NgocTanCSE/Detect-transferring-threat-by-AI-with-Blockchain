@@ -26,34 +26,6 @@ def _get_or_create_wallet(database_session: Session, address: str) -> Wallet:
         database_session.commit()
         database_session.refresh(wallet)
 
-    # Optional: seed a demo balance as real DB data (one-time) for easier end-to-end testing.
-    # Default is OFF unless explicitly configured via env.
-    demo_address = os.getenv("DEMO_FUNDED_ADDRESS", "").lower().strip()
-    demo_amount_eth = float(os.getenv("DEMO_INITIAL_BALANCE_ETH", "0"))
-
-    if demo_address and address == demo_address and demo_amount_eth > 0:
-        has_any_tx = (
-            database_session.query(Transaction)
-            .filter((Transaction.from_address == address) | (Transaction.to_address == address))
-            .first()
-        )
-        if not has_any_tx:
-            import uuid
-            credit_tx = Transaction(
-                tx_hash=f"sim_genesis_{uuid.uuid4().hex}",
-                from_address="system",
-                to_address=address,
-                value=_wei_from_eth(demo_amount_eth),
-                block_number=0,
-                timestamp=datetime.utcnow(),
-                gas_price=0,
-                gas_used=0,
-                input_data="0x",
-                status=1
-            )
-            database_session.add(credit_tx)
-            database_session.commit()
-
     return wallet
 
 
@@ -110,6 +82,10 @@ app.include_router(phase2_ops_router)
 # Mount Phase 3 governance router
 from app.phase3_governance import router as phase3_governance_router
 app.include_router(phase3_governance_router)
+
+# Mount Phase 4 reporting router
+from app.phase4_reporting import router as phase4_reporting_router
+app.include_router(phase4_reporting_router)
 
 
 @app.get("/", tags=["Health"])

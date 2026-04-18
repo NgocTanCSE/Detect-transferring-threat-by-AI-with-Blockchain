@@ -146,6 +146,95 @@ type CaseSummary = {
   high_risk_unassigned: number;
 };
 
+type ComplianceReportSummary = {
+  period: {
+    days: number;
+    start: string;
+    end: string;
+  };
+  kpis: {
+    alerts_total: number;
+    critical_alerts: number;
+    blocked_total: number;
+    blocked_value_eth: number;
+    policy_rules_active: number;
+    notifications_sent: number;
+    notifications_failed: number;
+    audit_events: number;
+  };
+  cases: {
+    PENDING: number;
+    VERIFIED: number;
+    FRAUD: number;
+    IGNORED: number;
+  };
+};
+
+type ComplianceEffectiveness = {
+  period_days: number;
+  inputs: {
+    actionable_alerts: number;
+    blocked_total: number;
+    fraud_cases: number;
+    ignored_cases: number;
+  };
+  metrics: {
+    block_rate_pct: number;
+    fraud_precision_proxy_pct: number;
+    decision_coverage: number;
+  };
+};
+
+type AuditCompleteness = {
+  period_days: number;
+  required_actions: number;
+  present_actions: number;
+  completeness_pct: number;
+  checks: Array<{
+    action_type: string;
+    count: number;
+    present: boolean;
+  }>;
+};
+
+type ComplianceExportPayload = {
+  generated_at: string;
+  filename: string;
+  rows: Array<{ metric: string; value: string }>;
+  csv: string;
+};
+
+type SystemSloMetrics = {
+  period_days: number;
+  endpoint_health: {
+    total: number;
+    active: number;
+    healthy_active: number;
+    availability_pct: number;
+    error_budget_burn_pct: number;
+  };
+  latency_slo: {
+    ingest_target_ms: number;
+    decode_target_ms: number;
+    ingest_p95_ms: number;
+    decode_p95_ms: number;
+    ingest_breaches: number;
+    decode_breaches: number;
+    sample_points: number;
+  };
+};
+
+type ComplianceAuditGaps = {
+  period_days: number;
+  missing_count: number;
+  missing_actions: Array<{
+    action_type: string;
+    owner_role: string;
+    reason: string;
+    recommended_next_step: string;
+  }>;
+};
+
 type DashboardStats = {
   systemAdmin: {
     totalNodeEndpoints: number;
@@ -636,6 +725,13 @@ export default function HomePage() {
     unassigned: 0,
     high_risk_unassigned: 0,
   });
+  const [reportDays, setReportDays] = useState<number>(30);
+  const [complianceReport, setComplianceReport] = useState<ComplianceReportSummary | null>(null);
+  const [complianceEffectiveness, setComplianceEffectiveness] = useState<ComplianceEffectiveness | null>(null);
+  const [auditCompleteness, setAuditCompleteness] = useState<AuditCompleteness | null>(null);
+  const [complianceExport, setComplianceExport] = useState<ComplianceExportPayload | null>(null);
+  const [systemSloMetrics, setSystemSloMetrics] = useState<SystemSloMetrics | null>(null);
+  const [complianceAuditGaps, setComplianceAuditGaps] = useState<ComplianceAuditGaps | null>(null);
 
   const [nodeForm, setNodeForm] = useState({
     provider_name: "Alchemy",
@@ -774,14 +870,16 @@ export default function HomePage() {
 
     try {
       if (targetRole === "system_admin") {
-        const [nodes, summary, metrics] = await Promise.all([
+        const [nodes, summary, metrics, slo] = await Promise.all([
           fetchJson("/api/ops/system/node-endpoints"),
           fetchJson("/api/ops/system/pipeline-metrics/summary"),
           fetchJson("/api/ops/system/pipeline-metrics?limit=5"),
+          fetchJson("/api/ops/system/slo-metrics?days=7"),
         ]);
 
         setNodeEndpoints((nodes.items ?? []) as NodeEndpoint[]);
         setPipelineMetrics((metrics.items ?? []) as PipelineMetric[]);
+        setSystemSloMetrics((slo ?? null) as SystemSloMetrics | null);
 
         setRoleFacts({
           p1: [
@@ -797,14 +895,14 @@ export default function HomePage() {
           p3: [
             `Recent metric points: ${metrics.count ?? 0}`,
             `Chain monitored: ${(metrics.items?.[0]?.chain ?? "ETH") as string}`,
-            "Circuit breaker status can be added in next iteration.",
+            `Ingest p95: ${slo.latency_slo?.ingest_p95_ms ?? 0} ms`,
           ],
           p4: [
-            "Audit logs are written on endpoint changes.",
-            "Use health update API to simulate failover.",
-            "RBAC hooks are ready for re-enable auth phase.",
+            `Availability: ${slo.endpoint_health?.availability_pct ?? 0}%`,
+            `Error budget burn: ${slo.endpoint_health?.error_budget_burn_pct ?? 0}%`,
+            `SLO sample points: ${slo.latency_slo?.sample_points ?? 0}`,
           ],
-          note: "Data source: /ops/system/* APIs backed by database metrics",
+          note: "Data source: /ops/system/* APIs + /ops/system/slo-metrics",
         });
         setDashboardStats((prev) => ({
           ...prev,
@@ -913,14 +1011,22 @@ export default function HomePage() {
           },
         }));
       } else {
-        const [dashboard, blocked, rules] = await Promise.all([
+        const [dashboard, blocked, rules, report, effectiveness, audit, auditGaps] = await Promise.all([
           fetchJson("/api/statistics/dashboard"),
           fetchJson("/api/blocked-transfers?limit=20"),
           fetchJson("/api/ops/compliance/policy-rules?only_active=true"),
+          fetchJson(`/api/ops/compliance/reporting/summary?days=${reportDays}`),
+          fetchJson(`/api/ops/compliance/reporting/control-effectiveness?days=${reportDays}`),
+          fetchJson(`/api/ops/compliance/reporting/audit-completeness?days=${reportDays}`),
+          fetchJson(`/api/ops/compliance/reporting/audit-gaps?days=${reportDays}`),
         ]);
 
         setBlockedTransfers((blocked.blocked_transfers ?? []) as BlockedTransferItem[]);
         setPolicyRules((rules.items ?? []) as PolicyRuleItem[]);
+        setComplianceReport((report ?? null) as ComplianceReportSummary | null);
+        setComplianceEffectiveness((effectiveness ?? null) as ComplianceEffectiveness | null);
+        setAuditCompleteness((audit ?? null) as AuditCompleteness | null);
+        setComplianceAuditGaps((auditGaps ?? null) as ComplianceAuditGaps | null);
 
         setRoleFacts({
           p1: [
@@ -939,11 +1045,11 @@ export default function HomePage() {
             "Compliance actions should link to case outcomes.",
           ],
           p4: [
-            "Executive report templates are next milestone.",
-            "Add monthly aggregations and scheduled exports.",
-            "Attach regulatory evidence bundle per incident.",
+            `Report window: ${report.period?.days ?? reportDays} days`,
+            `Audit completeness: ${audit.completeness_pct ?? 0}%`,
+            `Audit gaps: ${auditGaps.missing_count ?? 0}`,
           ],
-          note: "Data source: /statistics/dashboard, /blocked-transfers, /ops/compliance/*",
+          note: "Data source: /statistics/dashboard, /blocked-transfers, /ops/compliance/* + /ops/compliance/reporting/*",
         });
         setDashboardStats((prev) => ({
           ...prev,
@@ -1149,6 +1255,37 @@ export default function HomePage() {
     } finally {
       setIsLoadingFacts(false);
     }
+  };
+
+  const generateComplianceExport = async () => {
+    try {
+      setIsLoadingFacts(true);
+      const payload = (await fetchJson(`/api/ops/compliance/reporting/export?days=${reportDays}`)) as ComplianceExportPayload;
+      setComplianceExport(payload);
+      setUiMessage(`Compliance export generated: ${payload.filename}`);
+      await loadRoleFacts("compliance_risk_manager");
+    } catch (error) {
+      setFactsError(error instanceof Error ? error.message : "Failed to generate compliance export");
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  };
+
+  const downloadComplianceCsv = () => {
+    if (!complianceExport?.csv) {
+      setFactsError("No export payload available. Generate export first.");
+      return;
+    }
+
+    const blob = new Blob([complianceExport.csv], { type: "text/csv;charset=utf-8;" });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = complianceExport.filename || "compliance_report.csv";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
   };
 
   useEffect(() => {
@@ -1413,9 +1550,9 @@ export default function HomePage() {
                       <p className="text-xs text-cyan-100/80">Ingest average</p>
                     </div>
                     <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3">
-                      <p className="text-xs uppercase tracking-wide text-cyan-200">Latest block</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.systemAdmin.lastBlock ?? "N/A"}</p>
-                      <p className="text-xs text-cyan-100/80">{dashboardStats.systemAdmin.metricPoints} points</p>
+                      <p className="text-xs uppercase tracking-wide text-cyan-200">Availability</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{systemSloMetrics?.endpoint_health.availability_pct ?? 0}%</p>
+                      <p className="text-xs text-cyan-100/80">Burn {systemSloMetrics?.endpoint_health.error_budget_burn_pct ?? 0}%</p>
                     </div>
                   </>
                 ) : null}
@@ -1961,11 +2098,41 @@ export default function HomePage() {
                       </div>
 
                       <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Governance Snapshot</p>
-                        <div className="space-y-2 text-sm text-slate-300">
-                          <p>Active policy rules: {dashboardStats.complianceRiskManager.activePolicyRules}</p>
-                          <p>Blocked transfers: {dashboardStats.complianceRiskManager.blockedTotal}</p>
-                          <p>Critical alerts: {dashboardStats.complianceRiskManager.criticalAlerts}</p>
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Reporting and Export</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          <input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={reportDays}
+                            onChange={(e) => setReportDays(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
+                            placeholder="Report window (days)"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => loadRoleFacts("compliance_risk_manager")}
+                            className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-200"
+                          >
+                            Refresh Reporting KPIs
+                          </button>
+                          <button
+                            type="button"
+                            onClick={generateComplianceExport}
+                            className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1.5 text-xs text-amber-200"
+                          >
+                            Generate Compliance Export
+                          </button>
+                          <button
+                            type="button"
+                            onClick={downloadComplianceCsv}
+                            className="rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-xs text-slate-200"
+                          >
+                            Download CSV
+                          </button>
+                          <div className="rounded border border-slate-700 bg-slate-950/50 px-2 py-2 text-xs text-slate-300">
+                            Completeness: {auditCompleteness?.completeness_pct ?? 0}% | Gaps: {complianceAuditGaps?.missing_count ?? 0}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1976,7 +2143,7 @@ export default function HomePage() {
               {activeSection === "data" ? (
                 <>
                   {role.key === "system_admin" ? (
-                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
                         <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Node Endpoints</p>
                         <div className="max-h-72 overflow-auto text-xs">
@@ -2026,6 +2193,19 @@ export default function HomePage() {
                               ))}
                             </tbody>
                           </table>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">SLO Hardening</p>
+                        <div className="space-y-2 text-sm text-slate-300">
+                          <p>Window: {systemSloMetrics?.period_days ?? 0} days</p>
+                          <p>Healthy active endpoints: {systemSloMetrics?.endpoint_health.healthy_active ?? 0}/{systemSloMetrics?.endpoint_health.active ?? 0}</p>
+                          <p>Ingest p95: {systemSloMetrics?.latency_slo.ingest_p95_ms ?? 0} ms</p>
+                          <p>Decode p95: {systemSloMetrics?.latency_slo.decode_p95_ms ?? 0} ms</p>
+                          <p>Ingest breaches: {systemSloMetrics?.latency_slo.ingest_breaches ?? 0}</p>
+                          <p>Decode breaches: {systemSloMetrics?.latency_slo.decode_breaches ?? 0}</p>
+                          <p>Latest block: {dashboardStats.systemAdmin.lastBlock ?? "N/A"}</p>
                         </div>
                       </div>
                     </div>
@@ -2246,14 +2426,42 @@ export default function HomePage() {
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case Summary</p>
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Control Effectiveness</p>
                         <div className="space-y-2 text-sm text-slate-300">
-                          <p>Pending: {caseSummary.totals.PENDING}</p>
-                          <p>Verified: {caseSummary.totals.VERIFIED}</p>
-                          <p>Fraud: {caseSummary.totals.FRAUD}</p>
-                          <p>Ignored: {caseSummary.totals.IGNORED}</p>
-                          <p>Unassigned: {caseSummary.unassigned}</p>
+                          <p>Actionable alerts: {complianceEffectiveness?.inputs.actionable_alerts ?? 0}</p>
+                          <p>Blocked total: {complianceEffectiveness?.inputs.blocked_total ?? 0}</p>
+                          <p>Block rate: {complianceEffectiveness?.metrics.block_rate_pct ?? 0}%</p>
+                          <p>Fraud precision proxy: {complianceEffectiveness?.metrics.fraud_precision_proxy_pct ?? 0}%</p>
+                          <p>Decision coverage: {complianceEffectiveness?.metrics.decision_coverage ?? 0}</p>
                         </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Audit Completeness</p>
+                        <div className="space-y-2 text-sm text-slate-300">
+                          <p>Required actions: {auditCompleteness?.required_actions ?? 0}</p>
+                          <p>Present actions: {auditCompleteness?.present_actions ?? 0}</p>
+                          <p>Completeness: {auditCompleteness?.completeness_pct ?? 0}%</p>
+                          <p>Audit events: {complianceReport?.kpis.audit_events ?? 0}</p>
+                        </div>
+                        <div className="mt-2 max-h-28 overflow-auto rounded border border-slate-700 bg-slate-950/50 px-2 py-2 text-[11px] text-slate-400">
+                          {(auditCompleteness?.checks ?? []).map((item) => (
+                            <div key={item.action_type} className="flex items-center justify-between border-b border-slate-800 py-1 last:border-b-0">
+                              <span>{item.action_type}</span>
+                              <span>{item.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {(complianceAuditGaps?.missing_actions?.length ?? 0) > 0 ? (
+                          <div className="mt-2 max-h-28 overflow-auto rounded border border-amber-500/30 bg-amber-500/10 px-2 py-2 text-[11px] text-amber-100">
+                            {complianceAuditGaps?.missing_actions.map((item) => (
+                              <div key={item.action_type} className="border-b border-amber-500/20 py-1 last:border-b-0">
+                                <p className="font-semibold">{item.action_type} ({item.owner_role})</p>
+                                <p>{item.reason}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   ) : null}

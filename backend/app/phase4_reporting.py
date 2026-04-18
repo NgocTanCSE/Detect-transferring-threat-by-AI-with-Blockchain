@@ -1,0 +1,359 @@
+"""Phase 4 reporting APIs: compliance exports, KPI summaries, and audit completeness checks."""
+
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from io import StringIO
+import csv
+from typing import Any, Dict
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.models.models import (
+    Alert,
+    AuditLog,
+    BlockedTransfer,
+    NodeEndpoint,
+    NotificationEvent,
+    PipelineMetric,
+    PolicyRule,
+    Transaction,
+)
+
+router = APIRouter(prefix="/ops", tags=["Phase 4 Reporting"])
+
+
+def _window_start(days: int) -> datetime:
+    return datetime.now(timezone.utc) - timedelta(days=days)
+
+
+def _to_eth(value_wei: Decimal | int | float | None) -> float:
+    if value_wei is None:
+        return 0.0
+    return float(Decimal(value_wei) / Decimal(10**18))
+
+
+def _percentile(values: list[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    sorted_values = sorted(values)
+    index = int(round((len(sorted_values) - 1) * percentile))
+    index = max(0, min(index, len(sorted_values) - 1))
+    return float(sorted_values[index])
+
+
+@router.get("/system/slo-metrics")
+def system_slo_metrics(
+    days: int = Query(default=7, ge=1, le=90),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    period_start = _window_start(days)
+
+    endpoints = db.query(NodeEndpoint).all()
+    active_endpoints = [item for item in endpoints if item.is_active]
+    healthy_active = [item for item in active_endpoints if item.health_status == "healthy"]
+
+    metrics = (
+        db.query(PipelineMetric)
+        .filter(PipelineMetric.inserted_at >= period_start)
+        .order_by(PipelineMetric.inserted_at.desc())
+        .all()
+    )
+
+    ingest_values = [float(item.ingestion_latency_ms) for item in metrics if item.ingestion_latency_ms is not None]
+    decode_values = [float(item.decode_latency_ms) for item in metrics if item.decode_latency_ms is not None]
+
+    availability_pct = (
+        (len(healthy_active) / len(active_endpoints) * 100.0) if active_endpoints else 0.0
+    )
+    error_budget_burn_pct = round(max(0.0, 100.0 - availability_pct), 2)
+
+    ingest_target_ms = 500.0
+    decode_target_ms = 200.0
+    ingest_breaches = len([value for value in ingest_values if value > ingest_target_ms])
+    decode_breaches = len([value for value in decode_values if value > decode_target_ms])
+
+    return {
+        "period_days": days,
+        "endpoint_health": {
+            "total": len(endpoints),
+            "active": len(active_endpoints),
+            "healthy_active": len(healthy_active),
+            "availability_pct": round(availability_pct, 2),
+            "error_budget_burn_pct": error_budget_burn_pct,
+        },
+        "latency_slo": {
+            "ingest_target_ms": ingest_target_ms,
+            "decode_target_ms": decode_target_ms,
+            "ingest_p95_ms": round(_percentile(ingest_values, 0.95), 2),
+            "decode_p95_ms": round(_percentile(decode_values, 0.95), 2),
+            "ingest_breaches": ingest_breaches,
+            "decode_breaches": decode_breaches,
+            "sample_points": len(metrics),
+        },
+    }
+
+
+@router.get("/compliance/reporting/summary")
+def compliance_reporting_summary(
+    days: int = Query(default=30, ge=1, le=365),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    period_start = _window_start(days)
+
+    alerts_total = int(
+        db.query(func.count(Alert.id)).filter(Alert.detected_at >= period_start).scalar() or 0
+    )
+    critical_alerts = int(
+        db.query(func.count(Alert.id))
+        .filter(Alert.detected_at >= period_start, Alert.severity == "CRITICAL")
+        .scalar()
+        or 0
+    )
+
+    blocked_total = int(
+        db.query(func.count(BlockedTransfer.id))
+        .filter(BlockedTransfer.blocked_at >= period_start)
+        .scalar()
+        or 0
+    )
+    blocked_value_wei = (
+        db.query(func.coalesce(func.sum(BlockedTransfer.amount), 0))
+        .filter(BlockedTransfer.blocked_at >= period_start)
+        .scalar()
+    )
+
+    cases_by_state = dict(
+        db.query(Transaction.case_status, func.count(Transaction.tx_hash))
+        .filter(Transaction.updated_at >= period_start)
+        .group_by(Transaction.case_status)
+        .all()
+    )
+
+    notifications_sent = int(
+        db.query(func.count(NotificationEvent.id))
+        .filter(NotificationEvent.created_at >= period_start, NotificationEvent.status == "sent")
+        .scalar()
+        or 0
+    )
+    notifications_failed = int(
+        db.query(func.count(NotificationEvent.id))
+        .filter(NotificationEvent.created_at >= period_start, NotificationEvent.status == "failed")
+        .scalar()
+        or 0
+    )
+
+    policy_rules_active = int(
+        db.query(func.count(PolicyRule.id)).filter(PolicyRule.is_active.is_(True)).scalar() or 0
+    )
+
+    audit_event_count = int(
+        db.query(func.count(AuditLog.id)).filter(AuditLog.timestamp >= period_start).scalar() or 0
+    )
+
+    return {
+        "period": {
+            "days": days,
+            "start": period_start.isoformat(),
+            "end": datetime.now(timezone.utc).isoformat(),
+        },
+        "kpis": {
+            "alerts_total": alerts_total,
+            "critical_alerts": critical_alerts,
+            "blocked_total": blocked_total,
+            "blocked_value_eth": _to_eth(blocked_value_wei),
+            "policy_rules_active": policy_rules_active,
+            "notifications_sent": notifications_sent,
+            "notifications_failed": notifications_failed,
+            "audit_events": audit_event_count,
+        },
+        "cases": {
+            "PENDING": int(cases_by_state.get("PENDING", 0)),
+            "VERIFIED": int(cases_by_state.get("VERIFIED", 0)),
+            "FRAUD": int(cases_by_state.get("FRAUD", 0)),
+            "IGNORED": int(cases_by_state.get("IGNORED", 0)),
+        },
+    }
+
+
+@router.get("/compliance/reporting/control-effectiveness")
+def compliance_control_effectiveness(
+    days: int = Query(default=30, ge=1, le=365),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    period_start = _window_start(days)
+
+    actionable_alerts = int(
+        db.query(func.count(Alert.id))
+        .filter(Alert.detected_at >= period_start, Alert.severity.in_(["HIGH", "CRITICAL"]))
+        .scalar()
+        or 0
+    )
+    blocked_total = int(
+        db.query(func.count(BlockedTransfer.id))
+        .filter(BlockedTransfer.blocked_at >= period_start)
+        .scalar()
+        or 0
+    )
+
+    fraud_cases = int(
+        db.query(func.count(Transaction.tx_hash))
+        .filter(Transaction.updated_at >= period_start, Transaction.case_status == "FRAUD")
+        .scalar()
+        or 0
+    )
+    ignored_cases = int(
+        db.query(func.count(Transaction.tx_hash))
+        .filter(Transaction.updated_at >= period_start, Transaction.case_status == "IGNORED")
+        .scalar()
+        or 0
+    )
+
+    decided_cases = fraud_cases + ignored_cases
+
+    block_rate = (blocked_total / actionable_alerts * 100.0) if actionable_alerts > 0 else 0.0
+    fraud_precision_proxy = (fraud_cases / decided_cases * 100.0) if decided_cases > 0 else 0.0
+
+    return {
+        "period_days": days,
+        "inputs": {
+            "actionable_alerts": actionable_alerts,
+            "blocked_total": blocked_total,
+            "fraud_cases": fraud_cases,
+            "ignored_cases": ignored_cases,
+        },
+        "metrics": {
+            "block_rate_pct": round(block_rate, 2),
+            "fraud_precision_proxy_pct": round(fraud_precision_proxy, 2),
+            "decision_coverage": decided_cases,
+        },
+    }
+
+
+@router.get("/compliance/reporting/audit-completeness")
+def compliance_audit_completeness(
+    days: int = Query(default=30, ge=1, le=365),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    period_start = _window_start(days)
+
+    required_actions = [
+        "CASE_ASSIGN",
+        "CASE_ESCALATE",
+        "CASE_CONFIRM_FRAUD",
+        "CASE_DISMISS",
+        "POLICY_RULE_CREATE",
+        "POLICY_RULE_UPDATE",
+        "NOTIFICATION_TEST_SEND",
+    ]
+
+    counts = dict(
+        db.query(AuditLog.action_type, func.count(AuditLog.id))
+        .filter(AuditLog.timestamp >= period_start)
+        .group_by(AuditLog.action_type)
+        .all()
+    )
+
+    checks = []
+    present_count = 0
+    for action_type in required_actions:
+        action_count = int(counts.get(action_type, 0))
+        is_present = action_count > 0
+        if is_present:
+            present_count += 1
+        checks.append(
+            {
+                "action_type": action_type,
+                "count": action_count,
+                "present": is_present,
+            }
+        )
+
+    completeness_pct = (present_count / len(required_actions) * 100.0) if required_actions else 0.0
+
+    return {
+        "period_days": days,
+        "required_actions": len(required_actions),
+        "present_actions": present_count,
+        "completeness_pct": round(completeness_pct, 2),
+        "checks": checks,
+    }
+
+
+@router.get("/compliance/reporting/audit-gaps")
+def compliance_audit_gaps(
+    days: int = Query(default=30, ge=1, le=365),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    completeness = compliance_audit_completeness(days=days, db=db)
+
+    guidance_map = {
+        "CASE_ASSIGN": ("security_analyst", "No assignment trail recorded in selected period"),
+        "CASE_ESCALATE": ("security_analyst", "Escalation workflow has not been exercised"),
+        "CASE_CONFIRM_FRAUD": ("security_analyst", "No confirmed fraud decision logged"),
+        "CASE_DISMISS": ("security_analyst", "No dismiss decision logged"),
+        "POLICY_RULE_CREATE": ("compliance_risk_manager", "Policy creation events missing from audit"),
+        "POLICY_RULE_UPDATE": ("compliance_risk_manager", "Policy update events missing from audit"),
+        "NOTIFICATION_TEST_SEND": ("security_analyst", "Notification channel checks have not been logged"),
+    }
+
+    missing_actions = []
+    for item in completeness.get("checks", []):
+        if item.get("present"):
+            continue
+        action_type = str(item.get("action_type"))
+        owner_role, reason = guidance_map.get(action_type, ("unknown", "No guidance available"))
+        missing_actions.append(
+            {
+                "action_type": action_type,
+                "owner_role": owner_role,
+                "reason": reason,
+                "recommended_next_step": f"Execute and audit-log at least one {action_type} action",
+            }
+        )
+
+    return {
+        "period_days": days,
+        "missing_count": len(missing_actions),
+        "missing_actions": missing_actions,
+    }
+
+
+@router.get("/compliance/reporting/export")
+def compliance_export(
+    days: int = Query(default=30, ge=1, le=365),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    summary = compliance_reporting_summary(days=days, db=db)
+    effectiveness = compliance_control_effectiveness(days=days, db=db)
+    audit = compliance_audit_completeness(days=days, db=db)
+
+    rows = [
+        {"metric": "period_days", "value": str(days)},
+        {"metric": "alerts_total", "value": str(summary["kpis"]["alerts_total"])},
+        {"metric": "critical_alerts", "value": str(summary["kpis"]["critical_alerts"])},
+        {"metric": "blocked_total", "value": str(summary["kpis"]["blocked_total"])},
+        {"metric": "blocked_value_eth", "value": str(summary["kpis"]["blocked_value_eth"])},
+        {"metric": "policy_rules_active", "value": str(summary["kpis"]["policy_rules_active"])},
+        {"metric": "notifications_sent", "value": str(summary["kpis"]["notifications_sent"])},
+        {"metric": "notifications_failed", "value": str(summary["kpis"]["notifications_failed"])},
+        {"metric": "audit_events", "value": str(summary["kpis"]["audit_events"])},
+        {"metric": "block_rate_pct", "value": str(effectiveness["metrics"]["block_rate_pct"])},
+        {"metric": "fraud_precision_proxy_pct", "value": str(effectiveness["metrics"]["fraud_precision_proxy_pct"])},
+        {"metric": "audit_completeness_pct", "value": str(audit["completeness_pct"])},
+    ]
+
+    buffer = StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=["metric", "value"])
+    writer.writeheader()
+    writer.writerows(rows)
+
+    now = datetime.now(timezone.utc)
+    return {
+        "generated_at": now.isoformat(),
+        "filename": f"compliance_report_{now.strftime('%Y%m%d_%H%M%S')}.csv",
+        "rows": rows,
+        "csv": buffer.getvalue(),
+    }
