@@ -18,23 +18,23 @@ import {
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+import { Badge } from "../../../components/ui/badge";
+import { Separator } from "../../../components/ui/separator";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
-} from "@/components/ui/sheet";
+} from "../../../components/ui/sheet";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/components/ui/tabs";
+} from "../../../components/ui/tabs";
 import {
   fetchWallets,
   fetchWalletConnections,
@@ -44,7 +44,7 @@ import {
   type WalletConnectionsResponse,
   type WalletStats,
   type WalletTransaction,
-} from "@/lib/api";
+} from "../../../lib/api";
 import {
   formatAddress,
   formatEth,
@@ -52,7 +52,7 @@ import {
   getRiskLevel,
   getStatusColor,
   formatDate,
-} from "@/lib/utils";
+} from "../../../lib/utils";
 
 export default function AdminTracking() {
   const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);

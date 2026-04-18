@@ -16,8 +16,8 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+} from "../../../components/ui/card";
+import { Badge } from "../../../components/ui/badge";
 import {
   Table,
   TableBody,
@@ -25,14 +25,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "../../../components/ui/table";
 import {
   fetchBlockedTransfers,
   fetchFlowStats,
   type BlockedTransfer,
   type FlowStats,
-} from "@/lib/api";
-import { formatAddress, getRiskColor, formatDate } from "@/lib/utils";
+} from "../../../lib/api";
+import { formatAddress, getRiskColor, formatDate } from "../../../lib/utils";
 import {
   XAxis,
   YAxis,
