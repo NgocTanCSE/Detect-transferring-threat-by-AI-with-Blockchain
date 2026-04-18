@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity,
   Bell,
   Brain,
   FileCheck2,
@@ -34,6 +33,71 @@ type RoleFacts = {
   p3: string[];
   p4: string[];
   note: string;
+};
+
+type NodeEndpoint = {
+  id: string;
+  provider_name: string;
+  chain: string;
+  endpoint_url: string;
+  protocol: string;
+  priority: number;
+  is_active: boolean;
+  health_status: string;
+  last_checked_at: string | null;
+};
+
+type PipelineMetric = {
+  id: number;
+  chain: string;
+  block_number: number | null;
+  throughput_tps: number | null;
+  ingestion_latency_ms: number | null;
+  decode_latency_ms: number | null;
+  inserted_at: string | null;
+};
+
+type FeatureConfig = {
+  id: string;
+  feature_key: string;
+  enabled: boolean;
+  expression: string | null;
+  updated_at: string | null;
+};
+
+type ModelRegistryItem = {
+  id: string;
+  model_name: string;
+  version: string;
+  artifact_uri: string;
+  framework: string;
+  is_active: boolean;
+  promoted_at: string | null;
+};
+
+type AlertItem = {
+  id: string;
+  wallet_address: string;
+  alert_type: string;
+  severity: string;
+  risk_score: number | null;
+  detected_at: string | null;
+};
+
+type CaseItem = {
+  tx_hash: string;
+  status: string;
+  risk_score: number | null;
+  assigned_to: string | null;
+};
+
+type BlockedTransferItem = {
+  id: string;
+  sender_address: string;
+  receiver_address: string;
+  amount_eth: number;
+  risk_score: number;
+  blocked_at: string | null;
 };
 
 const ROLE_DEFINITIONS: RoleDefinition[] = [
@@ -115,6 +179,44 @@ export default function HomePage() {
   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
   const [isLoadingFacts, setIsLoadingFacts] = useState<boolean>(false);
   const [factsError, setFactsError] = useState<string | null>(null);
+  const [uiMessage, setUiMessage] = useState<string | null>(null);
+
+  const [nodeEndpoints, setNodeEndpoints] = useState<NodeEndpoint[]>([]);
+  const [pipelineMetrics, setPipelineMetrics] = useState<PipelineMetric[]>([]);
+  const [featureConfigs, setFeatureConfigs] = useState<FeatureConfig[]>([]);
+  const [modelRegistryItems, setModelRegistryItems] = useState<ModelRegistryItem[]>([]);
+  const [alertItems, setAlertItems] = useState<AlertItem[]>([]);
+  const [caseItems, setCaseItems] = useState<CaseItem[]>([]);
+  const [blockedTransfers, setBlockedTransfers] = useState<BlockedTransferItem[]>([]);
+
+  const [nodeForm, setNodeForm] = useState({
+    provider_name: "Alchemy",
+    chain: "ethereum",
+    endpoint_url: "",
+    protocol: "http",
+    priority: 100,
+    is_active: true,
+  });
+
+  const [healthForm, setHealthForm] = useState({
+    endpoint_id: "",
+    health_status: "healthy",
+    last_error: "",
+  });
+
+  const [featureForm, setFeatureForm] = useState({
+    feature_key: "",
+    expression: "z_score(value_24h)",
+    enabled: true,
+  });
+
+  const [modelForm, setModelForm] = useState({
+    model_name: "risk-core",
+    version: "",
+    artifact_uri: "",
+    framework: "onnx",
+    is_active: true,
+  });
   const [roleFacts, setRoleFacts] = useState<RoleFacts>({
     p1: ["No data yet"],
     p2: ["No data yet"],
@@ -151,6 +253,9 @@ export default function HomePage() {
           fetchJson("/api/ops/system/pipeline-metrics?limit=5"),
         ]);
 
+        setNodeEndpoints((nodes.items ?? []) as NodeEndpoint[]);
+        setPipelineMetrics((metrics.items ?? []) as PipelineMetric[]);
+
         setRoleFacts({
           p1: [
             `Node endpoints: ${nodes.count ?? 0}`,
@@ -180,6 +285,9 @@ export default function HomePage() {
           fetchJson("/api/ops/ai/model-registry"),
           fetchJson("/api/ops/ai/model-registry/active"),
         ]);
+
+        setFeatureConfigs((features.items ?? []) as FeatureConfig[]);
+        setModelRegistryItems((models.items ?? []) as ModelRegistryItem[]);
 
         const enabledFeatureCount = ((features.items ?? []) as Array<{ enabled?: boolean }>).filter((x) => x.enabled).length;
 
@@ -212,6 +320,9 @@ export default function HomePage() {
           fetchJson("/api/cases?min_risk=0.8&limit=20"),
         ]);
 
+        setAlertItems((alerts.alerts ?? []) as AlertItem[]);
+        setCaseItems((cases.cases ?? []) as CaseItem[]);
+
         setRoleFacts({
           p1: [
             `Alerts today: ${alerts.statistics?.total_alerts_today ?? 0}`,
@@ -240,6 +351,8 @@ export default function HomePage() {
           fetchJson("/api/statistics/dashboard"),
           fetchJson("/api/blocked-transfers?limit=20"),
         ]);
+
+        setBlockedTransfers((blocked.blocked_transfers ?? []) as BlockedTransferItem[]);
 
         setRoleFacts({
           p1: [
@@ -294,6 +407,7 @@ export default function HomePage() {
         }),
       });
       await loadRoleFacts(role.key);
+      setUiMessage("Inserted sample pipeline metric");
     } catch (error) {
       setFactsError(error instanceof Error ? error.message : "Failed to seed metric");
     } finally {
@@ -328,6 +442,7 @@ export default function HomePage() {
       });
 
       await loadRoleFacts(role.key);
+      setUiMessage("Inserted sample feature and model");
     } catch (error) {
       setFactsError(error instanceof Error ? error.message : "Failed to seed AI config");
     } finally {
@@ -335,8 +450,116 @@ export default function HomePage() {
     }
   };
 
+  const createNodeEndpoint = async () => {
+    try {
+      setIsLoadingFacts(true);
+      await fetchJson("/api/ops/system/node-endpoints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nodeForm),
+      });
+      setNodeForm((prev) => ({ ...prev, endpoint_url: "" }));
+      setUiMessage("Node endpoint created");
+      await loadRoleFacts("system_admin");
+    } catch (error) {
+      setFactsError(error instanceof Error ? error.message : "Failed to create node endpoint");
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  };
+
+  const updateNodeHealth = async () => {
+    if (!healthForm.endpoint_id) {
+      setFactsError("Please select a node endpoint");
+      return;
+    }
+
+    try {
+      setIsLoadingFacts(true);
+      await fetchJson(`/api/ops/system/node-endpoints/${healthForm.endpoint_id}/health`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          health_status: healthForm.health_status,
+          last_error: healthForm.last_error || null,
+        }),
+      });
+      setUiMessage("Node health updated");
+      await loadRoleFacts("system_admin");
+    } catch (error) {
+      setFactsError(error instanceof Error ? error.message : "Failed to update node health");
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  };
+
+  const createFeatureConfig = async () => {
+    try {
+      setIsLoadingFacts(true);
+      await fetchJson("/api/ops/ai/feature-store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(featureForm),
+      });
+      setUiMessage("Feature config created");
+      setFeatureForm((prev) => ({ ...prev, feature_key: "" }));
+      await loadRoleFacts("ai_data_engineer");
+    } catch (error) {
+      setFactsError(error instanceof Error ? error.message : "Failed to create feature config");
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  };
+
+  const createModelRegistryItem = async () => {
+    try {
+      setIsLoadingFacts(true);
+      await fetchJson("/api/ops/ai/model-registry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modelForm),
+      });
+      setUiMessage("Model registry item created");
+      setModelForm((prev) => ({ ...prev, version: "", artifact_uri: "" }));
+      await loadRoleFacts("ai_data_engineer");
+    } catch (error) {
+      setFactsError(error instanceof Error ? error.message : "Failed to create model item");
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  };
+
+  const activateModel = async (modelId: string) => {
+    try {
+      setIsLoadingFacts(true);
+      await fetchJson(`/api/ops/ai/model-registry/${modelId}/activate`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      setUiMessage("Model activated");
+      await loadRoleFacts("ai_data_engineer");
+    } catch (error) {
+      setFactsError(error instanceof Error ? error.message : "Failed to activate model");
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  };
+
   useEffect(() => {
     loadRoleFacts(role.key);
+  }, [role.key]);
+
+  useEffect(() => {
+    if (role.key !== "system_admin" && role.key !== "security_analyst") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      loadRoleFacts(role.key);
+    }, 8000);
+
+    return () => window.clearInterval(intervalId);
   }, [role.key]);
 
   return (
@@ -413,6 +636,12 @@ export default function HomePage() {
               <span className="text-sm text-slate-400">Content organized in Z-layout</span>
             </div>
 
+            {uiMessage ? (
+              <div className="mb-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                {uiMessage}
+              </div>
+            ) : null}
+
             <section className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4">
                 <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">Z Point 1</p>
@@ -473,6 +702,176 @@ export default function HomePage() {
                     Refresh role data
                   </button>
                 </div>
+
+                {role.key === "system_admin" ? (
+                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Node Endpoint</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        <input
+                          value={nodeForm.provider_name}
+                          onChange={(e) => setNodeForm((prev) => ({ ...prev, provider_name: e.target.value }))}
+                          placeholder="Provider"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                        <input
+                          value={nodeForm.chain}
+                          onChange={(e) => setNodeForm((prev) => ({ ...prev, chain: e.target.value }))}
+                          placeholder="Chain"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                        <input
+                          value={nodeForm.endpoint_url}
+                          onChange={(e) => setNodeForm((prev) => ({ ...prev, endpoint_url: e.target.value }))}
+                          placeholder="Endpoint URL"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={nodeForm.protocol}
+                            onChange={(e) => setNodeForm((prev) => ({ ...prev, protocol: e.target.value }))}
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          >
+                            <option value="http">http</option>
+                            <option value="websocket">websocket</option>
+                          </select>
+                          <input
+                            type="number"
+                            value={nodeForm.priority}
+                            onChange={(e) => setNodeForm((prev) => ({ ...prev, priority: Number(e.target.value) || 100 }))}
+                            placeholder="Priority"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={createNodeEndpoint}
+                          className="rounded border border-cyan-500/40 bg-cyan-500/15 px-2 py-1.5 text-xs text-cyan-200"
+                        >
+                          Save Endpoint
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Update Node Health</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        <select
+                          value={healthForm.endpoint_id}
+                          onChange={(e) => setHealthForm((prev) => ({ ...prev, endpoint_id: e.target.value }))}
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        >
+                          <option value="">Select endpoint</option>
+                          {nodeEndpoints.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.provider_name} - {item.chain}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={healthForm.health_status}
+                          onChange={(e) => setHealthForm((prev) => ({ ...prev, health_status: e.target.value }))}
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        >
+                          <option value="healthy">healthy</option>
+                          <option value="degraded">degraded</option>
+                          <option value="down">down</option>
+                          <option value="unknown">unknown</option>
+                        </select>
+                        <input
+                          value={healthForm.last_error}
+                          onChange={(e) => setHealthForm((prev) => ({ ...prev, last_error: e.target.value }))}
+                          placeholder="Last error (optional)"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={updateNodeHealth}
+                          className="rounded border border-cyan-500/40 bg-cyan-500/15 px-2 py-1.5 text-xs text-cyan-200"
+                        >
+                          Update Health
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {role.key === "ai_data_engineer" ? (
+                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Feature Config</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        <input
+                          value={featureForm.feature_key}
+                          onChange={(e) => setFeatureForm((prev) => ({ ...prev, feature_key: e.target.value }))}
+                          placeholder="Feature key"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                        <input
+                          value={featureForm.expression}
+                          onChange={(e) => setFeatureForm((prev) => ({ ...prev, expression: e.target.value }))}
+                          placeholder="Expression"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                        <label className="flex items-center gap-2 text-xs text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={featureForm.enabled}
+                            onChange={(e) => setFeatureForm((prev) => ({ ...prev, enabled: e.target.checked }))}
+                          />
+                          Enabled
+                        </label>
+                        <button
+                          type="button"
+                          onClick={createFeatureConfig}
+                          className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1.5 text-xs text-violet-200"
+                        >
+                          Save Feature
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Model Entry</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        <input
+                          value={modelForm.model_name}
+                          onChange={(e) => setModelForm((prev) => ({ ...prev, model_name: e.target.value }))}
+                          placeholder="Model name"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                        <input
+                          value={modelForm.version}
+                          onChange={(e) => setModelForm((prev) => ({ ...prev, version: e.target.value }))}
+                          placeholder="Version"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                        <input
+                          value={modelForm.artifact_uri}
+                          onChange={(e) => setModelForm((prev) => ({ ...prev, artifact_uri: e.target.value }))}
+                          placeholder="Artifact URI"
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        />
+                        <select
+                          value={modelForm.framework}
+                          onChange={(e) => setModelForm((prev) => ({ ...prev, framework: e.target.value }))}
+                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                        >
+                          <option value="pkl">pkl</option>
+                          <option value="onnx">onnx</option>
+                          <option value="pt">pt</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={createModelRegistryItem}
+                          className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1.5 text-xs text-violet-200"
+                        >
+                          Save Model
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </article>
 
               <div className="md:col-span-2 md:flex md:justify-end">
@@ -496,6 +895,208 @@ export default function HomePage() {
                 {isLoadingFacts ? " | loading..." : ""}
                 {factsError ? ` | error: ${factsError}` : ""}
               </div>
+
+              {role.key === "system_admin" ? (
+                <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Node Endpoints</p>
+                    <div className="max-h-72 overflow-auto text-xs">
+                      <table className="w-full text-left">
+                        <thead className="text-slate-400">
+                          <tr>
+                            <th className="pb-1">Provider</th>
+                            <th className="pb-1">Chain</th>
+                            <th className="pb-1">Protocol</th>
+                            <th className="pb-1">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {nodeEndpoints.map((row) => (
+                            <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                              <td className="py-1">{row.provider_name}</td>
+                              <td className="py-1">{row.chain}</td>
+                              <td className="py-1">{row.protocol}</td>
+                              <td className="py-1">{row.health_status}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Pipeline Metrics</p>
+                    <div className="max-h-72 overflow-auto text-xs">
+                      <table className="w-full text-left">
+                        <thead className="text-slate-400">
+                          <tr>
+                            <th className="pb-1">Block</th>
+                            <th className="pb-1">TPS</th>
+                            <th className="pb-1">Ingest ms</th>
+                            <th className="pb-1">Decode ms</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pipelineMetrics.map((row) => (
+                            <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                              <td className="py-1">{row.block_number ?? "N/A"}</td>
+                              <td className="py-1">{row.throughput_tps ?? "N/A"}</td>
+                              <td className="py-1">{row.ingestion_latency_ms ?? "N/A"}</td>
+                              <td className="py-1">{row.decode_latency_ms ?? "N/A"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {role.key === "ai_data_engineer" ? (
+                <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Feature Store</p>
+                    <div className="max-h-72 overflow-auto text-xs">
+                      <table className="w-full text-left">
+                        <thead className="text-slate-400">
+                          <tr>
+                            <th className="pb-1">Feature</th>
+                            <th className="pb-1">Enabled</th>
+                            <th className="pb-1">Expression</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {featureConfigs.map((row) => (
+                            <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                              <td className="py-1">{row.feature_key}</td>
+                              <td className="py-1">{row.enabled ? "Yes" : "No"}</td>
+                              <td className="py-1">{row.expression ?? "N/A"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Model Registry</p>
+                    <div className="max-h-72 overflow-auto text-xs">
+                      <table className="w-full text-left">
+                        <thead className="text-slate-400">
+                          <tr>
+                            <th className="pb-1">Model</th>
+                            <th className="pb-1">Version</th>
+                            <th className="pb-1">Active</th>
+                            <th className="pb-1">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {modelRegistryItems.map((row) => (
+                            <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                              <td className="py-1">{row.model_name}</td>
+                              <td className="py-1">{row.version}</td>
+                              <td className="py-1">{row.is_active ? "Yes" : "No"}</td>
+                              <td className="py-1">
+                                {!row.is_active ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => activateModel(row.id)}
+                                    className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1 text-[10px] text-violet-200"
+                                  >
+                                    Activate
+                                  </button>
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {role.key === "security_analyst" ? (
+                <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Recent Alerts</p>
+                    <div className="max-h-72 overflow-auto text-xs">
+                      <table className="w-full text-left">
+                        <thead className="text-slate-400">
+                          <tr>
+                            <th className="pb-1">Type</th>
+                            <th className="pb-1">Severity</th>
+                            <th className="pb-1">Risk</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {alertItems.map((row) => (
+                            <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                              <td className="py-1">{row.alert_type}</td>
+                              <td className="py-1">{row.severity}</td>
+                              <td className="py-1">{row.risk_score ?? "N/A"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case Queue</p>
+                    <div className="max-h-72 overflow-auto text-xs">
+                      <table className="w-full text-left">
+                        <thead className="text-slate-400">
+                          <tr>
+                            <th className="pb-1">Tx Hash</th>
+                            <th className="pb-1">Status</th>
+                            <th className="pb-1">Risk</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {caseItems.map((row) => (
+                            <tr key={row.tx_hash} className="border-t border-slate-700/60 text-slate-200">
+                              <td className="py-1">{row.tx_hash.slice(0, 12)}...</td>
+                              <td className="py-1">{row.status}</td>
+                              <td className="py-1">{row.risk_score ?? "N/A"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {role.key === "compliance_risk_manager" ? (
+                <div className="md:col-span-2 rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Blocked Transfers</p>
+                  <div className="max-h-72 overflow-auto text-xs">
+                    <table className="w-full text-left">
+                      <thead className="text-slate-400">
+                        <tr>
+                          <th className="pb-1">Sender</th>
+                          <th className="pb-1">Receiver</th>
+                          <th className="pb-1">Amount ETH</th>
+                          <th className="pb-1">Risk</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {blockedTransfers.map((row) => (
+                          <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                            <td className="py-1">{row.sender_address.slice(0, 10)}...</td>
+                            <td className="py-1">{row.receiver_address.slice(0, 10)}...</td>
+                            <td className="py-1">{row.amount_eth}</td>
+                            <td className="py-1">{row.risk_score}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
             </section>
           </main>
         </div>
