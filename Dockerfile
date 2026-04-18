@@ -12,13 +12,13 @@ FROM python:3.11-slim AS runtime
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    curl \
-    supervisor \
-    nodejs \
-    npm \
-    && rm -rf /var/lib/apt/lists/*
+  gcc \
+  libpq-dev \
+  curl \
+  supervisor \
+  nodejs \
+  npm \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -28,6 +28,9 @@ RUN pip install --no-cache-dir -r ./backend/requirements.txt
 
 # Copy Backend code
 COPY backend/ ./backend/
+
+# Copy database bootstrap SQL files used for Supabase initialization
+COPY database/ ./database/
 
 # Setup Frontend from builder
 COPY --from=frontend-builder /app/frontend/public ./frontend/public

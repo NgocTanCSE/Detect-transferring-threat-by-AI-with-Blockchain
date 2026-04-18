@@ -84,6 +84,8 @@ Required env vars:
 
 The frontend proxies `/api` requests to the backend inside the same container, so one Space is enough.
 
+On startup, the Space can bootstrap an empty Supabase database from `database/init.sql` and `database/seed_rich_demo.sql`.
+
 ---
 
 ## 🏗️ Project Structure

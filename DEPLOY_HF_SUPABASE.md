@@ -43,7 +43,11 @@ After deploy, verify health endpoint:
 
 ## 3) Run DB initialization and seed once
 
-Because backend no longer uses local Postgres volume, run SQL directly against Supabase using psql or Supabase SQL Editor.
+The Space now runs a best-effort bootstrap on startup:
+- If `users` does not exist, it loads `database/init.sql` and then `database/seed_rich_demo.sql`
+- If the schema exists but `users` is empty, it loads `database/seed_rich_demo.sql`
+
+If you want to do it manually, you can still run the SQL directly against Supabase using psql or Supabase SQL Editor.
 
 Run in order:
 1. `database/init.sql`
