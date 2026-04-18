@@ -1,0 +1,1444 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  BadgeInfo,
+  Brain,
+  ChartColumn,
+  FileCheck2,
+  Gauge,
+  Globe2,
+  RefreshCcw,
+  Shield,
+  Sparkles,
+  Wallet,
+} from "lucide-react";
+import type { Alert, BlockedTransfer, DashboardStats, FlowStats } from "@/lib/api";
+import { fetchBlockedTransfers, fetchDashboardStats, fetchFlowStats, fetchRecentAlerts } from "@/lib/api";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+type RoleKey = "system_admin" | "ai_data_engineer" | "security_analyst" | "compliance_risk_manager";
+
+type RoleDefinition = {
+  key: RoleKey;
+  label: string;
+  shortLabel: string;
+  accentClass: string;
+  highlightClass: string;
+  sidebarFeatures: string[];
+};
+
+type NodeEndpointItem = {
+  id: string;
+  provider_name: string;
+  chain: string;
+  endpoint_url: string;
+  protocol: string;
+  priority: number;
+  is_active: boolean;
+  health_status: string;
+  last_error: string | null;
+  last_checked_at: string | null;
+};
+
+type PipelineMetricItem = {
+  id: number;
+  chain: string;
+  block_number: number | null;
+  throughput_tps: number | null;
+  ingestion_latency_ms: number | null;
+  decode_latency_ms: number | null;
+  inserted_at: string | null;
+};
+
+type FeatureConfigItem = {
+  id: string;
+  feature_key: string;
+  enabled: boolean;
+  expression: string | null;
+  owner_user_id: string | null;
+  updated_at: string | null;
+};
+
+type ModelRegistryItem = {
+  id: string;
+  model_name: string;
+  version: string;
+  artifact_uri: string;
+  framework: string;
+  is_active: boolean;
+  promoted_by: string | null;
+  promoted_at: string | null;
+  created_at: string | null;
+};
+
+type PolicyRuleItem = {
+  id: string;
+  rule_name: string;
+  description: string | null;
+  min_risk_score: number;
+  block_blacklisted: boolean;
+  block_suspended: boolean;
+  notify_on_block: boolean;
+  priority: number;
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type NotificationItem = {
+  id: string;
+  channel: string;
+  recipient: string;
+  severity: string;
+  message: string;
+  status: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string | null;
+  sent_at: string | null;
+};
+
+type CaseItem = {
+  tx_hash: string;
+  from_address: string;
+  to_address: string;
+  value: string;
+  risk_score: number | null;
+  status: string;
+  assigned_to: string | null;
+  is_flagged: boolean;
+  flag_reason: string | null;
+  timestamp: string | null;
+  updated_at: string | null;
+};
+
+type AlertsSummary = {
+  today: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+};
+
+type CaseSummary = {
+  totals: Record<string, number>;
+  unassigned: number;
+  high_risk_unassigned: number;
+};
+
+type ReportingSummary = {
+  period: { days: number; start: string; end: string };
+  kpis: {
+    alerts_total: number;
+    critical_alerts: number;
+    blocked_total: number;
+    blocked_value_eth: number;
+    policy_rules_active: number;
+    notifications_sent: number;
+    notifications_failed: number;
+    audit_events: number;
+  };
+  cases: Record<string, number>;
+};
+
+type ControlEffectiveness = {
+  period_days: number;
+  inputs: {
+    actionable_alerts: number;
+    blocked_total: number;
+    fraud_cases: number;
+    ignored_cases: number;
+  };
+  metrics: {
+    block_rate_pct: number;
+    fraud_precision_proxy_pct: number;
+    decision_coverage: number;
+  };
+};
+
+type AuditCompleteness = {
+  period_days: number;
+  required_actions: number;
+  present_actions: number;
+  completeness_pct: number;
+  checks: Array<{
+    action_type: string;
+    count: number;
+    present: boolean;
+  }>;
+};
+
+type AuditGaps = {
+  period_days: number;
+  missing_count: number;
+  missing_actions: Array<{
+    action_type: string;
+    owner_role: string;
+    reason: string;
+    recommended_next_step: string;
+  }>;
+};
+
+type SloMetrics = {
+  period_days: number;
+  endpoint_health: {
+    total: number;
+    active: number;
+    healthy_active: number;
+    availability_pct: number;
+    error_budget_burn_pct: number;
+  };
+  latency_slo: {
+    ingest_target_ms: number;
+    decode_target_ms: number;
+    ingest_p95_ms: number;
+    decode_p95_ms: number;
+    ingest_breaches: number;
+    decode_breaches: number;
+    sample_points: number;
+  };
+};
+
+const ROLE_DEFINITIONS: RoleDefinition[] = [
+  {
+    key: "system_admin",
+    label: "System Admin",
+    shortLabel: "SYS",
+    accentClass: "border-cyan-500/40 bg-cyan-500/15 text-cyan-100",
+    highlightClass: "from-cyan-500/20 via-sky-500/10 to-transparent",
+    sidebarFeatures: ["Health", "Availability", "Node Ops", "Pipeline Ops", "Node Data", "SLO Data"],
+  },
+  {
+    key: "ai_data_engineer",
+    label: "AI Data Engineer",
+    shortLabel: "AI",
+    accentClass: "border-violet-500/40 bg-violet-500/15 text-violet-100",
+    highlightClass: "from-violet-500/20 via-fuchsia-500/10 to-transparent",
+    sidebarFeatures: ["Model State", "Feature State", "Feature Ops", "Model Ops", "Feature Data", "Registry Data"],
+  },
+  {
+    key: "security_analyst",
+    label: "Security Analyst",
+    shortLabel: "SEC",
+    accentClass: "border-rose-500/40 bg-rose-500/15 text-rose-100",
+    highlightClass: "from-rose-500/20 via-orange-500/10 to-transparent",
+    sidebarFeatures: ["Alert Queue", "Case Queue", "Case Actions", "Notifications", "Alert Data", "Case Data"],
+  },
+  {
+    key: "compliance_risk_manager",
+    label: "Compliance Risk Manager",
+    shortLabel: "CMP",
+    accentClass: "border-amber-500/40 bg-amber-500/15 text-amber-100",
+    highlightClass: "from-amber-500/20 via-yellow-500/10 to-transparent",
+    sidebarFeatures: ["Policy State", "Audit State", "Policy Actions", "Reporting", "Policy Data", "Audit Data"],
+  },
+];
+
+const SIDEBAR_GROUPS: Array<{ title: string; start: number; end: number }> = [
+  { title: "Overview", start: 0, end: 2 },
+  { title: "Functions", start: 2, end: 4 },
+  { title: "Data", start: 4, end: 6 },
+];
+
+const ROLE_ICONS = [Gauge, ChartColumn, Brain, Shield, FileCheck2, Wallet];
+
+const ROLE_COLORS: Record<RoleKey, string[]> = {
+  system_admin: ["#22d3ee", "#38bdf8", "#0ea5e9"],
+  ai_data_engineer: ["#c084fc", "#a855f7", "#8b5cf6"],
+  security_analyst: ["#fb7185", "#f97316", "#ef4444"],
+  compliance_risk_manager: ["#fbbf24", "#f59e0b", "#d97706"],
+};
+
+const TONAL_STYLES: Record<string, string> = {
+  cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-100",
+  violet: "border-violet-500/20 bg-violet-500/10 text-violet-100",
+  rose: "border-rose-500/20 bg-rose-500/10 text-rose-100",
+  amber: "border-amber-500/20 bg-amber-500/10 text-amber-100",
+  emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
+  blue: "border-blue-500/20 bg-blue-500/10 text-blue-100",
+  slate: "border-slate-500/20 bg-slate-500/10 text-slate-100",
+};
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const response = await fetch(path, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Request failed: ${path}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+function formatAddress(address: string | null | undefined): string {
+  if (!address) return "-";
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function formatCompact(value: number): string {
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+function formatEth(value: number): string {
+  return `${value.toFixed(value >= 100 ? 0 : 2)} ETH`;
+}
+
+function formatPercent(value: number): string {
+  return `${value.toFixed(1)}%`;
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "-";
+  return new Date(value).toLocaleString();
+}
+
+function countBy<T>(items: T[], resolver: (item: T) => string): Record<string, number> {
+  return items.reduce<Record<string, number>>((accumulator, item) => {
+    const key = resolver(item);
+    accumulator[key] = (accumulator[key] || 0) + 1;
+    return accumulator;
+  }, {});
+}
+
+function percentage(value: number, total: number): number {
+  if (!total) return 0;
+  return (value / total) * 100;
+}
+
+function SeverityPill({ severity }: { severity: string }) {
+  const color =
+    severity === "CRITICAL"
+      ? "border-rose-500/30 bg-rose-500/10 text-rose-200"
+      : severity === "HIGH"
+        ? "border-orange-500/30 bg-orange-500/10 text-orange-200"
+        : severity === "MEDIUM"
+          ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+          : "border-slate-500/30 bg-slate-500/10 text-slate-200";
+
+  return <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${color}`}>{severity}</span>;
+}
+
+function CardShell({ title, subtitle, children, icon: Icon }: { title: string; subtitle: string; children: React.ReactNode; icon?: React.ComponentType<{ className?: string }> }) {
+  return (
+    <section className="rounded-3xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-[0_24px_60px_rgba(2,6,23,0.35)] backdrop-blur">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-white">{title}</h3>
+          <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
+        </div>
+        {Icon ? <Icon className="h-5 w-5 text-slate-400" /> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+export default function LiveDashboard() {
+  const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
+  const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [flowStats, setFlowStats] = useState<FlowStats[]>([]);
+  const [recentAlerts, setRecentAlerts] = useState<Alert[]>([]);
+  const [blockedTransfers, setBlockedTransfers] = useState<BlockedTransfer[]>([]);
+  const [nodeEndpoints, setNodeEndpoints] = useState<NodeEndpointItem[]>([]);
+  const [pipelineMetrics, setPipelineMetrics] = useState<PipelineMetricItem[]>([]);
+  const [pipelineSummary, setPipelineSummary] = useState<{ total_points: number; avg_throughput_tps: number | null; avg_ingestion_latency_ms: number | null; avg_decode_latency_ms: number | null; last_block_number: number | null } | null>(null);
+  const [featureConfigs, setFeatureConfigs] = useState<FeatureConfigItem[]>([]);
+  const [modelRegistry, setModelRegistry] = useState<ModelRegistryItem[]>([]);
+  const [activeModels, setActiveModels] = useState<ModelRegistryItem[]>([]);
+  const [policyRules, setPolicyRules] = useState<PolicyRuleItem[]>([]);
+  const [alertsSummary, setAlertsSummary] = useState<AlertsSummary | null>(null);
+  const [caseSummary, setCaseSummary] = useState<CaseSummary | null>(null);
+  const [notificationEvents, setNotificationEvents] = useState<NotificationItem[]>([]);
+  const [caseItems, setCaseItems] = useState<CaseItem[]>([]);
+  const [reportingSummary, setReportingSummary] = useState<ReportingSummary | null>(null);
+  const [controlEffectiveness, setControlEffectiveness] = useState<ControlEffectiveness | null>(null);
+  const [auditCompleteness, setAuditCompleteness] = useState<AuditCompleteness | null>(null);
+  const [auditGaps, setAuditGaps] = useState<AuditGaps | null>(null);
+  const [sloMetrics, setSloMetrics] = useState<SloMetrics | null>(null);
+
+  const role = useMemo(() => ROLE_DEFINITIONS.find((entry) => entry.key === activeRole) ?? ROLE_DEFINITIONS[0], [activeRole]);
+  const sidebarIcons = useMemo(() => ROLE_ICONS, []);
+  const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace";
+
+  useEffect(() => {
+    setActiveFeatureIndex(0);
+  }, [activeRole]);
+
+  async function loadLiveData(roleKey: RoleKey) {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const [dashboardResult, flowResult, alertsResult, blockedResult] = await Promise.all([
+        fetchDashboardStats(),
+        fetchFlowStats(),
+        fetchRecentAlerts(12),
+        fetchBlockedTransfers(),
+      ]);
+
+      setDashboardStats(dashboardResult);
+      setFlowStats(flowResult);
+      setRecentAlerts(alertsResult.alerts ?? []);
+      setBlockedTransfers(blockedResult ?? []);
+
+      if (roleKey === "system_admin") {
+        const [nodeRes, pipelineRes, pipelineSummaryRes, sloRes] = await Promise.allSettled([
+          fetchJson<{ count: number; items: NodeEndpointItem[] }>("/api/ops/system/node-endpoints?only_active=true"),
+          fetchJson<{ count: number; items: PipelineMetricItem[] }>("/api/ops/system/pipeline-metrics?limit=12"),
+          fetchJson<{ total_points: number; avg_throughput_tps: number | null; avg_ingestion_latency_ms: number | null; avg_decode_latency_ms: number | null; last_block_number: number | null }>("/api/ops/system/pipeline-metrics/summary"),
+          fetchJson<SloMetrics>("/api/ops/system/slo-metrics?days=14"),
+        ]);
+
+        if (nodeRes.status === "fulfilled") setNodeEndpoints(nodeRes.value.items ?? []);
+        if (pipelineRes.status === "fulfilled") setPipelineMetrics(pipelineRes.value.items ?? []);
+        if (pipelineSummaryRes.status === "fulfilled") setPipelineSummary(pipelineSummaryRes.value);
+        if (sloRes.status === "fulfilled") setSloMetrics(sloRes.value);
+      }
+
+      if (roleKey === "ai_data_engineer") {
+        const [featureRes, registryRes, activeRes] = await Promise.allSettled([
+          fetchJson<{ count: number; items: FeatureConfigItem[] }>("/api/ops/ai/feature-store"),
+          fetchJson<{ count: number; items: ModelRegistryItem[] }>("/api/ops/ai/model-registry"),
+          fetchJson<{ count: number; items: ModelRegistryItem[] }>("/api/ops/ai/model-registry/active"),
+        ]);
+
+        if (featureRes.status === "fulfilled") setFeatureConfigs(featureRes.value.items ?? []);
+        if (registryRes.status === "fulfilled") setModelRegistry(registryRes.value.items ?? []);
+        if (activeRes.status === "fulfilled") setActiveModels(activeRes.value.items ?? []);
+      }
+
+      if (roleKey === "security_analyst") {
+        const [alertSummaryRes, caseSummaryRes, notificationsRes, casesRes] = await Promise.allSettled([
+          fetchJson<AlertsSummary>("/api/ops/security/alerts-summary"),
+          fetchJson<CaseSummary>("/api/ops/security/case-summary"),
+          fetchJson<{ count: number; items: NotificationItem[] }>("/api/ops/security/notifications?limit=10"),
+          fetchJson<{ count: number; cases: CaseItem[] }>("/api/cases?limit=12&min_risk=0.7"),
+        ]);
+
+        if (alertSummaryRes.status === "fulfilled") setAlertsSummary(alertSummaryRes.value);
+        if (caseSummaryRes.status === "fulfilled") setCaseSummary(caseSummaryRes.value);
+        if (notificationsRes.status === "fulfilled") setNotificationEvents(notificationsRes.value.items ?? []);
+        if (casesRes.status === "fulfilled") setCaseItems(casesRes.value.cases ?? []);
+      }
+
+      if (roleKey === "compliance_risk_manager") {
+        const [policyRes, reportRes, effectivenessRes, completenessRes, gapsRes] = await Promise.allSettled([
+          fetchJson<{ count: number; items: PolicyRuleItem[] }>("/api/ops/compliance/policy-rules"),
+          fetchJson<ReportingSummary>("/api/ops/compliance/reporting/summary?days=30"),
+          fetchJson<ControlEffectiveness>("/api/ops/compliance/reporting/control-effectiveness?days=30"),
+          fetchJson<AuditCompleteness>("/api/ops/compliance/reporting/audit-completeness?days=30"),
+          fetchJson<AuditGaps>("/api/ops/compliance/reporting/audit-gaps?days=30"),
+        ]);
+
+        if (policyRes.status === "fulfilled") setPolicyRules(policyRes.value.items ?? []);
+        if (reportRes.status === "fulfilled") setReportingSummary(reportRes.value);
+        if (effectivenessRes.status === "fulfilled") setControlEffectiveness(effectivenessRes.value);
+        if (completenessRes.status === "fulfilled") setAuditCompleteness(completenessRes.value);
+        if (gapsRes.status === "fulfilled") setAuditGaps(gapsRes.value);
+      }
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : "Failed to load live data";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadLiveData(activeRole);
+  }, [activeRole]);
+
+  const flowChartData = useMemo(
+    () =>
+      flowStats.map((entry) => ({
+        date: entry.date,
+        inflow: entry.inflow,
+        outflow: entry.outflow,
+        net: entry.inflow - entry.outflow,
+      })),
+    [flowStats]
+  );
+
+  const roleMetricCards = useMemo(() => {
+    const overview = dashboardStats?.overview;
+
+    if (role.key === "system_admin") {
+      return [
+        { label: "Availability", value: sloMetrics ? formatPercent(sloMetrics.endpoint_health.availability_pct) : "-", tone: "cyan", hint: "Active endpoints" },
+        { label: "Healthy nodes", value: sloMetrics ? `${sloMetrics.endpoint_health.healthy_active}/${sloMetrics.endpoint_health.active}` : "-", tone: "blue", hint: "Endpoint health" },
+        { label: "Pipeline TPS", value: pipelineSummary?.avg_throughput_tps != null ? pipelineSummary.avg_throughput_tps.toFixed(1) : "-", tone: "emerald", hint: "Average throughput" },
+        { label: "Alerts today", value: overview ? formatCompact(overview.alerts_today) : "-", tone: "rose", hint: "Live alert volume" },
+      ];
+    }
+
+    if (role.key === "ai_data_engineer") {
+      return [
+        { label: "Feature flags", value: formatCompact(featureConfigs.length), tone: "violet", hint: `${featureConfigs.filter((item) => item.enabled).length} enabled` },
+        { label: "Model versions", value: formatCompact(modelRegistry.length), tone: "blue", hint: `${activeModels.length} active` },
+        { label: "Latest records", value: pipelineSummary?.total_points != null ? formatCompact(pipelineSummary.total_points) : "-", tone: "emerald", hint: "Pipeline metrics available" },
+        { label: "Tracked wallets", value: overview ? formatCompact(overview.total_wallets) : "-", tone: "cyan", hint: "Source population" },
+      ];
+    }
+
+    if (role.key === "security_analyst") {
+      return [
+        { label: "Critical alerts", value: alertsSummary ? formatCompact(alertsSummary.critical) : "-", tone: "rose", hint: "Severity snapshot" },
+        { label: "Pending cases", value: caseSummary ? formatCompact(caseSummary.totals.PENDING || 0) : "-", tone: "amber", hint: `${caseSummary?.unassigned ?? 0} unassigned` },
+        { label: "Notifications", value: notificationEvents.length ? formatCompact(notificationEvents.length) : "-", tone: "violet", hint: "Recent channel events" },
+        { label: "Blocked today", value: blockedTransfers.length ? formatCompact(blockedTransfers.length) : "-", tone: "blue", hint: "Transfer intervention" },
+      ];
+    }
+
+    return [
+      { label: "Blocked value", value: reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-", tone: "amber", hint: "30-day risk impact" },
+      { label: "Audit completeness", value: auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-", tone: "emerald", hint: `${auditCompleteness?.present_actions ?? 0}/${auditCompleteness?.required_actions ?? 0}` },
+      { label: "Policy rules", value: reportingSummary ? formatCompact(reportingSummary.kpis.policy_rules_active) : "-", tone: "violet", hint: "Active governance rules" },
+      { label: "Blocked transfers", value: reportingSummary ? formatCompact(reportingSummary.kpis.blocked_total) : "-", tone: "rose", hint: "Audit window" },
+    ];
+  }, [activeModels.length, alertsSummary, auditCompleteness, blockedTransfers.length, caseSummary, dashboardStats, featureConfigs.length, modelRegistry.length, notificationEvents.length, pipelineSummary, reportingSummary, role.key, sloMetrics]);
+
+  const chartPalette = ROLE_COLORS[role.key];
+
+  const selectedPanel = useMemo(() => {
+    if (role.key === "system_admin") {
+      switch (activeFeatureIndex) {
+        case 0:
+          return {
+            title: "Runtime health",
+            description: "Availability, latency, and flow are sourced from live backend metrics.",
+            content: (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <div className="rounded-2xl border border-slate-700/70 bg-slate-950/60 p-4">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={flowChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                      <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                      <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                      <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} labelStyle={{ color: "#e2e8f0" }} />
+                      <Legend />
+                      <Line type="monotone" dataKey="inflow" stroke={chartPalette[0]} strokeWidth={3} dot={false} />
+                      <Line type="monotone" dataKey="outflow" stroke={chartPalette[1]} strokeWidth={3} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="grid gap-3">
+                  {sloMetrics ? (
+                    <>
+                      <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper="Healthy / active endpoints" tone="cyan" />
+                      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current period" tone="rose" />
+                      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="blue" />
+                      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="emerald" />
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ),
+          };
+        case 1:
+          return { title: "Availability grid", description: "Node health and operational status pulled from the live ops API.", content: <NodeGrid nodes={nodeEndpoints} /> };
+        case 2:
+          return { title: "Node operations", description: "Active endpoints and their control plane settings.", content: <NodeTable nodes={nodeEndpoints} /> };
+        case 3:
+          return { title: "Pipeline operations", description: "Throughput and decode latency from the ingest pipeline.", content: <PipelineTable metrics={pipelineMetrics} summary={pipelineSummary} /> };
+        case 4:
+          return { title: "Node data panels", description: "Audit data and endpoint freshness for the selected role.", content: <NodeGrid nodes={nodeEndpoints} /> };
+        default:
+          return { title: "SLO data panels", description: "Compliance-ready service-level metrics and breach counts.", content: <SloPanel sloMetrics={sloMetrics} /> };
+      }
+    }
+
+    if (role.key === "ai_data_engineer") {
+      switch (activeFeatureIndex) {
+        case 0:
+          return { title: "Model state", description: "Live registry and active model surface from the ops API.", content: <ModelRegistryTable models={modelRegistry} activeModels={activeModels} /> };
+        case 1:
+          return { title: "Feature state", description: "Enabled features and owner coverage.", content: <FeatureStoreTable features={featureConfigs} /> };
+        case 2:
+          return { title: "Feature operations", description: "Feature-store inventory with enablement ratio.", content: <FeatureOperationsPanel features={featureConfigs} /> };
+        case 3:
+          return { title: "Model operations", description: "Registry depth and active model configuration.", content: <ModelRegistryTable models={modelRegistry} activeModels={activeModels} /> };
+        case 4:
+          return { title: "Feature data", description: "Current feature coverage and expressions.", content: <FeatureStoreTable features={featureConfigs} /> };
+        default:
+          return { title: "Registry data", description: "Version history and artifact paths.", content: <ModelRegistryTable models={modelRegistry} activeModels={activeModels} /> };
+      }
+    }
+
+    if (role.key === "security_analyst") {
+      switch (activeFeatureIndex) {
+        case 0:
+          return { title: "Alert queue", description: "Recent alerts and severity distribution from the backend.", content: <AlertQueuePanel alerts={recentAlerts} alertsSummary={alertsSummary} /> };
+        case 1:
+          return { title: "Case queue", description: "High-risk cases that need analyst attention.", content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} /> };
+        case 2:
+          return { title: "Case actions", description: "Live case workflow state from the analyst queue.", content: <CaseActionPanel caseSummary={caseSummary} /> };
+        case 3:
+          return { title: "Notifications", description: "Delivery trail for sent security notifications.", content: <NotificationTable notifications={notificationEvents} /> };
+        case 4:
+          return { title: "Alert data", description: "Raw alert volume and severity chart from live data.", content: <AlertChartPanel alerts={recentAlerts} alertsSummary={alertsSummary} /> };
+        default:
+          return { title: "Case data", description: "Case states and assignment pressure.", content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} /> };
+      }
+    }
+
+    switch (activeFeatureIndex) {
+      case 0:
+        return { title: "Policy state", description: "Live policy rules and their enforcement posture.", content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} /> };
+      case 1:
+        return { title: "Audit state", description: "Evidence coverage and missing audit actions.", content: <AuditPanel auditCompleteness={auditCompleteness} auditGaps={auditGaps} /> };
+      case 2:
+        return { title: "Policy actions", description: "Block decisions, coverage, and outcome quality.", content: <ControlEffectivenessPanel controlEffectiveness={controlEffectiveness} reportingSummary={reportingSummary} /> };
+      case 3:
+        return { title: "Reporting", description: "30-day KPI export surface built from live records.", content: <ReportingSummaryPanel reportingSummary={reportingSummary} controlEffectiveness={controlEffectiveness} auditCompleteness={auditCompleteness} /> };
+      case 4:
+        return { title: "Policy data", description: "Current policy rules and priorities.", content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} /> };
+      default:
+        return { title: "Audit data", description: "Gap analysis and missing controls.", content: <AuditPanel auditCompleteness={auditCompleteness} auditGaps={auditGaps} /> };
+    }
+  }, [
+    activeFeatureIndex,
+    activeModels,
+    alertsSummary,
+    auditCompleteness,
+    auditGaps,
+    caseItems,
+    caseSummary,
+    chartPalette,
+    controlEffectiveness,
+    featureConfigs,
+    modelRegistry,
+    nodeEndpoints,
+    notificationEvents,
+    pipelineMetrics,
+    pipelineSummary,
+    policyRules,
+    recentAlerts,
+    reportingSummary,
+    role.key,
+    sloMetrics,
+  ]);
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[#050816] text-slate-100">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.22),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(168,85,247,0.16),_transparent_30%),radial-gradient(circle_at_bottom,_rgba(245,158,11,0.13),_transparent_30%)]" />
+      <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] [background-size:72px_72px]" />
+
+      <div className="relative mx-auto max-w-[1600px] px-4 py-4 md:px-6 md:py-6">
+        <header className="mb-4 rounded-[32px] border border-slate-700/70 bg-slate-950/70 p-4 shadow-[0_30px_80px_rgba(2,6,23,0.42)] backdrop-blur-xl md:p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-500 shadow-[0_16px_40px_rgba(34,211,238,0.35)]">
+                <Shield className="h-8 w-8 text-white" />
+                <div className="absolute inset-0 bg-white/10" />
+              </div>
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-200">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Live data only
+                </div>
+                <h1 className="mt-3 text-2xl font-semibold text-white md:text-4xl">Blockchain AI Operations Console</h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400 md:text-base">
+                  Real backend data, role-specific controls, and stronger visual diagnostics for system, AI, security, and compliance work.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void loadLiveData(activeRole)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-700"
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Refresh live data
+              </button>
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-200">
+                {isLoading ? "Loading live feeds" : "Feeds connected"}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {ROLE_DEFINITIONS.map((entry) => {
+              const isActive = entry.key === role.key;
+              return (
+                <button
+                  key={entry.key}
+                  type="button"
+                  onClick={() => setActiveRole(entry.key)}
+                  className={[
+                    "rounded-2xl border px-4 py-2 text-sm font-medium transition",
+                    isActive ? `${entry.accentClass} shadow-[0_0_0_1px_rgba(148,163,184,0.18)]` : "border-slate-700 bg-slate-800/70 text-slate-300 hover:border-slate-500 hover:text-white",
+                  ].join(" ")}
+                >
+                  {entry.label}
+                </button>
+              );
+            })}
+          </div>
+        </header>
+
+        {error ? (
+          <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">Live data error: {error}</div>
+        ) : null}
+
+        <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Role" value={role.label} hint={activeFeatureLabel} accentClass={role.accentClass} />
+          <MetricCard label="Section" value={activeFeatureLabel} hint={activeFeatureIndex < 2 ? "Overview focus" : activeFeatureIndex < 4 ? "Workflow focus" : "Data focus"} accentClass="border-slate-600 bg-slate-900/80" />
+          <MetricCard label="Real data feeds" value={isLoading ? "Updating" : "Connected"} hint="Backend API responses" accentClass="border-emerald-500/30 bg-emerald-500/10" />
+          <MetricCard label="Alerts today" value={dashboardStats ? formatCompact(dashboardStats.overview.alerts_today) : "-"} hint="From /statistics/dashboard" accentClass="border-rose-500/30 bg-rose-500/10" />
+        </section>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_1fr]">
+          <aside className="rounded-[30px] border border-slate-700/70 bg-slate-950/65 p-4 shadow-[0_30px_80px_rgba(2,6,23,0.35)] backdrop-blur-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Sidebar functions</p>
+                <h2 className="mt-2 text-lg font-semibold text-white">{role.label}</h2>
+              </div>
+              <span className={["rounded-xl border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide", role.accentClass].join(" ")}>{role.shortLabel}</span>
+            </div>
+
+            <div className="space-y-4">
+              {SIDEBAR_GROUPS.map((group) => (
+                <div key={group.title} className="space-y-2">
+                  <p className="px-1 text-[11px] uppercase tracking-[0.3em] text-slate-500">{group.title}</p>
+                  {role.sidebarFeatures.slice(group.start, group.end).map((feature, offset) => {
+                    const index = group.start + offset;
+                    const Icon = sidebarIcons[index % sidebarIcons.length];
+                    const isActiveFeature = index === activeFeatureIndex;
+
+                    return (
+                      <button
+                        key={feature}
+                        type="button"
+                        onClick={() => setActiveFeatureIndex(index)}
+                        className={[
+                          "w-full rounded-2xl border px-3 py-3 text-left transition",
+                          isActiveFeature
+                            ? "border-slate-500 bg-slate-800/90 text-white shadow-[0_12px_24px_rgba(15,23,42,0.4)]"
+                            : "border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-600 hover:bg-slate-900/70",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={["flex h-9 w-9 items-center justify-center rounded-xl border", isActiveFeature ? role.highlightClass : "border-slate-700 bg-slate-950/70 text-slate-400"].join(" ")}>
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{feature}</p>
+                            <p className="text-xs text-slate-500">{isActiveFeature ? "Open live panel" : "Switch view"}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </aside>
+
+          <main className="space-y-4 rounded-[30px] border border-slate-700/70 bg-slate-950/65 p-4 shadow-[0_30px_80px_rgba(2,6,23,0.35)] backdrop-blur-xl md:p-5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {roleMetricCards.map((card) => (
+                <MetricCard key={card.label} label={card.label} value={card.value} hint={card.hint} accentClass={TONAL_STYLES[card.tone]} />
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_0.9fr]">
+              <CardShell title={selectedPanel.title} subtitle={selectedPanel.description} icon={ChartColumn}>
+                {selectedPanel.content}
+              </CardShell>
+
+              <CardShell title="Live signal strip" subtitle="Actual backend metrics powering the current role" icon={BadgeInfo}>
+                <div className="space-y-3">
+                  <SignalBar label="Dashboard coverage" value={dashboardStats ? percentage(dashboardStats.overview.total_alerts, Math.max(1, dashboardStats.overview.total_wallets)) : 0} tone="cyan" />
+                  <SignalBar label="Critical alerts" value={dashboardStats ? percentage(dashboardStats.overview.critical_alerts, Math.max(1, dashboardStats.overview.total_alerts)) : 0} tone="rose" />
+                  <SignalBar label="Flow window" value={Math.min(100, flowStats.length * 14)} tone="violet" />
+                  <SignalBar label="Blocked transfers" value={dashboardStats ? percentage(dashboardStats.overview.total_blocked, Math.max(1, dashboardStats.overview.total_alerts)) : 0} tone="amber" />
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <MiniStat label="Wallets" value={dashboardStats ? formatCompact(dashboardStats.overview.total_wallets) : "-"} />
+                  <MiniStat label="Alerts" value={dashboardStats ? formatCompact(dashboardStats.overview.total_alerts) : "-"} />
+                  <MiniStat label="Blocked" value={dashboardStats ? formatCompact(dashboardStats.overview.total_blocked) : "-"} />
+                  <MiniStat label="Signals" value={formatCompact(flowStats.length)} />
+                </div>
+              </CardShell>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <CardShell title="Recent alerts" subtitle="Actual backend alert stream" icon={AlertTriangle}>
+                <AlertList alerts={recentAlerts} />
+              </CardShell>
+
+              <CardShell title="Blocked transfers" subtitle="Confirmed interventions from the backend" icon={Shield}>
+                <BlockedTransferList blockedTransfers={blockedTransfers} />
+              </CardShell>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, hint, accentClass }: { label: string; value: string; hint: string; accentClass: string }) {
+  return (
+    <div className={`rounded-2xl border p-4 ${accentClass}`}>
+      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">{label}</p>
+      <p className="mt-2 text-xl font-semibold text-white md:text-2xl">{value}</p>
+      <p className="mt-1 text-sm text-slate-300/80">{hint}</p>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-3">
+      <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function SignalBar({ label, value, tone }: { label: string; value: number; tone: keyof typeof TONAL_STYLES }) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-sm">
+        <span className="text-slate-300">{label}</span>
+        <span className="text-slate-500">{formatPercent(Math.min(100, Math.max(0, value)))}</span>
+      </div>
+      <div className="h-2 rounded-full bg-slate-800">
+        <div
+          className={`h-2 rounded-full bg-gradient-to-r ${tone === "cyan" ? "from-cyan-400 to-sky-500" : tone === "rose" ? "from-rose-400 to-orange-500" : tone === "violet" ? "from-violet-400 to-fuchsia-500" : "from-amber-400 to-yellow-500"}`}
+          style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function NodeGrid({ nodes }: { nodes: NodeEndpointItem[] }) {
+  if (!nodes.length) {
+    return <EmptyState message="No active node endpoints were returned by the backend." />;
+  }
+
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {nodes.map((node) => (
+        <div key={node.id} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-white">{node.provider_name}</p>
+              <p className="mt-1 text-xs text-slate-400">{node.chain} · {node.protocol}</p>
+            </div>
+            <SeverityPill severity={node.health_status.toUpperCase()} />
+          </div>
+          <div className="mt-3 space-y-2 text-sm text-slate-300">
+            <p>Endpoint: {node.endpoint_url}</p>
+            <p>Priority: {node.priority}</p>
+            <p>Checked: {formatDateTime(node.last_checked_at)}</p>
+            {node.last_error ? <p className="text-rose-300">Error: {node.last_error}</p> : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
+  if (!nodes.length) {
+    return <EmptyState message="No node records to display." />;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-700">
+      <table className="min-w-full divide-y divide-slate-800 text-sm">
+        <thead className="bg-slate-900/80 text-slate-400">
+          <tr>
+            <th className="px-4 py-3 text-left font-medium">Provider</th>
+            <th className="px-4 py-3 text-left font-medium">Chain</th>
+            <th className="px-4 py-3 text-left font-medium">Health</th>
+            <th className="px-4 py-3 text-left font-medium">Priority</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          {nodes.map((node) => (
+            <tr key={node.id}>
+              <td className="px-4 py-3">{node.provider_name}</td>
+              <td className="px-4 py-3">{node.chain}</td>
+              <td className="px-4 py-3">{node.health_status}</td>
+              <td className="px-4 py-3">{node.priority}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; summary: { total_points: number; avg_throughput_tps: number | null; avg_ingestion_latency_ms: number | null; avg_decode_latency_ms: number | null; last_block_number: number | null } | null }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MetricCard label="Points" value={summary ? formatCompact(summary.total_points) : "-"} hint="Pipeline samples" accentClass="border-slate-700 bg-slate-900/70" />
+        <MetricCard label="Avg TPS" value={summary?.avg_throughput_tps != null ? summary.avg_throughput_tps.toFixed(1) : "-"} hint="Throughput" accentClass="border-cyan-500/20 bg-cyan-500/10" />
+        <MetricCard label="Ingest latency" value={summary?.avg_ingestion_latency_ms != null ? `${summary.avg_ingestion_latency_ms.toFixed(0)} ms` : "-"} hint="Average" accentClass="border-violet-500/20 bg-violet-500/10" />
+        <MetricCard label="Last block" value={summary?.last_block_number != null ? formatCompact(summary.last_block_number) : "-"} hint="Latest signal" accentClass="border-amber-500/20 bg-amber-500/10" />
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Chain</th>
+              <th className="px-4 py-3 text-left font-medium">Block</th>
+              <th className="px-4 py-3 text-left font-medium">TPS</th>
+              <th className="px-4 py-3 text-left font-medium">Ingest</th>
+              <th className="px-4 py-3 text-left font-medium">Decode</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {metrics.slice(0, 8).map((metric) => (
+              <tr key={metric.id}>
+                <td className="px-4 py-3">{metric.chain}</td>
+                <td className="px-4 py-3">{metric.block_number ?? "-"}</td>
+                <td className="px-4 py-3">{metric.throughput_tps != null ? metric.throughput_tps.toFixed(1) : "-"}</td>
+                <td className="px-4 py-3">{metric.ingestion_latency_ms ?? "-"}</td>
+                <td className="px-4 py-3">{metric.decode_latency_ms ?? "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SloPanel({ sloMetrics }: { sloMetrics: SloMetrics | null }) {
+  if (!sloMetrics) {
+    return <EmptyState message="SLO metrics are not available from the backend right now." />;
+  }
+
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper={`${sloMetrics.endpoint_health.healthy_active}/${sloMetrics.endpoint_health.active} active endpoints healthy`} tone="cyan" />
+      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current window" tone="rose" />
+      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="violet" />
+      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="amber" />
+    </div>
+  );
+}
+
+function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryItem[]; activeModels: ModelRegistryItem[] }) {
+  if (!models.length && !activeModels.length) {
+    return <EmptyState message="Model registry is empty." />;
+  }
+
+  const activeNames = new Set(activeModels.map((item) => `${item.model_name}:${item.version}`));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <MetricBlock label="Registry entries" value={formatCompact(models.length)} helper="Current records" tone="violet" />
+        <MetricBlock label="Active models" value={formatCompact(activeModels.length)} helper="Serving now" tone="emerald" />
+        <MetricBlock label="Frameworks" value={formatCompact(new Set(models.map((item) => item.framework)).size)} helper="Unique runtimes" tone="cyan" />
+        <MetricBlock label="Artifacts" value={formatCompact(models.length)} helper="Tracked versions" tone="amber" />
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Model</th>
+              <th className="px-4 py-3 text-left font-medium">Version</th>
+              <th className="px-4 py-3 text-left font-medium">Framework</th>
+              <th className="px-4 py-3 text-left font-medium">Active</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {models.slice(0, 8).map((model) => (
+              <tr key={model.id}>
+                <td className="px-4 py-3">{model.model_name}</td>
+                <td className="px-4 py-3">{model.version}</td>
+                <td className="px-4 py-3">{model.framework}</td>
+                <td className="px-4 py-3">{model.is_active || activeNames.has(`${model.model_name}:${model.version}`) ? "Yes" : "No"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
+  if (!features.length) {
+    return <EmptyState message="Feature store is empty." />;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-700">
+      <table className="min-w-full divide-y divide-slate-800 text-sm">
+        <thead className="bg-slate-900/80 text-slate-400">
+          <tr>
+            <th className="px-4 py-3 text-left font-medium">Feature</th>
+            <th className="px-4 py-3 text-left font-medium">Enabled</th>
+            <th className="px-4 py-3 text-left font-medium">Expression</th>
+            <th className="px-4 py-3 text-left font-medium">Updated</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          {features.slice(0, 8).map((feature) => (
+            <tr key={feature.id}>
+              <td className="px-4 py-3">{feature.feature_key}</td>
+              <td className="px-4 py-3">{feature.enabled ? "Yes" : "No"}</td>
+              <td className="px-4 py-3">{feature.expression ?? "-"}</td>
+              <td className="px-4 py-3">{formatDateTime(feature.updated_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] }) {
+  const enabled = features.filter((item) => item.enabled).length;
+  const data = [
+    { name: "Enabled", value: enabled },
+    { name: "Disabled", value: Math.max(0, features.length - enabled) },
+  ];
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie data={data} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={3}>
+              {data.map((entry, index) => (
+                <Cell key={entry.name} fill={index === 0 ? ROLE_COLORS.ai_data_engineer[0] : ROLE_COLORS.ai_data_engineer[2]} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+        <div className="space-y-3">
+          <MetricBlock label="Enabled features" value={formatCompact(enabled)} helper="Active feature flags" tone="violet" />
+          <MetricBlock label="Disabled features" value={formatCompact(Math.max(0, features.length - enabled))} helper="Risk-free toggles" tone="amber" />
+          <MetricBlock label="Owner coverage" value={formatCompact(new Set(features.map((item) => item.owner_user_id).filter(Boolean)).size)} helper="Unique owners" tone="emerald" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AlertQueuePanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSummary: AlertsSummary | null }) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Wallet</th>
+              <th className="px-4 py-3 text-left font-medium">Severity</th>
+              <th className="px-4 py-3 text-left font-medium">Type</th>
+              <th className="px-4 py-3 text-left font-medium">Time</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {alerts.slice(0, 8).map((alert) => (
+              <tr key={alert.alert_id}>
+                <td className="px-4 py-3">{formatAddress(alert.wallet_address)}</td>
+                <td className="px-4 py-3"><SeverityPill severity={alert.severity} /></td>
+                <td className="px-4 py-3">{alert.alert_type}</td>
+                <td className="px-4 py-3">{formatDateTime(alert.detected_at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="space-y-3">
+        <AlertSeverityCard alertsSummary={alertsSummary} alerts={alerts} />
+      </div>
+    </div>
+  );
+}
+
+function AlertSeverityCard({ alertsSummary, alerts }: { alertsSummary: AlertsSummary | null; alerts: Alert[] }) {
+  const derivedCounts = countBy(alerts, (entry) => entry.severity);
+  const counts = {
+    CRITICAL: alertsSummary?.critical ?? derivedCounts.CRITICAL ?? 0,
+    HIGH: alertsSummary?.high ?? derivedCounts.HIGH ?? 0,
+    MEDIUM: alertsSummary?.medium ?? derivedCounts.MEDIUM ?? 0,
+    LOW: alertsSummary?.low ?? derivedCounts.LOW ?? 0,
+  };
+
+  const chartData = [
+    { name: "CRITICAL", value: counts.CRITICAL },
+    { name: "HIGH", value: counts.HIGH },
+    { name: "MEDIUM", value: counts.MEDIUM },
+    { name: "LOW", value: counts.LOW },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+      <p className="text-sm font-semibold text-white">Severity mix</p>
+      <div className="mt-3 h-[260px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+            <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+            <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} allowDecimals={false} />
+            <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} />
+            <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+              {chartData.map((entry, index) => (
+                <Cell key={entry.name} fill={ROLE_COLORS.security_analyst[index]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function CaseQueuePanel({ cases, caseSummary }: { cases: CaseItem[]; caseSummary: CaseSummary | null }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricBlock label="Pending" value={formatCompact(caseSummary?.totals.PENDING ?? 0)} helper="Case queue" tone="rose" />
+        <MetricBlock label="Verified" value={formatCompact(caseSummary?.totals.VERIFIED ?? 0)} helper="Analyst review" tone="violet" />
+        <MetricBlock label="Fraud" value={formatCompact(caseSummary?.totals.FRAUD ?? 0)} helper="Confirmed risk" tone="amber" />
+        <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="cyan" />
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">TX Hash</th>
+              <th className="px-4 py-3 text-left font-medium">Risk</th>
+              <th className="px-4 py-3 text-left font-medium">Status</th>
+              <th className="px-4 py-3 text-left font-medium">Flag</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {cases.slice(0, 8).map((item) => (
+              <tr key={item.tx_hash}>
+                <td className="px-4 py-3 font-mono text-xs">{formatAddress(item.tx_hash)}</td>
+                <td className="px-4 py-3">{item.risk_score != null ? formatPercent(item.risk_score * 100) : "-"}</td>
+                <td className="px-4 py-3">{item.status}</td>
+                <td className="px-4 py-3">{item.flag_reason ?? (item.is_flagged ? "Flagged" : "-")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CaseActionPanel({ caseSummary }: { caseSummary: CaseSummary | null }) {
+  const totals = caseSummary?.totals ?? {};
+  const chartData = [
+    { name: "PENDING", value: totals.PENDING ?? 0 },
+    { name: "VERIFIED", value: totals.VERIFIED ?? 0 },
+    { name: "FRAUD", value: totals.FRAUD ?? 0 },
+    { name: "IGNORED", value: totals.IGNORED ?? 0 },
+  ];
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+        <ResponsiveContainer width="100%" height={280}>
+          <PieChart>
+            <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={70} outerRadius={100} paddingAngle={4}>
+              {chartData.map((entry, index) => (
+                <Cell key={entry.name} fill={ROLE_COLORS.security_analyst[index]} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="grid gap-3">
+        <MetricBlock label="High-risk unassigned" value={formatCompact(caseSummary?.high_risk_unassigned ?? 0)} helper="Needs immediate action" tone="rose" />
+        <MetricBlock label="Total queue" value={formatCompact(Object.values(totals).reduce((sum, value) => sum + value, 0))} helper="Live case volume" tone="violet" />
+        <MetricBlock label="Assignment pressure" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Open cases without owners" tone="amber" />
+      </div>
+    </div>
+  );
+}
+
+function NotificationTable({ notifications }: { notifications: NotificationItem[] }) {
+  if (!notifications.length) {
+    return <EmptyState message="No notification events have been recorded yet." />;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-700">
+      <table className="min-w-full divide-y divide-slate-800 text-sm">
+        <thead className="bg-slate-900/80 text-slate-400">
+          <tr>
+            <th className="px-4 py-3 text-left font-medium">Channel</th>
+            <th className="px-4 py-3 text-left font-medium">Recipient</th>
+            <th className="px-4 py-3 text-left font-medium">Severity</th>
+            <th className="px-4 py-3 text-left font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          {notifications.slice(0, 8).map((notification) => (
+            <tr key={notification.id}>
+              <td className="px-4 py-3">{notification.channel}</td>
+              <td className="px-4 py-3">{notification.recipient}</td>
+              <td className="px-4 py-3"><SeverityPill severity={notification.severity} /></td>
+              <td className="px-4 py-3">{notification.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AlertChartPanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSummary: AlertsSummary | null }) {
+  const severityCounts = countBy(alerts, (entry) => entry.severity);
+  const chartData = [
+    { name: "CRITICAL", value: alertsSummary?.critical ?? severityCounts.CRITICAL ?? 0 },
+    { name: "HIGH", value: alertsSummary?.high ?? severityCounts.HIGH ?? 0 },
+    { name: "MEDIUM", value: alertsSummary?.medium ?? severityCounts.MEDIUM ?? 0 },
+    { name: "LOW", value: alertsSummary?.low ?? severityCounts.LOW ?? 0 },
+  ];
+
+  return (
+    <div className="h-[320px] rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+          <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+          <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} allowDecimals={false} />
+          <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} />
+          <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+            {chartData.map((entry, index) => (
+              <Cell key={entry.name} fill={ROLE_COLORS.security_analyst[index]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function PolicyRulesPanel({ policies, reportingSummary }: { policies: PolicyRuleItem[]; reportingSummary: ReportingSummary | null }) {
+  if (!policies.length) {
+    return <EmptyState message="No policy rules are stored in the backend yet." />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricBlock label="Active rules" value={formatCompact(reportingSummary?.kpis.policy_rules_active ?? policies.filter((item) => item.is_active).length)} helper="Enforcement surface" tone="amber" />
+        <MetricBlock label="Blocked transfers" value={formatCompact(reportingSummary?.kpis.blocked_total ?? 0)} helper="30-day count" tone="rose" />
+        <MetricBlock label="Notifications sent" value={formatCompact(reportingSummary?.kpis.notifications_sent ?? 0)} helper="Delivery trail" tone="violet" />
+        <MetricBlock label="Audit events" value={formatCompact(reportingSummary?.kpis.audit_events ?? 0)} helper="Evidence trail" tone="emerald" />
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Rule</th>
+              <th className="px-4 py-3 text-left font-medium">Threshold</th>
+              <th className="px-4 py-3 text-left font-medium">Priority</th>
+              <th className="px-4 py-3 text-left font-medium">Active</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {policies.slice(0, 8).map((policy) => (
+              <tr key={policy.id}>
+                <td className="px-4 py-3">{policy.rule_name}</td>
+                <td className="px-4 py-3">{policy.min_risk_score}</td>
+                <td className="px-4 py-3">{policy.priority}</td>
+                <td className="px-4 py-3">{policy.is_active ? "Yes" : "No"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AuditPanel({ auditCompleteness, auditGaps }: { auditCompleteness: AuditCompleteness | null; auditGaps: AuditGaps | null }) {
+  if (!auditCompleteness && !auditGaps) {
+    return <EmptyState message="Audit data is not available from the backend right now." />;
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <div className="space-y-3">
+        <MetricBlock label="Completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Required audit actions present" tone="emerald" />
+        <MetricBlock label="Present actions" value={auditCompleteness ? `${auditCompleteness.present_actions}/${auditCompleteness.required_actions}` : "-"} helper="Audit coverage" tone="cyan" />
+        <MetricBlock label="Missing actions" value={auditGaps ? formatCompact(auditGaps.missing_count) : "-"} helper="Gaps needing evidence" tone="rose" />
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Action</th>
+              <th className="px-4 py-3 text-left font-medium">Count</th>
+              <th className="px-4 py-3 text-left font-medium">Present</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {auditCompleteness?.checks.slice(0, 8).map((check) => (
+              <tr key={check.action_type}>
+                <td className="px-4 py-3">{check.action_type}</td>
+                <td className="px-4 py-3">{check.count}</td>
+                <td className="px-4 py-3">{check.present ? "Yes" : "No"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ControlEffectivenessPanel({ controlEffectiveness, reportingSummary }: { controlEffectiveness: ControlEffectiveness | null; reportingSummary: ReportingSummary | null }) {
+  if (!controlEffectiveness) {
+    return <EmptyState message="Control effectiveness metrics are unavailable." />;
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+      <div className="grid gap-3 md:grid-cols-3">
+        <MetricBlock label="Block rate" value={formatPercent(controlEffectiveness.metrics.block_rate_pct)} helper="Actionable alerts blocked" tone="rose" />
+        <MetricBlock label="Fraud precision" value={formatPercent(controlEffectiveness.metrics.fraud_precision_proxy_pct)} helper="Decision quality proxy" tone="emerald" />
+        <MetricBlock label="Decision coverage" value={formatCompact(controlEffectiveness.metrics.decision_coverage)} helper="Resolved cases" tone="violet" />
+      </div>
+      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+        <p className="text-sm font-semibold text-white">Reporting summary</p>
+        <div className="mt-3 space-y-3 text-sm text-slate-300">
+          <p>Alerts: {formatCompact(reportingSummary?.kpis.alerts_total ?? 0)}</p>
+          <p>Blocked value: {reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-"}</p>
+          <p>Notifications failed: {formatCompact(reportingSummary?.kpis.notifications_failed ?? 0)}</p>
+          <p>Window days: {reportingSummary?.period.days ?? controlEffectiveness.period_days}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReportingSummaryPanel({ reportingSummary, controlEffectiveness, auditCompleteness }: { reportingSummary: ReportingSummary | null; controlEffectiveness: ControlEffectiveness | null; auditCompleteness: AuditCompleteness | null }) {
+  if (!reportingSummary) {
+    return <EmptyState message="Reporting summary is not available yet." />;
+  }
+
+  const chartData = [
+    { name: "Alerts", value: reportingSummary.kpis.alerts_total },
+    { name: "Blocked", value: reportingSummary.kpis.blocked_total },
+    { name: "Policies", value: reportingSummary.kpis.policy_rules_active },
+    { name: "Audit", value: reportingSummary.kpis.audit_events },
+  ];
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+            <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+            <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} allowDecimals={false} />
+            <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} />
+            <Bar dataKey="value" radius={[10, 10, 0, 0]} fill={ROLE_COLORS.compliance_risk_manager[0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="grid gap-3">
+        <MetricBlock label="Audit completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Evidence coverage" tone="emerald" />
+        <MetricBlock label="Block rate" value={controlEffectiveness ? formatPercent(controlEffectiveness.metrics.block_rate_pct) : "-"} helper="Compliance outcomes" tone="amber" />
+        <MetricBlock label="Blocked value" value={formatEth(reportingSummary.kpis.blocked_value_eth)} helper="Live risk impact" tone="rose" />
+      </div>
+    </div>
+  );
+}
+
+function AlertList({ alerts }: { alerts: Alert[] }) {
+  if (!alerts.length) {
+    return <EmptyState message="No recent alerts were returned by the backend." />;
+  }
+
+  return (
+    <div className="space-y-2">
+      {alerts.slice(0, 8).map((alert) => (
+        <div key={alert.alert_id} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-white">{alert.message}</p>
+              <p className="mt-1 text-xs text-slate-500">{formatAddress(alert.wallet_address)} · {alert.alert_type}</p>
+            </div>
+            <SeverityPill severity={alert.severity} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BlockedTransferList({ blockedTransfers }: { blockedTransfers: BlockedTransfer[] }) {
+  if (!blockedTransfers.length) {
+    return <EmptyState message="No blocked transfers were returned by the backend." />;
+  }
+
+  return (
+    <div className="space-y-2">
+      {blockedTransfers.slice(0, 8).map((item) => (
+        <div key={item.id} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-white">{formatAddress(item.sender_address)} → {formatAddress(item.receiver_address)}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.block_reason}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-white">{formatEth(item.amount_eth)}</p>
+              <p className="mt-1 text-xs text-slate-500">Risk {item.risk_score.toFixed(1)}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MetricBlock({ label, value, helper, tone }: { label: string; value: string; helper: string; tone: keyof typeof TONAL_STYLES }) {
+  return (
+    <div className={`rounded-2xl border p-4 ${TONAL_STYLES[tone]}`}>
+      <p className="text-[11px] uppercase tracking-[0.28em] opacity-80">{label}</p>
+      <p className="mt-2 text-xl font-semibold text-white">{value}</p>
+      <p className="mt-1 text-sm text-slate-300">{helper}</p>
+    </div>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/60 px-4 py-8 text-center text-sm text-slate-400">{message}</div>;
+}
