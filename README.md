@@ -1,3 +1,12 @@
+---
+title: Blockchain AI Threat Detector
+emoji: 🛡️
+colorFrom: cyan
+colorTo: slate
+sdk: docker
+pinned: false
+---
+
 # 🛡️ Blockchain AI Security | Anti-Fraud Detection System
 
 > Multi-agent AI system for real-time Ethereum fraud detection with Cyberpunk-themed admin dashboard
