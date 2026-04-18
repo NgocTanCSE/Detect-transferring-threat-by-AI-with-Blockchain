@@ -285,7 +285,7 @@ const MODULE_BLUEPRINTS: Record<RoleKey, ModuleBlueprint[]> = {
         { label: "Blocks", value: "Recent", tone: "rose" },
       ],
       signals: ["Metrics stored in pipeline_metrics", "Summary endpoint available", "Recent points loaded live"],
-      actions: ["Seed metric", "Refresh summary", "Inspect recent rows"],
+      actions: ["Review metric trend", "Refresh summary", "Inspect recent rows"],
       notes: ["This is the system health dashboard layer.", "Supports long-running runtime monitoring."],
     },
     {
@@ -971,64 +971,6 @@ export default function HomePage() {
     }
   };
 
-  const seedSystemMetric = async () => {
-    try {
-      setIsLoadingFacts(true);
-      await fetchJson("/api/ops/system/pipeline-metrics", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chain: "ethereum",
-          block_number: Math.floor(Date.now() / 1000),
-          throughput_tps: Number((Math.random() * 18 + 4).toFixed(2)),
-          ingestion_latency_ms: Math.floor(Math.random() * 200 + 60),
-          decode_latency_ms: Math.floor(Math.random() * 80 + 20),
-        }),
-      });
-      await loadRoleFacts(role.key);
-      setUiMessage("Inserted sample pipeline metric");
-    } catch (error) {
-      setFactsError(error instanceof Error ? error.message : "Failed to seed metric");
-    } finally {
-      setIsLoadingFacts(false);
-    }
-  };
-
-  const seedAiConfig = async () => {
-    try {
-      setIsLoadingFacts(true);
-      const randomSuffix = Math.floor(Math.random() * 10000);
-      await fetchJson("/api/ops/ai/feature-store", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          feature_key: `phase2_feature_${randomSuffix}`,
-          enabled: true,
-          expression: "z_score(value_24h)",
-        }),
-      });
-
-      await fetchJson("/api/ops/ai/model-registry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model_name: "risk-core",
-          version: `v${Date.now()}`,
-          artifact_uri: "s3://models/risk-core/latest.onnx",
-          framework: "onnx",
-          is_active: true,
-        }),
-      });
-
-      await loadRoleFacts(role.key);
-      setUiMessage("Inserted sample feature and model");
-    } catch (error) {
-      setFactsError(error instanceof Error ? error.message : "Failed to seed AI config");
-    } finally {
-      setIsLoadingFacts(false);
-    }
-  };
-
   const createNodeEndpoint = async () => {
     try {
       setIsLoadingFacts(true);
@@ -1640,24 +1582,6 @@ export default function HomePage() {
                     <h3 className="text-base font-semibold text-slate-100">Action Center</h3>
                     <p className="mt-1 text-sm text-slate-400">Quick actions for the selected role module.</p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {role.key === "system_admin" && (
-                        <button
-                          type="button"
-                          onClick={seedSystemMetric}
-                          className="rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/25"
-                        >
-                          Insert sample pipeline metric
-                        </button>
-                      )}
-                      {role.key === "ai_data_engineer" && (
-                        <button
-                          type="button"
-                          onClick={seedAiConfig}
-                          className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/25"
-                        >
-                          Insert sample feature + model
-                        </button>
-                      )}
                       <button
                         type="button"
                         onClick={() => loadRoleFacts(role.key)}
