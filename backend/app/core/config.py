@@ -9,16 +9,22 @@ load_dotenv()
 
 
 def _normalize_database_url(raw_url: str) -> str:
-    """Strip provider-specific query parameters that psycopg2 cannot parse."""
+    """Strip quotes and provider-specific query parameters that psycopg2 cannot parse."""
     if not raw_url:
         return raw_url
 
-    parsed = urlsplit(raw_url)
-    if not parsed.query:
-        return raw_url
+    cleaned_url = raw_url.strip().strip('"').strip("'")
 
-    allowed_query_keys = {"sslmode", "connect_timeout", "application_name", "target_session_attrs"}
-    filtered_query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key in allowed_query_keys]
+    parsed = urlsplit(cleaned_url)
+    if not parsed.query:
+        return cleaned_url
+
+    allowed_query_keys = {"sslmode", "connect_timeout", "application_name", "target_session_attrs", "options"}
+    filtered_query = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if key in allowed_query_keys and value
+    ]
 
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(filtered_query), parsed.fragment))
 

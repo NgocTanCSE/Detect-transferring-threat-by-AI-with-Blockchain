@@ -70,8 +70,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-Base.metadata.create_all(bind=engine)
-ensure_schema()
+def _initialize_database() -> None:
+    try:
+        Base.metadata.create_all(bind=engine)
+        ensure_schema()
+    except Exception as error:
+        logger.warning(f"Database initialization skipped or failed: {error}")
+
+
+_initialize_database()
 
 app = FastAPI(
     title="Blockchain Risk Assessment API",
