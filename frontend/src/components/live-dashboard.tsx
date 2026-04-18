@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   BadgeInfo,
@@ -319,6 +319,18 @@ function formatDateTime(value: string | null | undefined): string {
   return new Date(value).toLocaleString();
 }
 
+function parseQueryInt(raw: string | null, fallback: number, min = 1): number {
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < min) return fallback;
+  return parsed;
+}
+
+function parseQueryEnum<T extends string>(raw: string | null, allowed: readonly T[], fallback: T): T {
+  if (!raw) return fallback;
+  return allowed.includes(raw as T) ? (raw as T) : fallback;
+}
+
 function countBy<T>(items: T[], resolver: (item: T) => string): Record<string, number> {
   return items.reduce<Record<string, number>>((accumulator, item) => {
     const key = resolver(item);
@@ -361,6 +373,8 @@ function CardShell({ title, subtitle, children, icon: Icon }: { title: string; s
 }
 
 export default function LiveDashboard() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
@@ -392,6 +406,26 @@ export default function LiveDashboard() {
   const sidebarIcons = useMemo(() => ROLE_ICONS, []);
   const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace";
 
+  const updateQuery = useCallback(
+    (patch: Record<string, string | number | null | undefined>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(patch)) {
+        if (value == null || value === "") {
+          params.delete(key);
+          continue;
+        }
+        params.set(key, String(value));
+      }
+
+      const current = searchParams.toString();
+      const next = params.toString();
+      if (current === next) return;
+
+      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
   useEffect(() => {
     setActiveFeatureIndex(0);
   }, [activeRole]);
@@ -411,6 +445,10 @@ export default function LiveDashboard() {
       setActiveFeatureIndex(parsed);
     }
   }, [activeFeatureIndex, searchParams]);
+
+  useEffect(() => {
+    updateQuery({ role: activeRole, feature: activeFeatureIndex });
+  }, [activeFeatureIndex, activeRole, updateQuery]);
 
   async function loadLiveData(roleKey: RoleKey) {
     setIsLoading(true);
@@ -551,6 +589,42 @@ export default function LiveDashboard() {
     return `?${query.toString()}`;
   }, [activeFeatureIndex, role.key]);
 
+  const alertUrlState = useMemo(
+    () => ({
+      search: searchParams.get("aq") ?? "",
+      severity: parseQueryEnum(searchParams.get("asev"), ["all", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const, "all"),
+      sortBy: parseQueryEnum(searchParams.get("asort"), ["time", "severity", "wallet", "type"] as const, "time"),
+      sortDir: parseQueryEnum(searchParams.get("adir"), ["asc", "desc"] as const, "desc"),
+      page: parseQueryInt(searchParams.get("apage"), 1),
+      pageSize: parseQueryInt(searchParams.get("asize"), 8),
+    }),
+    [searchParams]
+  );
+
+  const caseUrlState = useMemo(
+    () => ({
+      search: searchParams.get("cq") ?? "",
+      status: parseQueryEnum(searchParams.get("cstatus"), ["all", "PENDING", "VERIFIED", "FRAUD", "IGNORED"] as const, "all"),
+      sortBy: parseQueryEnum(searchParams.get("csort"), ["risk", "status", "tx"] as const, "risk"),
+      sortDir: parseQueryEnum(searchParams.get("cdir"), ["asc", "desc"] as const, "desc"),
+      page: parseQueryInt(searchParams.get("cpage"), 1),
+      pageSize: parseQueryInt(searchParams.get("csize"), 8),
+    }),
+    [searchParams]
+  );
+
+  const policyUrlState = useMemo(
+    () => ({
+      search: searchParams.get("pq") ?? "",
+      activeFilter: parseQueryEnum(searchParams.get("pactive"), ["all", "active", "inactive"] as const, "all"),
+      sortBy: parseQueryEnum(searchParams.get("psort"), ["rule", "priority", "threshold", "active"] as const, "priority"),
+      sortDir: parseQueryEnum(searchParams.get("pdir"), ["asc", "desc"] as const, "asc"),
+      page: parseQueryInt(searchParams.get("ppage"), 1),
+      pageSize: parseQueryInt(searchParams.get("psize"), 8),
+    }),
+    [searchParams]
+  );
+
   const selectedPanel = useMemo(() => {
     if (role.key === "system_admin") {
       switch (activeFeatureIndex) {
@@ -619,9 +693,17 @@ export default function LiveDashboard() {
     if (role.key === "security_analyst") {
       switch (activeFeatureIndex) {
         case 0:
-          return { title: "Alert queue", description: "Recent alerts and severity distribution from the backend.", content: <AlertQueuePanel alerts={recentAlerts} alertsSummary={alertsSummary} contextQuery={contextQuery} /> };
+          return {
+            title: "Alert queue",
+            description: "Recent alerts and severity distribution from the backend.",
+            content: <AlertQueuePanel alerts={recentAlerts} alertsSummary={alertsSummary} contextQuery={contextQuery} urlState={alertUrlState} onUrlStateChange={updateQuery} />,
+          };
         case 1:
-          return { title: "Case queue", description: "High-risk cases that need analyst attention.", content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} contextQuery={contextQuery} /> };
+          return {
+            title: "Case queue",
+            description: "High-risk cases that need analyst attention.",
+            content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} contextQuery={contextQuery} urlState={caseUrlState} onUrlStateChange={updateQuery} />,
+          };
         case 2:
           return { title: "Case actions", description: "Live case workflow state from the analyst queue.", content: <CaseActionPanel caseSummary={caseSummary} /> };
         case 3:
@@ -629,13 +711,21 @@ export default function LiveDashboard() {
         case 4:
           return { title: "Alert data", description: "Raw alert volume and severity chart from live data.", content: <AlertChartPanel alerts={recentAlerts} alertsSummary={alertsSummary} /> };
         default:
-          return { title: "Case data", description: "Case states and assignment pressure.", content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} contextQuery={contextQuery} /> };
+          return {
+            title: "Case data",
+            description: "Case states and assignment pressure.",
+            content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} contextQuery={contextQuery} urlState={caseUrlState} onUrlStateChange={updateQuery} />,
+          };
       }
     }
 
     switch (activeFeatureIndex) {
       case 0:
-        return { title: "Policy state", description: "Live policy rules and their enforcement posture.", content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} contextQuery={contextQuery} /> };
+        return {
+          title: "Policy state",
+          description: "Live policy rules and their enforcement posture.",
+          content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} contextQuery={contextQuery} urlState={policyUrlState} onUrlStateChange={updateQuery} />,
+        };
       case 1:
         return { title: "Audit state", description: "Evidence coverage and missing audit actions.", content: <AuditPanel auditCompleteness={auditCompleteness} auditGaps={auditGaps} /> };
       case 2:
@@ -643,7 +733,11 @@ export default function LiveDashboard() {
       case 3:
         return { title: "Reporting", description: "30-day KPI export surface built from live records.", content: <ReportingSummaryPanel reportingSummary={reportingSummary} controlEffectiveness={controlEffectiveness} auditCompleteness={auditCompleteness} /> };
       case 4:
-        return { title: "Policy data", description: "Current policy rules and priorities.", content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} contextQuery={contextQuery} /> };
+        return {
+          title: "Policy data",
+          description: "Current policy rules and priorities.",
+          content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} contextQuery={contextQuery} urlState={policyUrlState} onUrlStateChange={updateQuery} />,
+        };
       default:
         return { title: "Audit data", description: "Gap analysis and missing controls.", content: <AuditPanel auditCompleteness={auditCompleteness} auditGaps={auditGaps} /> };
     }
@@ -668,6 +762,10 @@ export default function LiveDashboard() {
     reportingSummary,
     role.key,
     contextQuery,
+    alertUrlState,
+    caseUrlState,
+    policyUrlState,
+    updateQuery,
     sloMetrics,
   ]);
 
@@ -1100,15 +1198,37 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
   );
 }
 
-function AlertQueuePanel({ alerts, alertsSummary, contextQuery }: { alerts: Alert[]; alertsSummary: AlertsSummary | null; contextQuery: string }) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [severityFilter, setSeverityFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<"time" | "severity" | "wallet" | "type">("time");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [page, setPage] = useState(1);
+function AlertQueuePanel({
+  alerts,
+  alertsSummary,
+  contextQuery,
+  urlState,
+  onUrlStateChange,
+}: {
+  alerts: Alert[];
+  alertsSummary: AlertsSummary | null;
+  contextQuery: string;
+  urlState: { search: string; severity: string; sortBy: "time" | "severity" | "wallet" | "type"; sortDir: "asc" | "desc"; page: number; pageSize: number };
+  onUrlStateChange: (patch: Record<string, string | number | null | undefined>) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState(urlState.search);
+  const [severityFilter, setSeverityFilter] = useState<string>(urlState.severity);
+  const [sortBy, setSortBy] = useState<"time" | "severity" | "wallet" | "type">(urlState.sortBy);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(urlState.sortDir);
+  const [page, setPage] = useState(urlState.page);
+  const [pageSize, setPageSize] = useState(urlState.pageSize);
 
-  const pageSize = 8;
+  const pageSizeOptions = [8, 20, 50];
   const severityRank: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+
+  useEffect(() => {
+    if (searchTerm !== urlState.search) setSearchTerm(urlState.search);
+    if (severityFilter !== urlState.severity) setSeverityFilter(urlState.severity);
+    if (sortBy !== urlState.sortBy) setSortBy(urlState.sortBy);
+    if (sortDir !== urlState.sortDir) setSortDir(urlState.sortDir);
+    if (page !== urlState.page) setPage(urlState.page);
+    if (pageSize !== urlState.pageSize) setPageSize(urlState.pageSize);
+  }, [urlState, searchTerm, severityFilter, sortBy, sortDir, page, pageSize]);
 
   const filteredAlerts = useMemo(() => {
     return alerts.filter((alert) => {
@@ -1141,12 +1261,19 @@ function AlertQueuePanel({ alerts, alertsSummary, contextQuery }: { alerts: Aler
   }, [page, sortedAlerts]);
 
   useEffect(() => {
-    setPage(1);
-  }, [searchTerm, severityFilter, sortBy, sortDir]);
-
-  useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  useEffect(() => {
+    onUrlStateChange({
+      aq: searchTerm || null,
+      asev: severityFilter === "all" ? null : severityFilter,
+      asort: sortBy === "time" ? null : sortBy,
+      adir: sortDir === "desc" ? null : sortDir,
+      apage: page === 1 ? null : page,
+      asize: pageSize === 8 ? null : pageSize,
+    });
+  }, [onUrlStateChange, page, pageSize, searchTerm, severityFilter, sortBy, sortDir]);
 
   function onSort(column: "time" | "severity" | "wallet" | "type") {
     if (sortBy === column) {
@@ -1165,14 +1292,20 @@ function AlertQueuePanel({ alerts, alertsSummary, contextQuery }: { alerts: Aler
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setPage(1);
+              }}
               placeholder="Search wallet, type, message"
               className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
             />
           </div>
           <select
             value={severityFilter}
-            onChange={(event) => setSeverityFilter(event.target.value)}
+            onChange={(event) => {
+              setSeverityFilter(event.target.value);
+              setPage(1);
+            }}
             className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
           >
             <option value="all">All severities</option>
@@ -1217,7 +1350,19 @@ function AlertQueuePanel({ alerts, alertsSummary, contextQuery }: { alerts: Aler
             </tbody>
           </table>
         </div>
-        <TablePager page={page} totalPages={totalPages} onPrev={() => setPage((prev) => Math.max(1, prev - 1))} onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))} itemCount={sortedAlerts.length} pageSize={pageSize} />
+        <TablePager
+          page={page}
+          totalPages={totalPages}
+          onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
+          onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+          itemCount={sortedAlerts.length}
+          pageSize={pageSize}
+          pageSizeOptions={pageSizeOptions}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+        />
       </div>
       <div className="space-y-3">
         <AlertSeverityCard alertsSummary={alertsSummary} alerts={filteredAlerts} />
@@ -1264,13 +1409,35 @@ function AlertSeverityCard({ alertsSummary, alerts }: { alertsSummary: AlertsSum
   );
 }
 
-function CaseQueuePanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]; caseSummary: CaseSummary | null; contextQuery: string }) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<"risk" | "status" | "tx">("risk");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [page, setPage] = useState(1);
-  const pageSize = 8;
+function CaseQueuePanel({
+  cases,
+  caseSummary,
+  contextQuery,
+  urlState,
+  onUrlStateChange,
+}: {
+  cases: CaseItem[];
+  caseSummary: CaseSummary | null;
+  contextQuery: string;
+  urlState: { search: string; status: string; sortBy: "risk" | "status" | "tx"; sortDir: "asc" | "desc"; page: number; pageSize: number };
+  onUrlStateChange: (patch: Record<string, string | number | null | undefined>) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState(urlState.search);
+  const [statusFilter, setStatusFilter] = useState(urlState.status);
+  const [sortBy, setSortBy] = useState<"risk" | "status" | "tx">(urlState.sortBy);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(urlState.sortDir);
+  const [page, setPage] = useState(urlState.page);
+  const [pageSize, setPageSize] = useState(urlState.pageSize);
+  const pageSizeOptions = [8, 20, 50];
+
+  useEffect(() => {
+    if (searchTerm !== urlState.search) setSearchTerm(urlState.search);
+    if (statusFilter !== urlState.status) setStatusFilter(urlState.status);
+    if (sortBy !== urlState.sortBy) setSortBy(urlState.sortBy);
+    if (sortDir !== urlState.sortDir) setSortDir(urlState.sortDir);
+    if (page !== urlState.page) setPage(urlState.page);
+    if (pageSize !== urlState.pageSize) setPageSize(urlState.pageSize);
+  }, [urlState, searchTerm, statusFilter, sortBy, sortDir, page, pageSize]);
 
   const filteredCases = useMemo(() => {
     return cases.filter((item) => {
@@ -1303,12 +1470,19 @@ function CaseQueuePanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[
   }, [page, sortedCases]);
 
   useEffect(() => {
-    setPage(1);
-  }, [searchTerm, statusFilter, sortBy, sortDir]);
-
-  useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  useEffect(() => {
+    onUrlStateChange({
+      cq: searchTerm || null,
+      cstatus: statusFilter === "all" ? null : statusFilter,
+      csort: sortBy === "risk" ? null : sortBy,
+      cdir: sortDir === "desc" ? null : sortDir,
+      cpage: page === 1 ? null : page,
+      csize: pageSize === 8 ? null : pageSize,
+    });
+  }, [onUrlStateChange, page, pageSize, searchTerm, sortBy, sortDir, statusFilter]);
 
   function onSort(column: "risk" | "status" | "tx") {
     if (sortBy === column) {
@@ -1333,14 +1507,20 @@ function CaseQueuePanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <input
             value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            onChange={(event) => {
+              setSearchTerm(event.target.value);
+              setPage(1);
+            }}
             placeholder="Search tx hash or wallet"
             className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
           />
         </div>
         <select
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
+          onChange={(event) => {
+            setStatusFilter(event.target.value);
+            setPage(1);
+          }}
           className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
         >
           <option value="all">All statuses</option>
@@ -1385,7 +1565,19 @@ function CaseQueuePanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[
           </tbody>
         </table>
       </div>
-      <TablePager page={page} totalPages={totalPages} onPrev={() => setPage((prev) => Math.max(1, prev - 1))} onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))} itemCount={sortedCases.length} pageSize={pageSize} />
+      <TablePager
+        page={page}
+        totalPages={totalPages}
+        onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
+        onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+        itemCount={sortedCases.length}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+      />
     </div>
   );
 }
@@ -1482,13 +1674,35 @@ function AlertChartPanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSum
   );
 }
 
-function PolicyRulesPanel({ policies, reportingSummary, contextQuery }: { policies: PolicyRuleItem[]; reportingSummary: ReportingSummary | null; contextQuery: string }) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<"rule" | "priority" | "threshold" | "active">("priority");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [page, setPage] = useState(1);
-  const pageSize = 8;
+function PolicyRulesPanel({
+  policies,
+  reportingSummary,
+  contextQuery,
+  urlState,
+  onUrlStateChange,
+}: {
+  policies: PolicyRuleItem[];
+  reportingSummary: ReportingSummary | null;
+  contextQuery: string;
+  urlState: { search: string; activeFilter: string; sortBy: "rule" | "priority" | "threshold" | "active"; sortDir: "asc" | "desc"; page: number; pageSize: number };
+  onUrlStateChange: (patch: Record<string, string | number | null | undefined>) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState(urlState.search);
+  const [activeFilter, setActiveFilter] = useState(urlState.activeFilter);
+  const [sortBy, setSortBy] = useState<"rule" | "priority" | "threshold" | "active">(urlState.sortBy);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(urlState.sortDir);
+  const [page, setPage] = useState(urlState.page);
+  const [pageSize, setPageSize] = useState(urlState.pageSize);
+  const pageSizeOptions = [8, 20, 50];
+
+  useEffect(() => {
+    if (searchTerm !== urlState.search) setSearchTerm(urlState.search);
+    if (activeFilter !== urlState.activeFilter) setActiveFilter(urlState.activeFilter);
+    if (sortBy !== urlState.sortBy) setSortBy(urlState.sortBy);
+    if (sortDir !== urlState.sortDir) setSortDir(urlState.sortDir);
+    if (page !== urlState.page) setPage(urlState.page);
+    if (pageSize !== urlState.pageSize) setPageSize(urlState.pageSize);
+  }, [urlState, searchTerm, activeFilter, sortBy, sortDir, page, pageSize]);
 
   const filteredPolicies = useMemo(() => {
     return policies.filter((policy) => {
@@ -1520,12 +1734,19 @@ function PolicyRulesPanel({ policies, reportingSummary, contextQuery }: { polici
   }, [page, sortedPolicies]);
 
   useEffect(() => {
-    setPage(1);
-  }, [searchTerm, activeFilter, sortBy, sortDir]);
-
-  useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  useEffect(() => {
+    onUrlStateChange({
+      pq: searchTerm || null,
+      pactive: activeFilter === "all" ? null : activeFilter,
+      psort: sortBy === "priority" ? null : sortBy,
+      pdir: sortDir === "asc" ? null : sortDir,
+      ppage: page === 1 ? null : page,
+      psize: pageSize === 8 ? null : pageSize,
+    });
+  }, [activeFilter, onUrlStateChange, page, pageSize, searchTerm, sortBy, sortDir]);
 
   function onSort(column: "rule" | "priority" | "threshold" | "active") {
     if (sortBy === column) {
@@ -1554,14 +1775,20 @@ function PolicyRulesPanel({ policies, reportingSummary, contextQuery }: { polici
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <input
             value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            onChange={(event) => {
+              setSearchTerm(event.target.value);
+              setPage(1);
+            }}
             placeholder="Search rule name or description"
             className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
           />
         </div>
         <select
           value={activeFilter}
-          onChange={(event) => setActiveFilter(event.target.value)}
+          onChange={(event) => {
+            setActiveFilter(event.target.value);
+            setPage(1);
+          }}
           className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
         >
           <option value="all">All policies</option>
@@ -1604,7 +1831,19 @@ function PolicyRulesPanel({ policies, reportingSummary, contextQuery }: { polici
           </tbody>
         </table>
       </div>
-      <TablePager page={page} totalPages={totalPages} onPrev={() => setPage((prev) => Math.max(1, prev - 1))} onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))} itemCount={sortedPolicies.length} pageSize={pageSize} />
+      <TablePager
+        page={page}
+        totalPages={totalPages}
+        onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
+        onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+        itemCount={sortedPolicies.length}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+      />
     </div>
   );
 }
@@ -1616,6 +1855,8 @@ function TablePager({
   onNext,
   itemCount,
   pageSize,
+  pageSizeOptions,
+  onPageSizeChange,
 }: {
   page: number;
   totalPages: number;
@@ -1623,6 +1864,8 @@ function TablePager({
   onNext: () => void;
   itemCount: number;
   pageSize: number;
+  pageSizeOptions?: number[];
+  onPageSizeChange?: (size: number) => void;
 }) {
   const start = itemCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(itemCount, page * pageSize);
@@ -1631,6 +1874,17 @@ function TablePager({
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
       <span>Showing {start}-{end} of {itemCount}</span>
       <div className="flex items-center gap-2">
+        {pageSizeOptions && onPageSizeChange ? (
+          <select
+            value={pageSize}
+            onChange={(event) => onPageSizeChange(Number(event.target.value))}
+            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-300 outline-none"
+          >
+            {pageSizeOptions.map((size) => (
+              <option key={size} value={size}>{size}/page</option>
+            ))}
+          </select>
+        ) : null}
         <button type="button" onClick={onPrev} disabled={page <= 1} className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500">
           Prev
         </button>
