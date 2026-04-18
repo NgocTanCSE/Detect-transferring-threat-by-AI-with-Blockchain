@@ -35,6 +35,8 @@ type RoleFacts = {
   note: string;
 };
 
+type WorkspaceSection = "overview" | "actions" | "data";
+
 type NodeEndpoint = {
   id: string;
   provider_name: string;
@@ -177,6 +179,7 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
 
 export default function HomePage() {
   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
+  const [activeFeatureIndex, setActiveFeatureIndex] = useState<number>(0);
   const [isLoadingFacts, setIsLoadingFacts] = useState<boolean>(false);
   const [factsError, setFactsError] = useState<string | null>(null);
   const [uiMessage, setUiMessage] = useState<string | null>(null);
@@ -231,6 +234,19 @@ export default function HomePage() {
   );
 
   const sidebarIcons = [Settings, Network, Brain, Bell, UserCog, FileCheck2];
+
+  const getSectionFromFeatureIndex = (index: number): WorkspaceSection => {
+    if (index < 2) {
+      return "overview";
+    }
+    if (index < 4) {
+      return "actions";
+    }
+    return "data";
+  };
+
+  const activeSection = getSectionFromFeatureIndex(activeFeatureIndex);
+  const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace Module";
 
   const fetchJson = async (url: string, options?: RequestInit) => {
     const response = await fetch(url, options);
@@ -547,6 +563,8 @@ export default function HomePage() {
   };
 
   useEffect(() => {
+    setActiveFeatureIndex(0);
+    setUiMessage(null);
     loadRoleFacts(role.key);
   }, [role.key]);
 
@@ -617,14 +635,30 @@ export default function HomePage() {
             <div className="space-y-2">
               {role.sidebarFeatures.map((feature, index) => {
                 const Icon = sidebarIcons[index % sidebarIcons.length];
+                const isActiveFeature = index === activeFeatureIndex;
+                const sectionForFeature = getSectionFromFeatureIndex(index);
                 return (
-                  <div
+                  <button
                     key={feature}
-                    className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-sm text-slate-300"
+                    type="button"
+                    onClick={() => setActiveFeatureIndex(index)}
+                    className={[
+                      "w-full rounded-lg border px-3 py-2 text-left text-sm transition",
+                      isActiveFeature
+                        ? "border-slate-500 bg-slate-700/70 text-white"
+                        : "border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-600 hover:bg-slate-800",
+                    ].join(" ")}
                   >
-                    <Icon className="h-4 w-4 text-slate-400" />
-                    <span>{feature}</span>
-                  </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2">
+                        <Icon className={isActiveFeature ? "h-4 w-4 text-white" : "h-4 w-4 text-slate-400"} />
+                        <span>{feature}</span>
+                      </span>
+                      <span className="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
+                        {sectionForFeature}
+                      </span>
+                    </div>
+                  </button>
                 );
               })}
             </div>
@@ -633,7 +667,46 @@ export default function HomePage() {
           <main className="rounded-2xl border border-slate-700/70 bg-slate-900/80 p-4 md:p-5">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Role Workspace</h2>
-              <span className="text-sm text-slate-400">Content organized in Z-layout</span>
+              <span className="text-sm text-slate-400">Module: {activeFeatureLabel}</span>
+            </div>
+
+            <div className="mb-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveFeatureIndex(0)}
+                className={[
+                  "rounded-lg border px-2.5 py-1 text-xs uppercase tracking-wide",
+                  activeSection === "overview"
+                    ? "border-slate-500 bg-slate-700/70 text-white"
+                    : "border-slate-700 bg-slate-800/50 text-slate-300",
+                ].join(" ")}
+              >
+                Overview
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFeatureIndex(2)}
+                className={[
+                  "rounded-lg border px-2.5 py-1 text-xs uppercase tracking-wide",
+                  activeSection === "actions"
+                    ? "border-slate-500 bg-slate-700/70 text-white"
+                    : "border-slate-700 bg-slate-800/50 text-slate-300",
+                ].join(" ")}
+              >
+                Actions
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFeatureIndex(4)}
+                className={[
+                  "rounded-lg border px-2.5 py-1 text-xs uppercase tracking-wide",
+                  activeSection === "data"
+                    ? "border-slate-500 bg-slate-700/70 text-white"
+                    : "border-slate-700 bg-slate-800/50 text-slate-300",
+                ].join(" ")}
+              >
+                Data
+              </button>
             </div>
 
             {uiMessage ? (
@@ -643,459 +716,472 @@ export default function HomePage() {
             ) : null}
 
             <section className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4">
-                <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">Z Point 1</p>
-                <h3 className="text-base font-semibold text-slate-100">{role.topLeftTitle}</h3>
-                <ul className="mt-2 space-y-1 text-sm text-slate-300">
-                  {roleFacts.p1.map((line) => (
-                    <li key={line}>- {line}</li>
-                  ))}
-                </ul>
-              </article>
+              {activeSection === "overview" ? (
+                <>
+                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+                    <h3 className="text-base font-semibold text-slate-100">{role.topLeftTitle}</h3>
+                    <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                      {roleFacts.p1.map((line) => (
+                        <li key={line}>- {line}</li>
+                      ))}
+                    </ul>
+                  </article>
 
-              <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4">
-                <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">Z Point 2</p>
-                <h3 className="text-base font-semibold text-slate-100">{role.topRightTitle}</h3>
-                <ul className="mt-2 space-y-1 text-sm text-slate-300">
-                  {roleFacts.p2.map((line) => (
-                    <li key={line}>- {line}</li>
-                  ))}
-                </ul>
-              </article>
+                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+                    <h3 className="text-base font-semibold text-slate-100">{role.topRightTitle}</h3>
+                    <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                      {roleFacts.p2.map((line) => (
+                        <li key={line}>- {line}</li>
+                      ))}
+                    </ul>
+                  </article>
 
-              <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 md:col-span-2">
-                <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">Z Point 3</p>
-                <h3 className="text-base font-semibold text-slate-100">{role.centerTitle}</h3>
-                <ul className="mt-2 space-y-1 text-sm text-slate-300">
-                  {roleFacts.p3.map((line) => (
-                    <li key={line}>- {line}</li>
-                  ))}
-                </ul>
-                <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-                  <GitBranch className="h-4 w-4" />
-                  Transition flow: ingest > score > triage > decision > audit
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {role.key === "system_admin" && (
-                    <button
-                      type="button"
-                      onClick={seedSystemMetric}
-                      className="rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/25"
-                    >
-                      Insert sample pipeline metric
-                    </button>
-                  )}
-                  {role.key === "ai_data_engineer" && (
-                    <button
-                      type="button"
-                      onClick={seedAiConfig}
-                      className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/25"
-                    >
-                      Insert sample feature + model
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => loadRoleFacts(role.key)}
-                    className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700"
-                  >
-                    Refresh role data
-                  </button>
-                </div>
+                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 md:col-span-2">
+                    <h3 className="text-base font-semibold text-slate-100">{role.centerTitle}</h3>
+                    <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                      {roleFacts.p3.map((line) => (
+                        <li key={line}>- {line}</li>
+                      ))}
+                    </ul>
+                    <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                      <GitBranch className="h-4 w-4" />
+                      Transition flow: ingest > score > triage > decision > audit
+                    </div>
+                  </article>
 
-                {role.key === "system_admin" ? (
-                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Node Endpoint</p>
-                      <div className="grid grid-cols-1 gap-2">
-                        <input
-                          value={nodeForm.provider_name}
-                          onChange={(e) => setNodeForm((prev) => ({ ...prev, provider_name: e.target.value }))}
-                          placeholder="Provider"
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        />
-                        <input
-                          value={nodeForm.chain}
-                          onChange={(e) => setNodeForm((prev) => ({ ...prev, chain: e.target.value }))}
-                          placeholder="Chain"
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        />
-                        <input
-                          value={nodeForm.endpoint_url}
-                          onChange={(e) => setNodeForm((prev) => ({ ...prev, endpoint_url: e.target.value }))}
-                          placeholder="Endpoint URL"
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        />
-                        <div className="grid grid-cols-2 gap-2">
+                  <div className="md:col-span-2 md:flex md:justify-end">
+                    <article className="w-full rounded-xl border border-slate-700 bg-slate-800/60 p-4 md:w-[62%]">
+                      <h3 className="text-base font-semibold text-slate-100">{role.bottomRightTitle}</h3>
+                      <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                        {roleFacts.p4.map((line) => (
+                          <li key={line}>- {line}</li>
+                        ))}
+                      </ul>
+                      <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900/60 px-2.5 py-1.5 text-xs text-slate-300">
+                        <Lock className="h-3.5 w-3.5" />
+                        All other app pages are temporarily disabled
+                      </div>
+                    </article>
+                  </div>
+                </>
+              ) : null}
+
+              {activeSection === "actions" ? (
+                <>
+                  <article className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 md:col-span-2">
+                    <h3 className="text-base font-semibold text-slate-100">Action Center</h3>
+                    <p className="mt-1 text-sm text-slate-400">Quick actions for the selected role module.</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {role.key === "system_admin" && (
+                        <button
+                          type="button"
+                          onClick={seedSystemMetric}
+                          className="rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/25"
+                        >
+                          Insert sample pipeline metric
+                        </button>
+                      )}
+                      {role.key === "ai_data_engineer" && (
+                        <button
+                          type="button"
+                          onClick={seedAiConfig}
+                          className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/25"
+                        >
+                          Insert sample feature + model
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => loadRoleFacts(role.key)}
+                        className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700"
+                      >
+                        Refresh role data
+                      </button>
+                    </div>
+                  </article>
+
+                  {role.key === "system_admin" ? (
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Node Endpoint</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          <input
+                            value={nodeForm.provider_name}
+                            onChange={(e) => setNodeForm((prev) => ({ ...prev, provider_name: e.target.value }))}
+                            placeholder="Provider"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <input
+                            value={nodeForm.chain}
+                            onChange={(e) => setNodeForm((prev) => ({ ...prev, chain: e.target.value }))}
+                            placeholder="Chain"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <input
+                            value={nodeForm.endpoint_url}
+                            onChange={(e) => setNodeForm((prev) => ({ ...prev, endpoint_url: e.target.value }))}
+                            placeholder="Endpoint URL"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <select
+                              value={nodeForm.protocol}
+                              onChange={(e) => setNodeForm((prev) => ({ ...prev, protocol: e.target.value }))}
+                              className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                            >
+                              <option value="http">http</option>
+                              <option value="websocket">websocket</option>
+                            </select>
+                            <input
+                              type="number"
+                              value={nodeForm.priority}
+                              onChange={(e) => setNodeForm((prev) => ({ ...prev, priority: Number(e.target.value) || 100 }))}
+                              placeholder="Priority"
+                              className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={createNodeEndpoint}
+                            className="rounded border border-cyan-500/40 bg-cyan-500/15 px-2 py-1.5 text-xs text-cyan-200"
+                          >
+                            Save Endpoint
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Update Node Health</p>
+                        <div className="grid grid-cols-1 gap-2">
                           <select
-                            value={nodeForm.protocol}
-                            onChange={(e) => setNodeForm((prev) => ({ ...prev, protocol: e.target.value }))}
+                            value={healthForm.endpoint_id}
+                            onChange={(e) => setHealthForm((prev) => ({ ...prev, endpoint_id: e.target.value }))}
                             className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
                           >
-                            <option value="http">http</option>
-                            <option value="websocket">websocket</option>
+                            <option value="">Select endpoint</option>
+                            {nodeEndpoints.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.provider_name} - {item.chain}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={healthForm.health_status}
+                            onChange={(e) => setHealthForm((prev) => ({ ...prev, health_status: e.target.value }))}
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          >
+                            <option value="healthy">healthy</option>
+                            <option value="degraded">degraded</option>
+                            <option value="down">down</option>
+                            <option value="unknown">unknown</option>
                           </select>
                           <input
-                            type="number"
-                            value={nodeForm.priority}
-                            onChange={(e) => setNodeForm((prev) => ({ ...prev, priority: Number(e.target.value) || 100 }))}
-                            placeholder="Priority"
+                            value={healthForm.last_error}
+                            onChange={(e) => setHealthForm((prev) => ({ ...prev, last_error: e.target.value }))}
+                            placeholder="Last error (optional)"
                             className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
                           />
+                          <button
+                            type="button"
+                            onClick={updateNodeHealth}
+                            className="rounded border border-cyan-500/40 bg-cyan-500/15 px-2 py-1.5 text-xs text-cyan-200"
+                          >
+                            Update Health
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={createNodeEndpoint}
-                          className="rounded border border-cyan-500/40 bg-cyan-500/15 px-2 py-1.5 text-xs text-cyan-200"
-                        >
-                          Save Endpoint
-                        </button>
                       </div>
                     </div>
+                  ) : null}
 
-                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Update Node Health</p>
-                      <div className="grid grid-cols-1 gap-2">
-                        <select
-                          value={healthForm.endpoint_id}
-                          onChange={(e) => setHealthForm((prev) => ({ ...prev, endpoint_id: e.target.value }))}
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        >
-                          <option value="">Select endpoint</option>
-                          {nodeEndpoints.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.provider_name} - {item.chain}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          value={healthForm.health_status}
-                          onChange={(e) => setHealthForm((prev) => ({ ...prev, health_status: e.target.value }))}
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        >
-                          <option value="healthy">healthy</option>
-                          <option value="degraded">degraded</option>
-                          <option value="down">down</option>
-                          <option value="unknown">unknown</option>
-                        </select>
-                        <input
-                          value={healthForm.last_error}
-                          onChange={(e) => setHealthForm((prev) => ({ ...prev, last_error: e.target.value }))}
-                          placeholder="Last error (optional)"
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        />
-                        <button
-                          type="button"
-                          onClick={updateNodeHealth}
-                          className="rounded border border-cyan-500/40 bg-cyan-500/15 px-2 py-1.5 text-xs text-cyan-200"
-                        >
-                          Update Health
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                {role.key === "ai_data_engineer" ? (
-                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Feature Config</p>
-                      <div className="grid grid-cols-1 gap-2">
-                        <input
-                          value={featureForm.feature_key}
-                          onChange={(e) => setFeatureForm((prev) => ({ ...prev, feature_key: e.target.value }))}
-                          placeholder="Feature key"
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        />
-                        <input
-                          value={featureForm.expression}
-                          onChange={(e) => setFeatureForm((prev) => ({ ...prev, expression: e.target.value }))}
-                          placeholder="Expression"
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        />
-                        <label className="flex items-center gap-2 text-xs text-slate-300">
+                  {role.key === "ai_data_engineer" ? (
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Feature Config</p>
+                        <div className="grid grid-cols-1 gap-2">
                           <input
-                            type="checkbox"
-                            checked={featureForm.enabled}
-                            onChange={(e) => setFeatureForm((prev) => ({ ...prev, enabled: e.target.checked }))}
+                            value={featureForm.feature_key}
+                            onChange={(e) => setFeatureForm((prev) => ({ ...prev, feature_key: e.target.value }))}
+                            placeholder="Feature key"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
                           />
-                          Enabled
-                        </label>
-                        <button
-                          type="button"
-                          onClick={createFeatureConfig}
-                          className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1.5 text-xs text-violet-200"
-                        >
-                          Save Feature
-                        </button>
+                          <input
+                            value={featureForm.expression}
+                            onChange={(e) => setFeatureForm((prev) => ({ ...prev, expression: e.target.value }))}
+                            placeholder="Expression"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <label className="flex items-center gap-2 text-xs text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={featureForm.enabled}
+                              onChange={(e) => setFeatureForm((prev) => ({ ...prev, enabled: e.target.checked }))}
+                            />
+                            Enabled
+                          </label>
+                          <button
+                            type="button"
+                            onClick={createFeatureConfig}
+                            className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1.5 text-xs text-violet-200"
+                          >
+                            Save Feature
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Model Entry</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          <input
+                            value={modelForm.model_name}
+                            onChange={(e) => setModelForm((prev) => ({ ...prev, model_name: e.target.value }))}
+                            placeholder="Model name"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <input
+                            value={modelForm.version}
+                            onChange={(e) => setModelForm((prev) => ({ ...prev, version: e.target.value }))}
+                            placeholder="Version"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <input
+                            value={modelForm.artifact_uri}
+                            onChange={(e) => setModelForm((prev) => ({ ...prev, artifact_uri: e.target.value }))}
+                            placeholder="Artifact URI"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <select
+                            value={modelForm.framework}
+                            onChange={(e) => setModelForm((prev) => ({ ...prev, framework: e.target.value }))}
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          >
+                            <option value="pkl">pkl</option>
+                            <option value="onnx">onnx</option>
+                            <option value="pt">pt</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={createModelRegistryItem}
+                            className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1.5 text-xs text-violet-200"
+                          >
+                            Save Model
+                          </button>
+                        </div>
                       </div>
                     </div>
+                  ) : null}
+                </>
+              ) : null}
 
-                    <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Create Model Entry</p>
-                      <div className="grid grid-cols-1 gap-2">
-                        <input
-                          value={modelForm.model_name}
-                          onChange={(e) => setModelForm((prev) => ({ ...prev, model_name: e.target.value }))}
-                          placeholder="Model name"
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        />
-                        <input
-                          value={modelForm.version}
-                          onChange={(e) => setModelForm((prev) => ({ ...prev, version: e.target.value }))}
-                          placeholder="Version"
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        />
-                        <input
-                          value={modelForm.artifact_uri}
-                          onChange={(e) => setModelForm((prev) => ({ ...prev, artifact_uri: e.target.value }))}
-                          placeholder="Artifact URI"
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        />
-                        <select
-                          value={modelForm.framework}
-                          onChange={(e) => setModelForm((prev) => ({ ...prev, framework: e.target.value }))}
-                          className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
-                        >
-                          <option value="pkl">pkl</option>
-                          <option value="onnx">onnx</option>
-                          <option value="pt">pt</option>
-                        </select>
-                        <button
-                          type="button"
-                          onClick={createModelRegistryItem}
-                          className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1.5 text-xs text-violet-200"
-                        >
-                          Save Model
-                        </button>
+              {activeSection === "data" ? (
+                <>
+                  {role.key === "system_admin" ? (
+                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Node Endpoints</p>
+                        <div className="max-h-72 overflow-auto text-xs">
+                          <table className="w-full text-left">
+                            <thead className="text-slate-400">
+                              <tr>
+                                <th className="pb-1">Provider</th>
+                                <th className="pb-1">Chain</th>
+                                <th className="pb-1">Protocol</th>
+                                <th className="pb-1">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {nodeEndpoints.map((row) => (
+                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                  <td className="py-1">{row.provider_name}</td>
+                                  <td className="py-1">{row.chain}</td>
+                                  <td className="py-1">{row.protocol}</td>
+                                  <td className="py-1">{row.health_status}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Pipeline Metrics</p>
+                        <div className="max-h-72 overflow-auto text-xs">
+                          <table className="w-full text-left">
+                            <thead className="text-slate-400">
+                              <tr>
+                                <th className="pb-1">Block</th>
+                                <th className="pb-1">TPS</th>
+                                <th className="pb-1">Ingest ms</th>
+                                <th className="pb-1">Decode ms</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {pipelineMetrics.map((row) => (
+                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                  <td className="py-1">{row.block_number ?? "N/A"}</td>
+                                  <td className="py-1">{row.throughput_tps ?? "N/A"}</td>
+                                  <td className="py-1">{row.ingestion_latency_ms ?? "N/A"}</td>
+                                  <td className="py-1">{row.decode_latency_ms ?? "N/A"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ) : null}
-              </article>
+                  ) : null}
 
-              <div className="md:col-span-2 md:flex md:justify-end">
-                <article className="w-full rounded-xl border border-slate-700 bg-slate-800/60 p-4 md:w-[62%]">
-                  <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">Z Point 4</p>
-                  <h3 className="text-base font-semibold text-slate-100">{role.bottomRightTitle}</h3>
-                  <ul className="mt-2 space-y-1 text-sm text-slate-300">
-                    {roleFacts.p4.map((line) => (
-                      <li key={line}>- {line}</li>
-                    ))}
-                  </ul>
-                  <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900/60 px-2.5 py-1.5 text-xs text-slate-300">
-                    <Lock className="h-3.5 w-3.5" />
-                    All other app pages are temporarily disabled
-                  </div>
-                </article>
-              </div>
+                  {role.key === "ai_data_engineer" ? (
+                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Feature Store</p>
+                        <div className="max-h-72 overflow-auto text-xs">
+                          <table className="w-full text-left">
+                            <thead className="text-slate-400">
+                              <tr>
+                                <th className="pb-1">Feature</th>
+                                <th className="pb-1">Enabled</th>
+                                <th className="pb-1">Expression</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {featureConfigs.map((row) => (
+                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                  <td className="py-1">{row.feature_key}</td>
+                                  <td className="py-1">{row.enabled ? "Yes" : "No"}</td>
+                                  <td className="py-1">{row.expression ?? "N/A"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
 
-              <div className="md:col-span-2 rounded-xl border border-dashed border-slate-600 p-3 text-xs text-slate-400">
-                Data note: {roleFacts.note}
-                {isLoadingFacts ? " | loading..." : ""}
-                {factsError ? ` | error: ${factsError}` : ""}
-              </div>
-
-              {role.key === "system_admin" ? (
-                <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Node Endpoints</p>
-                    <div className="max-h-72 overflow-auto text-xs">
-                      <table className="w-full text-left">
-                        <thead className="text-slate-400">
-                          <tr>
-                            <th className="pb-1">Provider</th>
-                            <th className="pb-1">Chain</th>
-                            <th className="pb-1">Protocol</th>
-                            <th className="pb-1">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {nodeEndpoints.map((row) => (
-                            <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                              <td className="py-1">{row.provider_name}</td>
-                              <td className="py-1">{row.chain}</td>
-                              <td className="py-1">{row.protocol}</td>
-                              <td className="py-1">{row.health_status}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Model Registry</p>
+                        <div className="max-h-72 overflow-auto text-xs">
+                          <table className="w-full text-left">
+                            <thead className="text-slate-400">
+                              <tr>
+                                <th className="pb-1">Model</th>
+                                <th className="pb-1">Version</th>
+                                <th className="pb-1">Active</th>
+                                <th className="pb-1">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {modelRegistryItems.map((row) => (
+                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                  <td className="py-1">{row.model_name}</td>
+                                  <td className="py-1">{row.version}</td>
+                                  <td className="py-1">{row.is_active ? "Yes" : "No"}</td>
+                                  <td className="py-1">
+                                    {!row.is_active ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => activateModel(row.id)}
+                                        className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1 text-[10px] text-violet-200"
+                                      >
+                                        Activate
+                                      </button>
+                                    ) : (
+                                      "-"
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
 
-                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Pipeline Metrics</p>
-                    <div className="max-h-72 overflow-auto text-xs">
-                      <table className="w-full text-left">
-                        <thead className="text-slate-400">
-                          <tr>
-                            <th className="pb-1">Block</th>
-                            <th className="pb-1">TPS</th>
-                            <th className="pb-1">Ingest ms</th>
-                            <th className="pb-1">Decode ms</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pipelineMetrics.map((row) => (
-                            <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                              <td className="py-1">{row.block_number ?? "N/A"}</td>
-                              <td className="py-1">{row.throughput_tps ?? "N/A"}</td>
-                              <td className="py-1">{row.ingestion_latency_ms ?? "N/A"}</td>
-                              <td className="py-1">{row.decode_latency_ms ?? "N/A"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  {role.key === "security_analyst" ? (
+                    <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Recent Alerts</p>
+                        <div className="max-h-72 overflow-auto text-xs">
+                          <table className="w-full text-left">
+                            <thead className="text-slate-400">
+                              <tr>
+                                <th className="pb-1">Type</th>
+                                <th className="pb-1">Severity</th>
+                                <th className="pb-1">Risk</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {alertItems.map((row) => (
+                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                  <td className="py-1">{row.alert_type}</td>
+                                  <td className="py-1">{row.severity}</td>
+                                  <td className="py-1">{row.risk_score ?? "N/A"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case Queue</p>
+                        <div className="max-h-72 overflow-auto text-xs">
+                          <table className="w-full text-left">
+                            <thead className="text-slate-400">
+                              <tr>
+                                <th className="pb-1">Tx Hash</th>
+                                <th className="pb-1">Status</th>
+                                <th className="pb-1">Risk</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {caseItems.map((row) => (
+                                <tr key={row.tx_hash} className="border-t border-slate-700/60 text-slate-200">
+                                  <td className="py-1">{row.tx_hash.slice(0, 12)}...</td>
+                                  <td className="py-1">{row.status}</td>
+                                  <td className="py-1">{row.risk_score ?? "N/A"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ) : null}
+                  ) : null}
 
-              {role.key === "ai_data_engineer" ? (
-                <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Feature Store</p>
-                    <div className="max-h-72 overflow-auto text-xs">
-                      <table className="w-full text-left">
-                        <thead className="text-slate-400">
-                          <tr>
-                            <th className="pb-1">Feature</th>
-                            <th className="pb-1">Enabled</th>
-                            <th className="pb-1">Expression</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {featureConfigs.map((row) => (
-                            <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                              <td className="py-1">{row.feature_key}</td>
-                              <td className="py-1">{row.enabled ? "Yes" : "No"}</td>
-                              <td className="py-1">{row.expression ?? "N/A"}</td>
+                  {role.key === "compliance_risk_manager" ? (
+                    <div className="md:col-span-2 rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Blocked Transfers</p>
+                      <div className="max-h-72 overflow-auto text-xs">
+                        <table className="w-full text-left">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="pb-1">Sender</th>
+                              <th className="pb-1">Receiver</th>
+                              <th className="pb-1">Amount ETH</th>
+                              <th className="pb-1">Risk</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {blockedTransfers.map((row) => (
+                              <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                <td className="py-1">{row.sender_address.slice(0, 10)}...</td>
+                                <td className="py-1">{row.receiver_address.slice(0, 10)}...</td>
+                                <td className="py-1">{row.amount_eth}</td>
+                                <td className="py-1">{row.risk_score}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
 
-                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Model Registry</p>
-                    <div className="max-h-72 overflow-auto text-xs">
-                      <table className="w-full text-left">
-                        <thead className="text-slate-400">
-                          <tr>
-                            <th className="pb-1">Model</th>
-                            <th className="pb-1">Version</th>
-                            <th className="pb-1">Active</th>
-                            <th className="pb-1">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {modelRegistryItems.map((row) => (
-                            <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                              <td className="py-1">{row.model_name}</td>
-                              <td className="py-1">{row.version}</td>
-                              <td className="py-1">{row.is_active ? "Yes" : "No"}</td>
-                              <td className="py-1">
-                                {!row.is_active ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => activateModel(row.id)}
-                                    className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1 text-[10px] text-violet-200"
-                                  >
-                                    Activate
-                                  </button>
-                                ) : (
-                                  "-"
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                  <div className="md:col-span-2 rounded-xl border border-dashed border-slate-600 p-3 text-xs text-slate-400">
+                    Data note: {roleFacts.note}
+                    {isLoadingFacts ? " | loading..." : ""}
+                    {factsError ? ` | error: ${factsError}` : ""}
                   </div>
-                </div>
-              ) : null}
-
-              {role.key === "security_analyst" ? (
-                <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Recent Alerts</p>
-                    <div className="max-h-72 overflow-auto text-xs">
-                      <table className="w-full text-left">
-                        <thead className="text-slate-400">
-                          <tr>
-                            <th className="pb-1">Type</th>
-                            <th className="pb-1">Severity</th>
-                            <th className="pb-1">Risk</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {alertItems.map((row) => (
-                            <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                              <td className="py-1">{row.alert_type}</td>
-                              <td className="py-1">{row.severity}</td>
-                              <td className="py-1">{row.risk_score ?? "N/A"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case Queue</p>
-                    <div className="max-h-72 overflow-auto text-xs">
-                      <table className="w-full text-left">
-                        <thead className="text-slate-400">
-                          <tr>
-                            <th className="pb-1">Tx Hash</th>
-                            <th className="pb-1">Status</th>
-                            <th className="pb-1">Risk</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {caseItems.map((row) => (
-                            <tr key={row.tx_hash} className="border-t border-slate-700/60 text-slate-200">
-                              <td className="py-1">{row.tx_hash.slice(0, 12)}...</td>
-                              <td className="py-1">{row.status}</td>
-                              <td className="py-1">{row.risk_score ?? "N/A"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {role.key === "compliance_risk_manager" ? (
-                <div className="md:col-span-2 rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Blocked Transfers</p>
-                  <div className="max-h-72 overflow-auto text-xs">
-                    <table className="w-full text-left">
-                      <thead className="text-slate-400">
-                        <tr>
-                          <th className="pb-1">Sender</th>
-                          <th className="pb-1">Receiver</th>
-                          <th className="pb-1">Amount ETH</th>
-                          <th className="pb-1">Risk</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {blockedTransfers.map((row) => (
-                          <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
-                            <td className="py-1">{row.sender_address.slice(0, 10)}...</td>
-                            <td className="py-1">{row.receiver_address.slice(0, 10)}...</td>
-                            <td className="py-1">{row.amount_eth}</td>
-                            <td className="py-1">{row.risk_score}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                </>
               ) : null}
             </section>
           </main>
