@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case
 
 from app.core.database import engine, get_db, Base, ensure_schema
-from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel
+from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase
 from blockchain_client import fetch_wallet_history
 from app.services.ai_engine import MultiAgentDetectionEngine
 
@@ -90,6 +90,10 @@ app.add_middleware(
 # Mount authentication router
 from app.auth import router as auth_router
 app.include_router(auth_router)
+
+# Mount case-management router
+from app.case_management import router as case_router
+app.include_router(case_router)
 
 
 @app.get("/", tags=["Health"])

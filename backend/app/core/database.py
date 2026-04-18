@@ -34,6 +34,10 @@ def ensure_schema() -> None:
 
     Currently ensures:
     - `transactions.status` exists (SMALLINT, default 1)
+    - `transactions.normalized_risk_score` exists (NUMERIC(3,2), 0.00-1.00)
+    - `transactions.case_status` exists (PENDING/VERIFIED/FRAUD/IGNORED)
+    - `transactions.assigned_to` exists (UUID)
+    - `transactions.updated_at` exists (TIMESTAMPTZ)
     - `alerts.metadata` exists (JSONB)
     - `alerts.acknowledged` is BOOLEAN (casts from 'true'/'false' strings if needed)
     - `alerts.acknowledged_at` exists (TIMESTAMPTZ)
@@ -60,6 +64,109 @@ def ensure_schema() -> None:
             if not status_exists:
                 logger.warning("Applying schema fix: adding transactions.status")
                 connection.execute(text("ALTER TABLE transactions ADD COLUMN status SMALLINT DEFAULT 1"))
+
+            tx_risk_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'transactions'
+                      AND column_name = 'normalized_risk_score'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if not tx_risk_exists:
+                logger.warning("Applying schema fix: adding transactions.normalized_risk_score")
+                connection.execute(text("ALTER TABLE transactions ADD COLUMN normalized_risk_score NUMERIC(3,2)"))
+
+            tx_case_status_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'transactions'
+                      AND column_name = 'case_status'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if not tx_case_status_exists:
+                logger.warning("Applying schema fix: adding transactions.case_status")
+                connection.execute(text("ALTER TABLE transactions ADD COLUMN case_status VARCHAR(20) DEFAULT 'PENDING'"))
+
+            tx_assigned_to_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'transactions'
+                      AND column_name = 'assigned_to'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if not tx_assigned_to_exists:
+                logger.warning("Applying schema fix: adding transactions.assigned_to")
+                connection.execute(text("ALTER TABLE transactions ADD COLUMN assigned_to UUID"))
+
+            tx_updated_at_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'transactions'
+                      AND column_name = 'updated_at'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if not tx_updated_at_exists:
+                logger.warning("Applying schema fix: adding transactions.updated_at")
+                connection.execute(text("ALTER TABLE transactions ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW()"))
+
+            # Case-management constraints and indexes
+            connection.execute(
+                text(
+                    """
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint
+                            WHERE conname = 'ck_transactions_normalized_risk_score'
+                        ) THEN
+                            ALTER TABLE transactions
+                            ADD CONSTRAINT ck_transactions_normalized_risk_score
+                            CHECK (
+                                normalized_risk_score IS NULL
+                                OR (normalized_risk_score >= 0 AND normalized_risk_score <= 1)
+                            );
+                        END IF;
+                    END $$;
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint
+                            WHERE conname = 'ck_transactions_case_status'
+                        ) THEN
+                            ALTER TABLE transactions
+                            ADD CONSTRAINT ck_transactions_case_status
+                            CHECK (case_status IN ('PENDING', 'VERIFIED', 'FRAUD', 'IGNORED'));
+                        END IF;
+                    END $$;
+                    """
+                )
+            )
+
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_case_status ON transactions (case_status)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_assigned_to ON transactions (assigned_to)"))
 
             # alerts.metadata
             alerts_metadata_exists = connection.execute(

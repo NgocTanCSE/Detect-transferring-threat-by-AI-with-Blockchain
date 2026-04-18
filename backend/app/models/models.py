@@ -103,6 +103,10 @@ class Transaction(Base):
     gas_used = Column(BigInteger, nullable=True)
     input_data = Column(Text, nullable=True)
     status = Column(SmallInteger, default=1)  # 1=success, 0=failed
+    normalized_risk_score = Column(DECIMAL(3, 2), nullable=True)  # 0.00 - 1.00
+    case_status = Column(String(20), nullable=False, default='PENDING', index=True)
+    assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_flagged = Column(Boolean, default=False)
     flag_reason = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -260,4 +264,22 @@ class FeedbackLabel(Base):
 
     def __repr__(self) -> str:
         return f"<FeedbackLabel(wallet={self.wallet_address[:10]}, label={self.admin_label}, by={self.admin_username})>"
+
+
+class TransactionCase(Base):
+    """Case-management audit trail for analyst actions on a transaction."""
+
+    __tablename__ = "transaction_cases"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    tx_hash = Column(String(66), ForeignKey("transactions.tx_hash", ondelete="CASCADE"), nullable=False, index=True)
+    analyst_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    action = Column(String(20), nullable=False)  # ASSIGN, CONFIRM_FRAUD, DISMISS, ESCALATE
+    state = Column(String(20), nullable=False, default='PENDING')  # PENDING, VERIFIED, FRAUD, IGNORED
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self) -> str:
+        return f"<TransactionCase(tx_hash={self.tx_hash[:10]}..., action={self.action}, state={self.state})>"
 
