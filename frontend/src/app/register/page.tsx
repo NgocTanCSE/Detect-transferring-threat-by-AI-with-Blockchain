@@ -14,6 +14,8 @@ function resolveFriendlyError(errorMessage: string): string {
   const lower = errorMessage.toLowerCase();
   if (lower.includes("temporarily disabled")) return "Đăng ký đang tạm tắt ở backend. Bạn vẫn có thể vào khu vực user để dùng hệ thống.";
   if (lower.includes("already registered")) return "Tên tài khoản hoặc email đã tồn tại.";
+  if (lower.includes("wallet address is required")) return "Bạn cần nhập wallet address để tạo tài khoản user.";
+  if (lower.includes("wallet must already be linked")) return "Wallet phải đã có dữ liệu trong hệ thống (wallet/transactions/alerts/blocked) trước khi đăng ký.";
   if (lower.includes("failed to fetch")) return "Không kết nối được backend. Hãy kiểm tra docker compose đang chạy.";
   return errorMessage;
 }
@@ -30,7 +32,7 @@ export default function RegisterPage() {
 
   const canSubmit = useMemo(() => {
     const hasBasic = username.trim().length >= 3 && email.trim().length > 0 && password.length >= 6;
-    const hasValidWallet = walletAddress.trim().length === 0 || (walletAddress.startsWith("0x") && walletAddress.length === 42);
+    const hasValidWallet = walletAddress.trim().length === 42 && walletAddress.startsWith("0x");
     return hasBasic && hasValidWallet;
   }, [email, password, username, walletAddress]);
 
@@ -47,7 +49,7 @@ export default function RegisterPage() {
         username: username.trim(),
         email: email.trim(),
         password,
-        wallet_address: walletAddress.trim() || undefined,
+        wallet_address: walletAddress.trim(),
       });
 
       setSuccess("Đăng ký thành công. Đang chuyển sang trang đăng nhập...");
@@ -117,7 +119,7 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="wallet" className="text-slate-300">Wallet address (tuỳ chọn)</Label>
+                  <Label htmlFor="wallet" className="text-slate-300">Wallet address</Label>
                   <Input
                     id="wallet"
                     value={walletAddress}
@@ -125,6 +127,9 @@ export default function RegisterPage() {
                     placeholder="0x..."
                     className="border-slate-700 bg-slate-950 font-mono text-slate-100"
                   />
+                  <p className="text-xs text-slate-400">
+                    Wallet phải có liên kết dữ liệu sẵn trong hệ thống (wallet profile, transactions, alerts hoặc blocked transfers).
+                  </p>
                 </div>
 
                 {error ? (

@@ -17,16 +17,17 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, validator
 from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
 
 from app.core.database import get_db
-from app.models.models import User
+from app.models.models import User, Wallet, Transaction, Alert, BlockedTransfer
 
 
 # Configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "blockchain-sentinel-super-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
-AUTH_DISABLED = os.getenv("AUTH_DISABLED", "true").lower() == "true"
+AUTH_DISABLED = os.getenv("AUTH_DISABLED", "false").lower() == "true"
 
 # Anti-spam configuration for registration
 REGISTRATION_RATE_LIMIT = 3  # Max registrations per IP per hour
@@ -48,6 +49,80 @@ def _ensure_auth_enabled() -> None:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication is temporarily disabled"
         )
+
+
+def _link_registered_user_wallet(db: Session, user: User) -> None:
+    """Link newly created regular user to existing wallet-centric data in the system."""
+    if not user.wallet_address:
+        return
+
+    wallet_address = user.wallet_address.lower()
+    wallet = db.query(Wallet).filter(Wallet.address == wallet_address).first()
+
+    tx_total = (
+        db.query(func.count(Transaction.id))
+        .filter(or_(Transaction.from_address == wallet_address, Transaction.to_address == wallet_address))
+        .scalar()
+        or 0
+    )
+    tx_sent_value = (
+        db.query(func.coalesce(func.sum(Transaction.value), 0))
+        .filter(Transaction.from_address == wallet_address)
+        .scalar()
+        or 0
+    )
+    tx_recv_value = (
+        db.query(func.coalesce(func.sum(Transaction.value), 0))
+        .filter(Transaction.to_address == wallet_address)
+        .scalar()
+        or 0
+    )
+    tx_last_activity = (
+        db.query(func.max(Transaction.timestamp))
+        .filter(or_(Transaction.from_address == wallet_address, Transaction.to_address == wallet_address))
+        .scalar()
+    )
+
+    alert_count = (
+        db.query(func.count(Alert.id))
+        .filter(Alert.wallet_address == wallet_address)
+        .scalar()
+        or 0
+    )
+    max_warning_count = (
+        db.query(func.max(BlockedTransfer.user_warning_count))
+        .filter(BlockedTransfer.sender_address == wallet_address)
+        .scalar()
+        or 0
+    )
+
+    if not wallet:
+        wallet = Wallet(
+            address=wallet_address,
+            label=f"{user.username} linked wallet",
+            entity_type="Individual",
+            account_status="active",
+            risk_score=0.0,
+            total_transactions=int(tx_total),
+            total_value_sent=tx_sent_value,
+            total_value_received=tx_recv_value,
+            first_seen_at=datetime.utcnow(),
+            last_activity_at=tx_last_activity,
+            notes="Auto-linked during user registration",
+        )
+        db.add(wallet)
+    else:
+        wallet.total_transactions = max(int(wallet.total_transactions or 0), int(tx_total))
+        wallet.total_value_sent = tx_sent_value
+        wallet.total_value_received = tx_recv_value
+        if tx_last_activity:
+            wallet.last_activity_at = tx_last_activity
+        if not wallet.label:
+            wallet.label = f"{user.username} linked wallet"
+        if alert_count and not wallet.notes:
+            wallet.notes = "Linked to historical alerts before account creation"
+
+    user.warning_count = max(int(user.warning_count or 0), int(max_warning_count))
 
 
 # ==========================================
@@ -504,19 +579,50 @@ def register_user(user_data: UserCreate, request: Request, db: Session = Depends
                 detail="Wallet address already linked to another account"
             )
 
+    if not user_data.wallet_address:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Wallet address is required for regular user registration"
+        )
+
+    wallet_address = user_data.wallet_address.lower()
+    wallet_exists = db.query(Wallet.id).filter(Wallet.address == wallet_address).first() is not None
+    tx_exists = (
+        db.query(Transaction.id)
+        .filter(or_(Transaction.from_address == wallet_address, Transaction.to_address == wallet_address))
+        .first()
+        is not None
+    )
+    alert_exists = db.query(Alert.id).filter(Alert.wallet_address == wallet_address).first() is not None
+    blocked_exists = db.query(BlockedTransfer.id).filter(BlockedTransfer.sender_address == wallet_address).first() is not None
+
+    if not (wallet_exists or tx_exists or alert_exists or blocked_exists):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Wallet must already be linked to existing system data "
+                "(wallet profile, transactions, alerts, or blocked transfers)"
+            )
+        )
+
     # Create new user
     new_user = User(
         id=uuid.uuid4(),
         username=user_data.username,
         email=user_data.email,
         password_hash=get_password_hash(user_data.password),
-        wallet_address=user_data.wallet_address,
+        wallet_address=wallet_address,
         role="user",
         is_active=True,
         warning_count=0
     )
 
     db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    # Auto-link this account to existing wallet-centric records.
+    _link_registered_user_wallet(db, new_user)
     db.commit()
     db.refresh(new_user)
 

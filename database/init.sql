@@ -517,7 +517,7 @@ EXECUTE FUNCTION suspend_user_on_warnings();
 
 COMMENT ON FUNCTION archive_old_alerts IS 'Archives acknowledged alerts older than 90 days';
 
--- Insert platform users (2 regular users + 1 admin)
+-- Insert platform users (2 fixed role accounts: admin + analyst)
 INSERT INTO
     users (
         username,
@@ -529,24 +529,6 @@ INSERT INTO
         warning_count
     )
 VALUES (
-        'alice_nguyen',
-        'alice.nguyen@gmail.com',
-        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.9HvD6s1qWq1q1q',
-        'user',
-        '0x742d35cc6634c0532925a3b844bc454e4438f44e',
-        true,
-        0
-    ),
-    (
-        'bob_tran',
-        'bob.tran@outlook.com',
-        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.9HvD6s1qWq1q1q',
-        'user',
-        '0x8ba1f109551bd432803012645ac136ddd64dba72',
-        true,
-        0
-    ),
-    (
         'admin_security',
         'admin@blockchain-sentinel.io',
         '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.9HvD6s1qWq1q1q',
@@ -554,9 +536,18 @@ VALUES (
         '0x0000000000000000000000000000000000000001',
         true,
         0
+    ),
+    (
+        'linh_analyst',
+        'linh.analyst@blockchain-sentinel.io',
+        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.9HvD6s1qWq1q1q',
+        'analyst',
+        '0x742d35cc6634c0532925a3b844bc454e4438f44e',
+        true,
+        0
     ) ON CONFLICT (email) DO NOTHING;
 
--- Insert user wallets
+-- Insert wallets linked to the fixed role accounts
 INSERT INTO
     wallets (
         address,
@@ -571,8 +562,20 @@ INSERT INTO
         notes
     )
 VALUES (
+        '0x0000000000000000000000000000000000000001',
+        'Security Admin Wallet',
+        'System',
+        'active',
+        0.00,
+        NULL,
+        0,
+        NOW(),
+        NOW(),
+        'Admin role seed account wallet'
+    ),
+    (
         '0x742d35cc6634c0532925a3b844bc454e4438f44e',
-        'Alice Personal Wallet',
+        'Linh Analyst Wallet',
         'Individual',
         'active',
         5.00,
@@ -580,19 +583,7 @@ VALUES (
         0,
         NOW(),
         NOW(),
-        'Regular user account'
-    ),
-    (
-        '0x8ba1f109551bd432803012645ac136ddd64dba72',
-        'Bob Trading Account',
-        'Individual',
-        'active',
-        12.00,
-        NULL,
-        0,
-        NOW(),
-        NOW(),
-        'Active trader account'
+        'Analyst role seed account wallet'
     ) ON CONFLICT (address) DO NOTHING;
 
 -- Insert real threat blacklist (useful for initial detection)

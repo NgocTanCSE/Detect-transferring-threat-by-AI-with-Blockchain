@@ -16,7 +16,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = "auth_token";
-const AUTH_DISABLED = (process.env.NEXT_PUBLIC_AUTH_DISABLED ?? "true").toLowerCase() === "true";
+const AUTH_DISABLED = (process.env.NEXT_PUBLIC_AUTH_DISABLED ?? "false").toLowerCase() === "true";
 
 const AUTH_DISABLED_USER: UserData = {
   id: "00000000-0000-0000-0000-000000000000",
