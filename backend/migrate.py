@@ -7,12 +7,31 @@ import psycopg2
 
 from app.core.config import DATABASE_URL
 
+
+def _table_exists(cur, table_name: str) -> bool:
+    cur.execute(
+        """
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = %s
+        LIMIT 1
+        """,
+        (table_name,)
+    )
+    return cur.fetchone() is not None
+
 def run_migration():
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 
     try:
         print("🔄 Starting migration...")
+
+        if not _table_exists(cur, "wallets"):
+            print("⚠️  Table 'wallets' does not exist yet. Skipping legacy wallet column migration.")
+            conn.commit()
+            return
 
         # Add account_status column
         print("Adding account_status column...")
