@@ -113,6 +113,39 @@ type BlockedTransferItem = {
   blocked_at: string | null;
 };
 
+type PolicyRuleItem = {
+  id: string;
+  rule_name: string;
+  description: string | null;
+  min_risk_score: number;
+  block_blacklisted: boolean;
+  block_suspended: boolean;
+  notify_on_block: boolean;
+  priority: number;
+  is_active: boolean;
+};
+
+type NotificationEventItem = {
+  id: string;
+  channel: string;
+  recipient: string;
+  severity: string;
+  message: string;
+  status: string;
+  created_at: string | null;
+};
+
+type CaseSummary = {
+  totals: {
+    PENDING: number;
+    VERIFIED: number;
+    FRAUD: number;
+    IGNORED: number;
+  };
+  unassigned: number;
+  high_risk_unassigned: number;
+};
+
 type DashboardStats = {
   systemAdmin: {
     totalNodeEndpoints: number;
@@ -137,6 +170,8 @@ type DashboardStats = {
     recentAlerts: number;
     openCases: number;
     topCaseRisk: number | null;
+    pendingCases: number;
+    fraudCases: number;
   };
   complianceRiskManager: {
     totalWallets: number;
@@ -144,6 +179,7 @@ type DashboardStats = {
     blockedTotal: number;
     blockedToday: number;
     blockedValueEth: number;
+    activePolicyRules: number;
   };
 };
 
@@ -593,6 +629,13 @@ export default function HomePage() {
   const [alertItems, setAlertItems] = useState<AlertItem[]>([]);
   const [caseItems, setCaseItems] = useState<CaseItem[]>([]);
   const [blockedTransfers, setBlockedTransfers] = useState<BlockedTransferItem[]>([]);
+  const [policyRules, setPolicyRules] = useState<PolicyRuleItem[]>([]);
+  const [notificationEvents, setNotificationEvents] = useState<NotificationEventItem[]>([]);
+  const [caseSummary, setCaseSummary] = useState<CaseSummary>({
+    totals: { PENDING: 0, VERIFIED: 0, FRAUD: 0, IGNORED: 0 },
+    unassigned: 0,
+    high_risk_unassigned: 0,
+  });
 
   const [nodeForm, setNodeForm] = useState({
     provider_name: "Alchemy",
@@ -622,6 +665,35 @@ export default function HomePage() {
     framework: "onnx",
     is_active: true,
   });
+
+  const [caseActionForm, setCaseActionForm] = useState({
+    tx_hash: "",
+    action: "ESCALATE",
+    note: "",
+  });
+
+  const [notificationForm, setNotificationForm] = useState({
+    channel: "telegram",
+    recipient: "security-room",
+    severity: "HIGH",
+    message: "Case escalated from analyst console",
+  });
+
+  const [policyRuleForm, setPolicyRuleForm] = useState({
+    rule_name: "block_high_risk_default",
+    description: "Block transfer when risk score exceeds threshold",
+    min_risk_score: 80,
+    priority: 100,
+    is_active: true,
+  });
+
+  const [policyEvalForm, setPolicyEvalForm] = useState({
+    risk_score: 85,
+    account_status: "active",
+    is_blacklisted: false,
+  });
+
+  const [policyEvalResult, setPolicyEvalResult] = useState<{ decision: string; matched_count: number } | null>(null);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     systemAdmin: {
       totalNodeEndpoints: 0,
@@ -646,6 +718,8 @@ export default function HomePage() {
       recentAlerts: 0,
       openCases: 0,
       topCaseRisk: null,
+      pendingCases: 0,
+      fraudCases: 0,
     },
     complianceRiskManager: {
       totalWallets: 0,
@@ -653,6 +727,7 @@ export default function HomePage() {
       blockedTotal: 0,
       blockedToday: 0,
       blockedValueEth: 0,
+      activePolicyRules: 0,
     },
   });
   const [roleFacts, setRoleFacts] = useState<RoleFacts>({
@@ -790,13 +865,17 @@ export default function HomePage() {
           },
         }));
       } else if (targetRole === "security_analyst") {
-        const [alerts, cases] = await Promise.all([
+        const [alerts, cases, summary, notifications] = await Promise.all([
           fetchJson("/api/alerts/recent?limit=20"),
           fetchJson("/api/cases?min_risk=0.8&limit=20"),
+          fetchJson("/api/ops/security/case-summary"),
+          fetchJson("/api/ops/security/notifications?limit=20"),
         ]);
 
         setAlertItems((alerts.alerts ?? []) as AlertItem[]);
         setCaseItems((cases.cases ?? []) as CaseItem[]);
+        setCaseSummary((summary ?? { totals: { PENDING: 0, VERIFIED: 0, FRAUD: 0, IGNORED: 0 }, unassigned: 0, high_risk_unassigned: 0 }) as CaseSummary);
+        setNotificationEvents((notifications.items ?? []) as NotificationEventItem[]);
 
         setRoleFacts({
           p1: [
@@ -812,14 +891,14 @@ export default function HomePage() {
           p3: [
             "Use /cases/{tx_hash}/action for Confirm Fraud and Dismiss.",
             "Escalate action is enabled in state machine.",
-            "Address labeling adapters are next integration item.",
+            `Pending cases: ${summary.totals?.PENDING ?? 0}`,
           ],
           p4: [
-            "Push notifications (Telegram/Slack) pending integration.",
+            `Recent notification events: ${notifications.count ?? 0}`,
             "Case timeline API is live: /cases/{tx_hash}/history.",
             "Audit trail is written per analyst action.",
           ],
-          note: "Data source: /alerts/recent and /cases",
+          note: "Data source: /alerts/recent, /cases, /ops/security/*",
         });
         setDashboardStats((prev) => ({
           ...prev,
@@ -829,15 +908,19 @@ export default function HomePage() {
             recentAlerts: Number(alerts.statistics?.total_recent ?? 0),
             openCases: Number(cases.count ?? 0),
             topCaseRisk: cases.cases?.[0]?.risk_score ?? null,
+            pendingCases: Number(summary.totals?.PENDING ?? 0),
+            fraudCases: Number(summary.totals?.FRAUD ?? 0),
           },
         }));
       } else {
-        const [dashboard, blocked] = await Promise.all([
+        const [dashboard, blocked, rules] = await Promise.all([
           fetchJson("/api/statistics/dashboard"),
           fetchJson("/api/blocked-transfers?limit=20"),
+          fetchJson("/api/ops/compliance/policy-rules?only_active=true"),
         ]);
 
         setBlockedTransfers((blocked.blocked_transfers ?? []) as BlockedTransferItem[]);
+        setPolicyRules((rules.items ?? []) as PolicyRuleItem[]);
 
         setRoleFacts({
           p1: [
@@ -851,7 +934,7 @@ export default function HomePage() {
             `Blocked value: ${blocked.statistics?.total_value_blocked_eth ?? 0} ETH`,
           ],
           p3: [
-            "Policy Engine editor is prepared for Phase 3.",
+            `Active policy rules: ${rules.count ?? 0}`,
             "Hard rule execution hooks should run pre-inference.",
             "Compliance actions should link to case outcomes.",
           ],
@@ -860,7 +943,7 @@ export default function HomePage() {
             "Add monthly aggregations and scheduled exports.",
             "Attach regulatory evidence bundle per incident.",
           ],
-          note: "Data source: /statistics/dashboard and /blocked-transfers",
+          note: "Data source: /statistics/dashboard, /blocked-transfers, /ops/compliance/*",
         });
         setDashboardStats((prev) => ({
           ...prev,
@@ -870,6 +953,7 @@ export default function HomePage() {
             blockedTotal: Number(blocked.statistics?.total_blocked ?? 0),
             blockedToday: Number(blocked.statistics?.blocked_today ?? 0),
             blockedValueEth: Number(blocked.statistics?.total_value_blocked_eth ?? 0),
+            activePolicyRules: Number(rules.count ?? 0),
           },
         }));
       }
@@ -1036,6 +1120,90 @@ export default function HomePage() {
       await loadRoleFacts("ai_data_engineer");
     } catch (error) {
       setFactsError(error instanceof Error ? error.message : "Failed to activate model");
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  };
+
+  const submitCaseAction = async () => {
+    if (!caseActionForm.tx_hash.trim()) {
+      setFactsError("Please enter tx hash for case action");
+      return;
+    }
+
+    try {
+      setIsLoadingFacts(true);
+      await fetchJson(`/api/cases/${caseActionForm.tx_hash.trim()}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: caseActionForm.action,
+          note: caseActionForm.note || null,
+        }),
+      });
+      setUiMessage("Case action applied");
+      await loadRoleFacts("security_analyst");
+    } catch (error) {
+      setFactsError(error instanceof Error ? error.message : "Failed to apply case action");
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  };
+
+  const sendTestNotification = async () => {
+    try {
+      setIsLoadingFacts(true);
+      await fetchJson("/api/ops/security/notifications/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notificationForm),
+      });
+      setUiMessage("Test notification logged");
+      await loadRoleFacts("security_analyst");
+    } catch (error) {
+      setFactsError(error instanceof Error ? error.message : "Failed to send test notification");
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  };
+
+  const createPolicyRule = async () => {
+    try {
+      setIsLoadingFacts(true);
+      await fetchJson("/api/ops/compliance/policy-rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...policyRuleForm,
+          block_blacklisted: true,
+          block_suspended: true,
+          notify_on_block: true,
+        }),
+      });
+      setUiMessage("Policy rule created");
+      await loadRoleFacts("compliance_risk_manager");
+    } catch (error) {
+      setFactsError(error instanceof Error ? error.message : "Failed to create policy rule");
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  };
+
+  const evaluatePolicyRule = async () => {
+    try {
+      setIsLoadingFacts(true);
+      const result = await fetchJson("/api/ops/compliance/policy-evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(policyEvalForm),
+      });
+      setPolicyEvalResult({
+        decision: String(result.decision ?? "N/A"),
+        matched_count: Number(result.matched_count ?? 0),
+      });
+      setUiMessage("Policy simulation completed");
+    } catch (error) {
+      setFactsError(error instanceof Error ? error.message : "Failed to evaluate policy");
     } finally {
       setIsLoadingFacts(false);
     }
@@ -1350,12 +1518,12 @@ export default function HomePage() {
                     <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
                       <p className="text-xs uppercase tracking-wide text-rose-200">Top case risk</p>
                       <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.topCaseRisk ?? "N/A"}</p>
-                      <p className="text-xs text-rose-100/80">Min risk queue</p>
+                      <p className="text-xs text-rose-100/80">Pending {dashboardStats.securityAnalyst.pendingCases}</p>
                     </div>
                     <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
                       <p className="text-xs uppercase tracking-wide text-rose-200">Investigation</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">Active</p>
-                      <p className="text-xs text-rose-100/80">Alerts + case triage</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.securityAnalyst.fraudCases}</p>
+                      <p className="text-xs text-rose-100/80">Fraud cases</p>
                     </div>
                   </>
                 ) : null}
@@ -1379,8 +1547,8 @@ export default function HomePage() {
                     </div>
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
                       <p className="text-xs uppercase tracking-wide text-amber-200">Governance</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">Live</p>
-                      <p className="text-xs text-amber-100/80">Reporting + controls</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{dashboardStats.complianceRiskManager.activePolicyRules}</p>
+                      <p className="text-xs text-amber-100/80">Active policy rules</p>
                     </div>
                   </>
                 ) : null}
@@ -1687,6 +1855,197 @@ export default function HomePage() {
                       </div>
                     </div>
                   ) : null}
+
+                  {role.key === "security_analyst" ? (
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case Action Console</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          <input
+                            value={caseActionForm.tx_hash}
+                            onChange={(e) => setCaseActionForm((prev) => ({ ...prev, tx_hash: e.target.value }))}
+                            placeholder="Transaction hash"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <select
+                            value={caseActionForm.action}
+                            onChange={(e) => setCaseActionForm((prev) => ({ ...prev, action: e.target.value }))}
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          >
+                            <option value="ESCALATE">ESCALATE</option>
+                            <option value="CONFIRM_FRAUD">CONFIRM_FRAUD</option>
+                            <option value="DISMISS">DISMISS</option>
+                          </select>
+                          <input
+                            value={caseActionForm.note}
+                            onChange={(e) => setCaseActionForm((prev) => ({ ...prev, note: e.target.value }))}
+                            placeholder="Analyst note"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={submitCaseAction}
+                            className="rounded border border-rose-500/40 bg-rose-500/15 px-2 py-1.5 text-xs text-rose-200"
+                          >
+                            Apply Case Action
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Notification Test</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          <select
+                            value={notificationForm.channel}
+                            onChange={(e) => setNotificationForm((prev) => ({ ...prev, channel: e.target.value }))}
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          >
+                            <option value="telegram">telegram</option>
+                            <option value="slack">slack</option>
+                            <option value="email">email</option>
+                            <option value="webhook">webhook</option>
+                          </select>
+                          <input
+                            value={notificationForm.recipient}
+                            onChange={(e) => setNotificationForm((prev) => ({ ...prev, recipient: e.target.value }))}
+                            placeholder="Recipient"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <select
+                            value={notificationForm.severity}
+                            onChange={(e) => setNotificationForm((prev) => ({ ...prev, severity: e.target.value }))}
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          >
+                            <option value="LOW">LOW</option>
+                            <option value="MEDIUM">MEDIUM</option>
+                            <option value="HIGH">HIGH</option>
+                            <option value="CRITICAL">CRITICAL</option>
+                          </select>
+                          <input
+                            value={notificationForm.message}
+                            onChange={(e) => setNotificationForm((prev) => ({ ...prev, message: e.target.value }))}
+                            placeholder="Message"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={sendTestNotification}
+                            className="rounded border border-rose-500/40 bg-rose-500/15 px-2 py-1.5 text-xs text-rose-200"
+                          >
+                            Send Test Notification
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case State Snapshot</p>
+                        <div className="space-y-2 text-sm text-slate-300">
+                          <p>Pending: {caseSummary.totals.PENDING}</p>
+                          <p>Verified: {caseSummary.totals.VERIFIED}</p>
+                          <p>Fraud: {caseSummary.totals.FRAUD}</p>
+                          <p>Ignored: {caseSummary.totals.IGNORED}</p>
+                          <p>High-risk unassigned: {caseSummary.high_risk_unassigned}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {role.key === "compliance_risk_manager" ? (
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Rule Builder</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          <input
+                            value={policyRuleForm.rule_name}
+                            onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, rule_name: e.target.value }))}
+                            placeholder="Rule name"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <input
+                            value={policyRuleForm.description}
+                            onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, description: e.target.value }))}
+                            placeholder="Description"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="number"
+                              value={policyRuleForm.min_risk_score}
+                              onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, min_risk_score: Number(e.target.value) || 80 }))}
+                              placeholder="Min risk score"
+                              className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                            />
+                            <input
+                              type="number"
+                              value={policyRuleForm.priority}
+                              onChange={(e) => setPolicyRuleForm((prev) => ({ ...prev, priority: Number(e.target.value) || 100 }))}
+                              placeholder="Priority"
+                              className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={createPolicyRule}
+                            className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1.5 text-xs text-amber-200"
+                          >
+                            Save Policy Rule
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Simulation</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          <input
+                            type="number"
+                            value={policyEvalForm.risk_score}
+                            onChange={(e) => setPolicyEvalForm((prev) => ({ ...prev, risk_score: Number(e.target.value) || 0 }))}
+                            placeholder="Risk score"
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          />
+                          <select
+                            value={policyEvalForm.account_status}
+                            onChange={(e) => setPolicyEvalForm((prev) => ({ ...prev, account_status: e.target.value }))}
+                            className="rounded border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs"
+                          >
+                            <option value="active">active</option>
+                            <option value="under_review">under_review</option>
+                            <option value="suspended">suspended</option>
+                            <option value="frozen">frozen</option>
+                          </select>
+                          <label className="flex items-center gap-2 text-xs text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={policyEvalForm.is_blacklisted}
+                              onChange={(e) => setPolicyEvalForm((prev) => ({ ...prev, is_blacklisted: e.target.checked }))}
+                            />
+                            Is blacklisted
+                          </label>
+                          <button
+                            type="button"
+                            onClick={evaluatePolicyRule}
+                            className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1.5 text-xs text-amber-200"
+                          >
+                            Evaluate Policy
+                          </button>
+                          {policyEvalResult ? (
+                            <div className="rounded border border-slate-700 bg-slate-950/50 px-2 py-2 text-xs text-slate-300">
+                              Decision: {policyEvalResult.decision} | Matched rules: {policyEvalResult.matched_count}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Governance Snapshot</p>
+                        <div className="space-y-2 text-sm text-slate-300">
+                          <p>Active policy rules: {dashboardStats.complianceRiskManager.activePolicyRules}</p>
+                          <p>Blocked transfers: {dashboardStats.complianceRiskManager.blockedTotal}</p>
+                          <p>Critical alerts: {dashboardStats.complianceRiskManager.criticalAlerts}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </>
               ) : null}
 
@@ -1873,11 +2232,30 @@ export default function HomePage() {
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Investigation Notes</p>
-                        <div className="space-y-2 text-sm text-slate-300">
-                          <p>Link alert severity to suspicious path patterns.</p>
-                          <p>Use the case queue for confirm/dismiss/escalate decisions.</p>
-                          <p>The timeline API is live and can power a visual trail.</p>
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Notification Events</p>
+                        <div className="max-h-72 overflow-auto text-xs">
+                          <table className="w-full text-left">
+                            <thead className="text-slate-400">
+                              <tr>
+                                <th className="pb-1">Channel</th>
+                                <th className="pb-1">Severity</th>
+                                <th className="pb-1">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {notificationEvents.length > 0 ? notificationEvents.map((row) => (
+                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                  <td className="py-1">{row.channel}</td>
+                                  <td className="py-1">{row.severity}</td>
+                                  <td className="py-1">{row.status}</td>
+                                </tr>
+                              )) : (
+                                <tr>
+                                  <td className="py-3 text-slate-500" colSpan={3}>No notification events yet.</td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     </div>
@@ -1916,20 +2294,41 @@ export default function HomePage() {
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Controls</p>
-                        <div className="space-y-2 text-sm text-slate-300">
-                          <p>Canonical block policy is server-side and live.</p>
-                          <p>Future whitelist and escalation governance can extend this panel.</p>
-                          <p>Auditability is preserved through the same transaction ledger.</p>
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Policy Rules</p>
+                        <div className="max-h-72 overflow-auto text-xs">
+                          <table className="w-full text-left">
+                            <thead className="text-slate-400">
+                              <tr>
+                                <th className="pb-1">Rule</th>
+                                <th className="pb-1">Min risk</th>
+                                <th className="pb-1">Active</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {policyRules.length > 0 ? policyRules.map((row) => (
+                                <tr key={row.id} className="border-t border-slate-700/60 text-slate-200">
+                                  <td className="py-1">{row.rule_name}</td>
+                                  <td className="py-1">{row.min_risk_score}</td>
+                                  <td className="py-1">{row.is_active ? "Yes" : "No"}</td>
+                                </tr>
+                              )) : (
+                                <tr>
+                                  <td className="py-3 text-slate-500" colSpan={3}>No policy rules yet.</td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
 
                       <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Executive Snapshot</p>
+                        <p className="mb-2 text-xs font-semibold uppercase text-slate-400">Case Summary</p>
                         <div className="space-y-2 text-sm text-slate-300">
-                          <p>Total wallets, blocked transfers, and protected value should appear here.</p>
-                          <p>Use this block for monthly reporting once phase 4 lands.</p>
-                          <p>It is intentionally visible so the content area does not look empty.</p>
+                          <p>Pending: {caseSummary.totals.PENDING}</p>
+                          <p>Verified: {caseSummary.totals.VERIFIED}</p>
+                          <p>Fraud: {caseSummary.totals.FRAUD}</p>
+                          <p>Ignored: {caseSummary.totals.IGNORED}</p>
+                          <p>Unassigned: {caseSummary.unassigned}</p>
                         </div>
                       </div>
                     </div>

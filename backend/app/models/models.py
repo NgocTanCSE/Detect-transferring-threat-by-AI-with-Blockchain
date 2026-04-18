@@ -358,3 +358,44 @@ class ModelRegistry(Base):
     def __repr__(self) -> str:
         return f"<ModelRegistry(name={self.model_name}, version={self.version}, active={self.is_active})>"
 
+
+class PolicyRule(Base):
+    """Compliance policy rule definitions for transfer governance decisions."""
+
+    __tablename__ = "policy_rules"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    rule_name = Column(String(120), nullable=False, unique=True, index=True)
+    description = Column(Text, nullable=True)
+    min_risk_score = Column(Float, nullable=False, default=80.0)
+    block_blacklisted = Column(Boolean, default=True)
+    block_suspended = Column(Boolean, default=True)
+    notify_on_block = Column(Boolean, default=True)
+    priority = Column(Integer, nullable=False, default=100)
+    is_active = Column(Boolean, default=True, index=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self) -> str:
+        return f"<PolicyRule(name={self.rule_name}, risk={self.min_risk_score}, active={self.is_active})>"
+
+
+class NotificationEvent(Base):
+    """Notification event log for alert/escalation channels."""
+
+    __tablename__ = "notification_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    channel = Column(String(30), nullable=False, index=True)  # slack, telegram, email, webhook
+    recipient = Column(String(255), nullable=False)
+    severity = Column(String(20), nullable=False, default="MEDIUM", index=True)
+    message = Column(Text, nullable=False)
+    status = Column(String(20), nullable=False, default="queued", index=True)  # queued, sent, failed
+    meta = Column('metadata', JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<NotificationEvent(channel={self.channel}, severity={self.severity}, status={self.status})>"
+
