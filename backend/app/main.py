@@ -59,11 +59,18 @@ app = FastAPI(
     description="AI-powered financial risk analysis for Ethereum wallets with Alchemy integration"
 )
 
-# Add CORS middleware to allow frontend requests
+# Add CORS middleware; use explicit origins in production.
+raw_cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "*")
+cors_allowed_origins = [item.strip() for item in raw_cors_origins.split(",") if item.strip()]
+if not cors_allowed_origins:
+    cors_allowed_origins = ["*"]
+
+cors_allow_credentials = "*" not in cors_allowed_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
-    allow_credentials=True,
+    allow_origins=cors_allowed_origins,
+    allow_credentials=cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
