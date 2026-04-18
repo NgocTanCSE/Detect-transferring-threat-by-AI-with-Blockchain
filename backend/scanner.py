@@ -228,8 +228,11 @@ def main():
     logger.info(f"CONFIG | interval={SCAN_INTERVAL_SECONDS}s | threshold={ALERT_RISK_THRESHOLD}%")
     logger.info("=" * 60)
 
-    Base.metadata.create_all(bind=engine)
-    ensure_schema()
+    try:
+        Base.metadata.create_all(bind=engine)
+        ensure_schema()
+    except Exception as error:
+        logger.warning(f"Database initialization skipped or failed: {error}")
 
     scan_count = 0
     error_count = 0
