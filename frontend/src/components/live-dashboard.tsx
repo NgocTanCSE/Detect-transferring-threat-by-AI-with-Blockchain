@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   BadgeInfo,
@@ -373,8 +373,6 @@ function CardShell({ title, subtitle, children, icon: Icon }: { title: string; s
 }
 
 export default function LiveDashboard() {
-  const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
@@ -401,40 +399,18 @@ export default function LiveDashboard() {
   const [auditCompleteness, setAuditCompleteness] = useState<AuditCompleteness | null>(null);
   const [auditGaps, setAuditGaps] = useState<AuditGaps | null>(null);
   const [sloMetrics, setSloMetrics] = useState<SloMetrics | null>(null);
+  const isFetchingRef = useRef(false);
+  const lastAutoFetchAtRef = useRef(0);
 
   const role = useMemo(() => ROLE_DEFINITIONS.find((entry) => entry.key === activeRole) ?? ROLE_DEFINITIONS[0], [activeRole]);
   const sidebarIcons = useMemo(() => ROLE_ICONS, []);
   const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace";
 
   const updateQuery = useCallback(
-    (patch: Record<string, string | number | null | undefined>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      let hasChanges = false;
-
-      for (const [key, value] of Object.entries(patch)) {
-        const currentValue = params.get(key);
-
-        if (value == null || value === "") {
-          if (currentValue !== null) {
-            params.delete(key);
-            hasChanges = true;
-          }
-          continue;
-        }
-
-        const nextValue = String(value);
-        if (currentValue !== nextValue) {
-          params.set(key, nextValue);
-          hasChanges = true;
-        }
-      }
-
-      if (!hasChanges) return;
-
-      const next = params.toString();
-      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    (_patch: Record<string, string | number | null | undefined>) => {
+      // Intentionally disabled to avoid navigation loops from URL sync.
     },
-    [pathname, router, searchParams]
+    []
   );
 
   useEffect(() => {
@@ -457,11 +433,30 @@ export default function LiveDashboard() {
     }
   }, [activeFeatureIndex, searchParams]);
 
-  useEffect(() => {
-    updateQuery({ role: activeRole, feature: activeFeatureIndex });
-  }, [activeFeatureIndex, activeRole, updateQuery]);
+  async function loadLiveData(roleKey: RoleKey, mode: "auto" | "manual" = "auto") {
+    const now = Date.now();
+    if (isFetchingRef.current) {
+      return;
+    }
 
-  async function loadLiveData(roleKey: RoleKey) {
+    // Guard against accidental rapid remount/re-trigger loops.
+    if (mode === "auto" && now - lastAutoFetchAtRef.current < 8000) {
+      return;
+    }
+
+    if (mode === "auto" && typeof window !== "undefined") {
+      const persistedLast = Number(window.sessionStorage.getItem("dashboard:last-auto-fetch") || "0");
+      if (now - persistedLast < 8000) {
+        return;
+      }
+      window.sessionStorage.setItem("dashboard:last-auto-fetch", String(now));
+    }
+
+    isFetchingRef.current = true;
+    if (mode === "auto") {
+      lastAutoFetchAtRef.current = now;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -538,11 +533,12 @@ export default function LiveDashboard() {
       setError(message);
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   }
 
   useEffect(() => {
-    void loadLiveData(activeRole);
+    void loadLiveData(activeRole, "auto");
   }, [activeRole]);
 
   const flowChartData = useMemo(
@@ -808,7 +804,7 @@ export default function LiveDashboard() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => void loadLiveData(activeRole)}
+                onClick={() => void loadLiveData(activeRole, "manual")}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-700"
               >
                 <RefreshCcw className="h-4 w-4" />
@@ -845,6 +841,7 @@ export default function LiveDashboard() {
               <Link
                 key={route.href}
                 href={route.href}
+                prefetch={false}
                 className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800/70 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-white"
               >
                 {route.label}
