@@ -12,6 +12,7 @@ import joblib
 from sqlalchemy.orm import Session
 
 from app.services.feature_extractor import extract_transaction_features
+from app.services.hf_security_analyst import HFSecurityAnalyst
 from app.core.config import (
     MODEL_DIRECTORY,
     RISK_MODEL_FILENAME,
@@ -187,14 +188,16 @@ class MultiAgentDetectionEngine:
 
     def __init__(self, database_session: Session = None):
         """
-        Initialize detection engine with ML predictor.
+        Initialize detection engine with ML predictor and AI analyst.
 
         Args:
             database_session: Optional SQLAlchemy session for blacklist checking
         """
         self.db_session = database_session
         self.ml_predictor = MLRiskPredictor()
-        logger.info(f"Multi-Agent Detection Engine initialized (ML available: {self.ml_predictor.is_available})")
+        self.ai_analyst = HFSecurityAnalyst()
+        logger.info(f"Multi-Agent Detection Engine initialized (ML: {self.ml_predictor.is_available}, HF Analyst: {self.ai_analyst.enabled})")
+
 
     def analyze_wallet(
         self,
@@ -239,6 +242,23 @@ class MultiAgentDetectionEngine:
             ml_prediction=ml_prediction,
             transactions=transactions
         )
+
+        # Step 5: Advanced AI Analyst Reasoning (using HF Inference API)
+        if final_risk['total_score'] >= 20 or final_risk['detection_count'] > 0:
+            logger.info(f"Calling HF AI Analyst for {normalized_address[:10]}...")
+            ai_insight = self.ai_analyst.analyze_threat(
+                wallet_address=normalized_address,
+                risk_score=final_risk['total_score'],
+                risk_level=final_risk['risk_level'],
+                detections=final_risk['breakdown'],
+                transaction_summary={
+                    "count": len(transactions),
+                    "age_days": wallet_age_days
+                }
+            )
+            final_risk['ai_insight'] = ai_insight
+        else:
+            final_risk['ai_insight'] = "Vòng ngoài chưa phát hiện dấu hiệu rủi ro đáng kể. Ví có vẻ an toàn."
 
         logger.info(
             f"Risk analysis complete for {normalized_address[:10]}... "

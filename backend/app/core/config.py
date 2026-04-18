@@ -39,3 +39,8 @@ RANDOM_SEED: int = 42
 RISK_THRESHOLD_LOW: int = 20
 RISK_THRESHOLD_MEDIUM: int = 50
 RISK_THRESHOLD_HIGH: int = 80
+
+# Hugging Face Inference API
+HF_API_TOKEN: str = os.getenv("HF_TOKEN", "")
+HF_MODEL_ID: str = "meta-llama/Llama-3-8B-Instruct"
+HF_INFERENCE_URL: str = f"https://api-inference.huggingface.co/models/{HF_MODEL_ID}"

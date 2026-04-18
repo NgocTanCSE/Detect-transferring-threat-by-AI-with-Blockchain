@@ -69,6 +69,7 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [expandedWallet, setExpandedWallet] = useState<string | null>(null);
 
   // Fetch dashboard stats
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
@@ -362,74 +363,116 @@ export default function AdminDashboard() {
                     : AlertTriangle;
 
                   return (
-                    <TableRow key={wallet.id} className="border-slate-700/50">
-                      <TableCell className="font-mono text-sm text-slate-300">
-                        {formatAddress(wallet.address)}
-                      </TableCell>
-                      <TableCell className="text-slate-300">
-                        {wallet.label || <span className="text-slate-500">-</span>}
-                      </TableCell>
-                      <TableCell>
-                        {wallet.risk_category ? (
-                          <div className="flex items-center gap-2 text-slate-300">
-                            <CategoryIcon className="h-4 w-4" />
-                            <span className="capitalize text-sm">
-                              {wallet.risk_category.replace("_", " ")}
+                    <>
+                      <TableRow 
+                        key={wallet.id} 
+                        className={`border-slate-700/50 cursor-pointer transition-colors hover:bg-slate-800/50 ${expandedWallet === wallet.id ? 'bg-slate-800/80' : ''}`}
+                        onClick={() => setExpandedWallet(expandedWallet === wallet.id ? null : wallet.id)}
+                      >
+                        <TableCell className="font-mono text-sm text-slate-300">
+                          {formatAddress(wallet.address)}
+                        </TableCell>
+                        <TableCell className="text-slate-300">
+                          {wallet.label || <span className="text-slate-500">-</span>}
+                        </TableCell>
+                        <TableCell>
+                          {wallet.risk_category ? (
+                            <div className="flex items-center gap-2 text-slate-300">
+                              <CategoryIcon className="h-4 w-4" />
+                              <span className="capitalize text-sm">
+                                {wallet.risk_category.replace("_", " ")}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-500">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-semibold ${getRiskColor(wallet.risk_score)}`}>
+                              {wallet.risk_score.toFixed(0)}
                             </span>
+                            <Badge
+                              variant={
+                                wallet.risk_score >= 90
+                                  ? "critical"
+                                  : wallet.risk_score >= 70
+                                    ? "high"
+                                    : wallet.risk_score >= 50
+                                      ? "medium"
+                                      : "low"
+                              }
+                            >
+                              {getRiskLevel(wallet.risk_score)}
+                            </Badge>
                           </div>
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className={`font-semibold ${getRiskColor(wallet.risk_score)}`}>
-                            {wallet.risk_score.toFixed(0)}
-                          </span>
-                          <Badge
-                            variant={
-                              wallet.risk_score >= 90
-                                ? "critical"
-                                : wallet.risk_score >= 70
-                                  ? "high"
-                                  : wallet.risk_score >= 50
-                                    ? "medium"
-                                    : "low"
-                            }
-                          >
-                            {getRiskLevel(wallet.risk_score)}
+                        </TableCell>
+                        <TableCell className="text-slate-300">
+                          {formatNumber(wallet.total_transactions || 0)}
+                        </TableCell>
+                        <TableCell className="text-slate-500 text-sm">
+                          {formatDate(wallet.last_activity_at)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(wallet.account_status)}>
+                            {wallet.account_status.replace("_", " ")}
                           </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-slate-300">
-                        {formatNumber(wallet.total_transactions || 0)}
-                      </TableCell>
-                      <TableCell className="text-slate-500 text-sm">
-                        {formatDate(wallet.last_activity_at)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(wallet.account_status)}>
-                          {wallet.account_status.replace("_", " ")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={wallet.account_status}
-                          onValueChange={(value) => handleStatusChange(wallet.address, value)}
-                        >
-                          <SelectTrigger className="w-32 h-8 bg-slate-800 border-slate-600">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {statusOptions.map((s) => (
-                              <SelectItem key={s.value} value={s.value}>
-                                <span className={s.color}>{s.label}</span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={wallet.account_status}
+                            onValueChange={(value) => handleStatusChange(wallet.address, value)}
+                          >
+                            <SelectTrigger className="w-32 h-8 bg-slate-800 border-slate-600">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {statusOptions.map((s) => (
+                                <SelectItem key={s.value} value={s.value}>
+                                  <span className={s.color}>{s.label}</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                      
+                      {/* Expanded AI Insight Row */}
+                      {expandedWallet === wallet.id && (
+                        <TableRow className="bg-slate-900/40 border-slate-700/50 animate-in fade-in slide-in-from-top-4 duration-300">
+                          <TableCell colSpan={8} className="p-0">
+                            <div className="p-6 border-l-2 border-l-cyan-500/50 bg-gradient-to-r from-cyan-500/5 to-transparent">
+                              <div className="flex items-start gap-4">
+                                <div className="p-3 rounded-xl bg-slate-800 border border-slate-700 shadow-2xl">
+                                  <ShieldAlert className="h-6 w-6 text-cyan-400" />
+                                </div>
+                                <div className="space-y-3 flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-lg font-medium text-white flex items-center gap-2">
+                                      Báo cáo phân tích từ Chuyên gia AI
+                                      <Badge variant="outline" className="text-[10px] text-cyan-400 border-cyan-500/30 uppercase tracking-widest">
+                                        Advanced Llama-3 Analysis
+                                      </Badge>
+                                    </h4>
+                                  </div>
+                                  <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap max-w-4xl">
+                                    {wallet.ai_insight || "Hệ thống đang tải dữ liệu phân tích chi tiết cho ví này..."}
+                                  </div>
+                                  <div className="pt-2 flex items-center gap-4">
+                                    <div className="text-[10px] text-slate-500 font-mono">
+                                      ENTITY: {wallet.entity_type || 'Unknown'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 font-mono uppercase">
+                                      FIRST SEEN: {formatDate(wallet.first_seen_at)}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   );
                 })
               )}

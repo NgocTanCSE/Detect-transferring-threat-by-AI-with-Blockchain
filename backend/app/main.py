@@ -251,7 +251,7 @@ def analyze_wallet_risk(
             wallet_id=wallet_record.id,
             score=risk_analysis["total_score"],
             risk_level=risk_analysis["risk_level"],
-            details=risk_analysis["breakdown"],
+            details={**risk_analysis["breakdown"], "ai_insight": risk_analysis.get("ai_insight")},
             model_version=risk_analysis.get("model", "Multi-Agent-v1.0")
         )
         database_session.add(assessment_record)
@@ -263,6 +263,7 @@ def analyze_wallet_risk(
             "risk_score": risk_analysis["total_score"],
             "risk_level": risk_analysis["risk_level"],
             "details": risk_analysis["breakdown"],
+            "ai_insight": risk_analysis.get("ai_insight", "No analysis available."),
             "detection_count": risk_analysis["detection_count"],
             "model": risk_analysis["model"],
             "cached": False,
