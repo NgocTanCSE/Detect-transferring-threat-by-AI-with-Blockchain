@@ -17,9 +17,8 @@ jobs:
           lfs: true
 
       - name: Sync to Hugging Face
-        uses: huggingface/hub-sync@v1.0
+        uses: huggingface/hub-sync@v0.1.0
         with:
           github_repo_id: ${{ github.repository }}
           huggingface_repo_id: tancse2005/Detect-transferring-threat-by-AI-with-Blockchain
           hf_token: ${{ secrets.HF_TOKEN }}
-          repo_type: space
