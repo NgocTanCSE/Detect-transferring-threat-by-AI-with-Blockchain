@@ -283,3 +283,78 @@ class TransactionCase(Base):
     def __repr__(self) -> str:
         return f"<TransactionCase(tx_hash={self.tx_hash[:10]}..., action={self.action}, state={self.state})>"
 
+
+class NodeEndpoint(Base):
+    """Configurable blockchain node endpoints for failover and health monitoring."""
+
+    __tablename__ = "node_endpoints"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    provider_name = Column(String(100), nullable=False, index=True)
+    chain = Column(String(50), nullable=False, index=True)
+    endpoint_url = Column(String(1024), nullable=False)
+    protocol = Column(String(20), nullable=False, default='http')  # http, websocket
+    priority = Column(Integer, nullable=False, default=100)
+    is_active = Column(Boolean, default=True, index=True)
+    health_status = Column(String(20), nullable=False, default='unknown')  # healthy, degraded, down, unknown
+    last_error = Column(Text, nullable=True)
+    last_checked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self) -> str:
+        return f"<NodeEndpoint(provider={self.provider_name}, chain={self.chain}, status={self.health_status})>"
+
+
+class PipelineMetric(Base):
+    """Operational metrics for ingestion and decode pipeline performance."""
+
+    __tablename__ = "pipeline_metrics"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
+    chain = Column(String(50), nullable=False, index=True)
+    block_number = Column(BigInteger, nullable=True, index=True)
+    throughput_tps = Column(DECIMAL(10, 2), nullable=True)
+    ingestion_latency_ms = Column(Integer, nullable=True)
+    decode_latency_ms = Column(Integer, nullable=True)
+    inserted_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def __repr__(self) -> str:
+        return f"<PipelineMetric(chain={self.chain}, tps={self.throughput_tps}, ingest_ms={self.ingestion_latency_ms})>"
+
+
+class FeatureStoreConfig(Base):
+    """Feature definitions and toggle states used by inference pipelines."""
+
+    __tablename__ = "feature_store_configs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    feature_key = Column(String(100), nullable=False, unique=True, index=True)
+    enabled = Column(Boolean, default=True, index=True)
+    expression = Column(Text, nullable=True)
+    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self) -> str:
+        return f"<FeatureStoreConfig(key={self.feature_key}, enabled={self.enabled})>"
+
+
+class ModelRegistry(Base):
+    """Model artifacts, versions, and active deployment status."""
+
+    __tablename__ = "model_registry"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    model_name = Column(String(100), nullable=False, index=True)
+    version = Column(String(50), nullable=False, index=True)
+    artifact_uri = Column(String(1024), nullable=False)
+    framework = Column(String(20), nullable=False, default='pkl')  # pkl, onnx, pt
+    is_active = Column(Boolean, default=False, index=True)
+    promoted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    promoted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self) -> str:
+        return f"<ModelRegistry(name={self.model_name}, version={self.version}, active={self.is_active})>"
+

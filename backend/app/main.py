@@ -95,6 +95,10 @@ app.include_router(auth_router)
 from app.case_management import router as case_router
 app.include_router(case_router)
 
+# Mount Phase 2 operations router
+from app.phase2_ops import router as phase2_ops_router
+app.include_router(phase2_ops_router)
+
 
 @app.get("/", tags=["Health"])
 def health_check() -> Dict[str, str]:
