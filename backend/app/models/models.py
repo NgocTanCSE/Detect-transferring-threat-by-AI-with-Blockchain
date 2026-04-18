@@ -272,7 +272,8 @@ class TransactionCase(Base):
     __tablename__ = "transaction_cases"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    tx_hash = Column(String(66), ForeignKey("transactions.tx_hash", ondelete="CASCADE"), nullable=False, index=True)
+    # Avoid FK to partitioned transactions table, which does not expose a compatible unique key for tx_hash.
+    tx_hash = Column(String(66), nullable=False, index=True)
     analyst_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
     action = Column(String(20), nullable=False)  # ASSIGN, CONFIRM_FRAUD, DISMISS, ESCALATE
     state = Column(String(20), nullable=False, default='PENDING')  # PENDING, VERIFIED, FRAUD, IGNORED

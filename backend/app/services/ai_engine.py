@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Tuple, Optional
 from collections import defaultdict
 
@@ -671,19 +671,24 @@ class MultiAgentDetectionEngine:
 
         timestamps = [self._parse_timestamp(tx.get('timestamp')) for tx in transactions]
         first_tx = min(timestamps)
-        age_days = (datetime.utcnow() - first_tx).days
+        age_days = (datetime.now(timezone.utc) - first_tx).days
 
         return max(1, age_days)
 
     def _parse_timestamp(self, timestamp: Any) -> datetime:
         """Parse timestamp from various formats."""
         if isinstance(timestamp, datetime):
-            return timestamp
+            if timestamp.tzinfo is None:
+                return timestamp.replace(tzinfo=timezone.utc)
+            return timestamp.astimezone(timezone.utc)
         elif isinstance(timestamp, str):
             try:
-                return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                parsed = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                if parsed.tzinfo is None:
+                    return parsed.replace(tzinfo=timezone.utc)
+                return parsed.astimezone(timezone.utc)
             except:
-                return datetime.utcnow()
+                return datetime.now(timezone.utc)
         elif isinstance(timestamp, (int, float)):
-            return datetime.fromtimestamp(timestamp)
-        return datetime.utcnow()
+            return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        return datetime.now(timezone.utc)

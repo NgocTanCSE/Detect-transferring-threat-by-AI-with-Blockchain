@@ -138,15 +138,19 @@ class AlchemyClient:
         )
         all_transfers.extend(incoming)
 
-        # Deduplicate by transaction hash
-        unique_transfers = {
-            transfer["hash"]: transfer for transfer in all_transfers
-        }.values()
+        # Deduplicate by normalized tx hash; skip malformed transfers without hash.
+        dedup_map: Dict[str, Dict[str, Any]] = {}
+        for transfer in all_transfers:
+            tx_hash = transfer.get("tx_hash")
+            if not tx_hash:
+                continue
+            dedup_map[tx_hash] = transfer
+        unique_transfers = dedup_map.values()
 
         # Sort by block number descending (most recent first)
         sorted_transfers = sorted(
             unique_transfers,
-            key=lambda x: x.get("blockNumber", 0),
+            key=lambda x: x.get("block_number", 0),
             reverse=True
         )
 
