@@ -16,9 +16,20 @@ jobs:
           fetch-depth: 0
           lfs: true
 
-      - name: Sync to Hugging Face
-        uses: huggingface/hub-sync@v0.1.0
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          github_repo_id: ${{ github.repository }}
-          huggingface_repo_id: tancse2005/Detect-transferring-threat-by-AI-with-Blockchain
-          hf_token: ${{ secrets.HF_TOKEN }}
+          python-version: '3.11'
+
+      - name: Install huggingface_hub
+        run: pip install huggingface_hub
+
+      - name: Sync to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::LỖI: Bạn chưa cài đặt 'HF_TOKEN' trong GitHub Secrets!"
+            exit 1
+          fi
+          huggingface-cli upload tancse2005/Detect-transferring-threat-by-AI-with-Blockchain . --repo-type space --token $HF_TOKEN
