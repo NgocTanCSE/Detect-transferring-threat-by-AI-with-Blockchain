@@ -1,8 +1,8 @@
 ---
 title: Blockchain AI Threat Detector
 emoji: 🛡️
-colorFrom: cyan
-colorTo: slate
+colorFrom: blue
+colorTo: gray
 sdk: docker
 pinned: false
 ---
