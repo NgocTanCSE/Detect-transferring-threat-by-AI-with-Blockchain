@@ -1,0 +1,44 @@
+
+> blockchain-ai-frontend@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.18
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+   Generating static pages (0/11) ...
+   Generating static pages (2/11) 
+   Generating static pages (5/11) 
+   Generating static pages (8/11) 
+ ✓ Generating static pages (11/11)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    23.3 kB         216 kB
+├ ○ /_not-found                          876 B          88.3 kB
+├ ○ /admin/dashboard                     19.1 kB         141 kB
+├ ○ /admin/history                       10.1 kB         211 kB
+├ ○ /admin/tracking                      7.47 kB         118 kB
+├ ƒ /api/[...path]                       0 B                0 B
+├ ƒ /insights/case/[txHash]              1.49 kB         105 kB
+├ ƒ /insights/policy/[policyId]          1.6 kB          105 kB
+├ ƒ /insights/wallet/[address]           2.49 kB         106 kB
+├ ○ /login                               6.87 kB         108 kB
+├ ○ /register                            6.62 kB         108 kB
+├ ○ /user/exchange                       17.3 kB         129 kB
+└ ○ /user/history                        6.34 kB         117 kB
++ First Load JS shared by all            87.4 kB
+  ├ chunks/117-c9e7b4468d21b26b.js       31.8 kB
+  ├ chunks/fd9d1056-edcb185e5e5a4f9e.js  53.6 kB
+  └ other shared chunks (total)          2 kB
+
+
+ƒ Middleware                             26.5 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

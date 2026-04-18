@@ -1,48 +1,167 @@
 "use client";
 
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, Loader2, Shield, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ShieldOff } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { registerUser } from "@/lib/api-auth";
+
+function resolveFriendlyError(errorMessage: string): string {
+  const lower = errorMessage.toLowerCase();
+  if (lower.includes("temporarily disabled")) return "Đăng ký đang tạm tắt ở backend. Bạn vẫn có thể vào khu vực user để dùng hệ thống.";
+  if (lower.includes("already registered")) return "Tên tài khoản hoặc email đã tồn tại.";
+  if (lower.includes("failed to fetch")) return "Không kết nối được backend. Hãy kiểm tra docker compose đang chạy.";
+  return errorMessage;
+}
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [walletAddress, setWalletAddress] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const canSubmit = useMemo(() => {
+    const hasBasic = username.trim().length >= 3 && email.trim().length > 0 && password.length >= 6;
+    const hasValidWallet = walletAddress.trim().length === 0 || (walletAddress.startsWith("0x") && walletAddress.length === 42);
+    return hasBasic && hasValidWallet;
+  }, [email, password, username, walletAddress]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canSubmit || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await registerUser({
+        username: username.trim(),
+        email: email.trim(),
+        password,
+        wallet_address: walletAddress.trim() || undefined,
+      });
+
+      setSuccess("Đăng ký thành công. Đang chuyển sang trang đăng nhập...");
+      setTimeout(() => {
+        router.push("/login");
+      }, 1200);
+    } catch (err) {
+      const rawMessage = err instanceof Error ? err.message : "Đăng ký thất bại";
+      setError(resolveFriendlyError(rawMessage));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 py-12">
-      <div className="w-full max-w-md animate-slide-up">
-        <div className="text-center mb-8 animate-fade-in">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 mb-4 shadow-lg shadow-purple-500/25">
-            <Shield className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">Đăng ký tạm ngưng</h1>
-          <p className="text-slate-400 mt-1">Hệ thống đang vận hành ở chế độ không cần tài khoản.</p>
-        </div>
-
-        <Card className="glass-card gradient-border animate-slide-up stagger-1">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-xl text-white">Tạm thời vô hiệu hóa</CardTitle>
-            <CardDescription className="text-slate-400">
-              Đăng ký sẽ được bật lại sau khi hoàn tất đại tu kiến trúc role mới.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-300">
-              <ShieldOff className="h-5 w-5 mt-0.5" />
-              <p className="text-sm">
-                Đăng ký đang tạm ngưng để ưu tiên vận hành luồng phân tích giao dịch trực tiếp từ Alchemy.
-              </p>
+    <div className="min-h-screen bg-slate-950 p-4">
+      <div className="mx-auto flex min-h-screen w-full max-w-lg items-center">
+        <div className="w-full">
+          <div className="mb-8 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-lg shadow-violet-500/25">
+              <Shield className="h-7 w-7 text-white" />
             </div>
+            <h1 className="text-2xl font-bold text-white">Tạo tài khoản</h1>
+            <p className="mt-1 text-slate-400">Đăng ký để theo dõi và bảo vệ giao dịch.</p>
+          </div>
 
-            <Link href="/" className="block">
-              <Button className="w-full btn-glow bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white font-medium">
-                Quay về trang chủ
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+          <Card className="border-slate-700/70 bg-slate-900/80 backdrop-blur">
+            <CardHeader>
+              <CardTitle className="text-white">Đăng ký</CardTitle>
+              <CardDescription className="text-slate-400">Thông tin cơ bản để tạo tài khoản mới.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="username" className="text-slate-300">Username</Label>
+                  <Input
+                    id="username"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    placeholder="Tối thiểu 3 ký tự"
+                    className="border-slate-700 bg-slate-950 text-slate-100"
+                  />
+                </div>
 
-        <p className="text-center text-slate-500 text-xs mt-6 animate-fade-in stagger-2">
-          Bằng việc đăng ký, bạn đồng ý với điều khoản sử dụng
-        </p>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-slate-300">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    className="border-slate-700 bg-slate-950 text-slate-100"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-slate-300">Mật khẩu</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Tối thiểu 6 ký tự"
+                    className="border-slate-700 bg-slate-950 text-slate-100"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="wallet" className="text-slate-300">Wallet address (tuỳ chọn)</Label>
+                  <Input
+                    id="wallet"
+                    value={walletAddress}
+                    onChange={(event) => setWalletAddress(event.target.value)}
+                    placeholder="0x..."
+                    className="border-slate-700 bg-slate-950 font-mono text-slate-100"
+                  />
+                </div>
+
+                {error ? (
+                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>
+                ) : null}
+
+                {success ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {success}
+                  </div>
+                ) : null}
+
+                <Button type="submit" className="w-full bg-violet-600 hover:bg-violet-700" disabled={!canSubmit || isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Đang tạo tài khoản...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Tạo tài khoản
+                    </>
+                  )}
+                </Button>
+              </form>
+
+              <p className="mt-4 text-sm text-slate-400">
+                Đã có tài khoản?{" "}
+                <Link href="/login" className="text-cyan-400 hover:text-cyan-300">
+                  Đăng nhập ngay
+                </Link>
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

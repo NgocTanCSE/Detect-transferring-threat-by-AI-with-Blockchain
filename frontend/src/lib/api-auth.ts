@@ -2,7 +2,7 @@
  * Authentication API functions for login, register, and user management.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 export interface UserData {
   id: string;

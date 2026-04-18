@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   BadgeInfo,
   Brain,
   ChartColumn,
+  ExternalLink,
   FileCheck2,
   Gauge,
   Globe2,
   RefreshCcw,
+  Search,
   Shield,
   Sparkles,
   Wallet,
@@ -263,6 +266,16 @@ const ROLE_COLORS: Record<RoleKey, string[]> = {
   security_analyst: ["#fb7185", "#f97316", "#ef4444"],
   compliance_risk_manager: ["#fbbf24", "#f59e0b", "#d97706"],
 };
+
+const QUICK_ROUTES = [
+  { label: "Login", href: "/login" },
+  { label: "Register", href: "/register" },
+  { label: "User Exchange", href: "/user/exchange" },
+  { label: "User History", href: "/user/history" },
+  { label: "Admin Dashboard", href: "/admin/dashboard" },
+  { label: "Admin Tracking", href: "/admin/tracking" },
+  { label: "Admin History", href: "/admin/history" },
+];
 
 const TONAL_STYLES: Record<string, string> = {
   cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-100",
@@ -693,6 +706,19 @@ export default function LiveDashboard() {
               );
             })}
           </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900/50 p-2">
+            <span className="px-2 text-xs uppercase tracking-[0.25em] text-slate-500">Quick routes</span>
+            {QUICK_ROUTES.map((route) => (
+              <Link
+                key={route.href}
+                href={route.href}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800/70 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-white"
+              >
+                {route.label}
+              </Link>
+            ))}
+          </div>
         </header>
 
         {error ? (
@@ -1052,32 +1078,80 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
 }
 
 function AlertQueuePanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSummary: AlertsSummary | null }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+
+  const filteredAlerts = useMemo(() => {
+    return alerts.filter((alert) => {
+      const matchesSeverity = severityFilter === "all" || alert.severity === severityFilter;
+      const keyword = searchTerm.trim().toLowerCase();
+      const matchesKeyword =
+        keyword.length === 0 ||
+        alert.wallet_address.toLowerCase().includes(keyword) ||
+        alert.alert_type.toLowerCase().includes(keyword) ||
+        alert.message.toLowerCase().includes(keyword);
+      return matchesSeverity && matchesKeyword;
+    });
+  }, [alerts, searchTerm, severityFilter]);
+
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Wallet</th>
-              <th className="px-4 py-3 text-left font-medium">Severity</th>
-              <th className="px-4 py-3 text-left font-medium">Type</th>
-              <th className="px-4 py-3 text-left font-medium">Time</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {alerts.slice(0, 8).map((alert) => (
-              <tr key={alert.alert_id}>
-                <td className="px-4 py-3">{formatAddress(alert.wallet_address)}</td>
-                <td className="px-4 py-3"><SeverityPill severity={alert.severity} /></td>
-                <td className="px-4 py-3">{alert.alert_type}</td>
-                <td className="px-4 py-3">{formatDateTime(alert.detected_at)}</td>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search wallet, type, message"
+              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
+            />
+          </div>
+          <select
+            value={severityFilter}
+            onChange={(event) => setSeverityFilter(event.target.value)}
+            className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
+          >
+            <option value="all">All severities</option>
+            <option value="CRITICAL">CRITICAL</option>
+            <option value="HIGH">HIGH</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="LOW">LOW</option>
+          </select>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-slate-700">
+          <table className="min-w-full divide-y divide-slate-800 text-sm">
+            <thead className="bg-slate-900/80 text-slate-400">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium">Wallet</th>
+                <th className="px-4 py-3 text-left font-medium">Severity</th>
+                <th className="px-4 py-3 text-left font-medium">Type</th>
+                <th className="px-4 py-3 text-left font-medium">Time</th>
+                <th className="px-4 py-3 text-left font-medium">Detail</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+              {filteredAlerts.slice(0, 8).map((alert) => (
+                <tr key={alert.alert_id}>
+                  <td className="px-4 py-3">{formatAddress(alert.wallet_address)}</td>
+                  <td className="px-4 py-3"><SeverityPill severity={alert.severity} /></td>
+                  <td className="px-4 py-3">{alert.alert_type}</td>
+                  <td className="px-4 py-3">{formatDateTime(alert.detected_at)}</td>
+                  <td className="px-4 py-3">
+                    <Link href={`/insights/wallet/${encodeURIComponent(alert.wallet_address)}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                      Wallet
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       <div className="space-y-3">
-        <AlertSeverityCard alertsSummary={alertsSummary} alerts={alerts} />
+        <AlertSeverityCard alertsSummary={alertsSummary} alerts={filteredAlerts} />
       </div>
     </div>
   );
@@ -1122,6 +1196,23 @@ function AlertSeverityCard({ alertsSummary, alerts }: { alertsSummary: AlertsSum
 }
 
 function CaseQueuePanel({ cases, caseSummary }: { cases: CaseItem[]; caseSummary: CaseSummary | null }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const filteredCases = useMemo(() => {
+    return cases.filter((item) => {
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+      const keyword = searchTerm.trim().toLowerCase();
+      const matchesKeyword =
+        keyword.length === 0 ||
+        item.tx_hash.toLowerCase().includes(keyword) ||
+        item.from_address.toLowerCase().includes(keyword) ||
+        item.to_address.toLowerCase().includes(keyword) ||
+        (item.flag_reason || "").toLowerCase().includes(keyword);
+      return matchesStatus && matchesKeyword;
+    });
+  }, [cases, searchTerm, statusFilter]);
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
@@ -1130,6 +1221,30 @@ function CaseQueuePanel({ cases, caseSummary }: { cases: CaseItem[]; caseSummary
         <MetricBlock label="Fraud" value={formatCompact(caseSummary?.totals.FRAUD ?? 0)} helper="Confirmed risk" tone="amber" />
         <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="cyan" />
       </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search tx hash or wallet"
+            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
+        >
+          <option value="all">All statuses</option>
+          <option value="PENDING">PENDING</option>
+          <option value="VERIFIED">VERIFIED</option>
+          <option value="FRAUD">FRAUD</option>
+          <option value="IGNORED">IGNORED</option>
+        </select>
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-slate-700">
         <table className="min-w-full divide-y divide-slate-800 text-sm">
           <thead className="bg-slate-900/80 text-slate-400">
@@ -1138,15 +1253,22 @@ function CaseQueuePanel({ cases, caseSummary }: { cases: CaseItem[]; caseSummary
               <th className="px-4 py-3 text-left font-medium">Risk</th>
               <th className="px-4 py-3 text-left font-medium">Status</th>
               <th className="px-4 py-3 text-left font-medium">Flag</th>
+              <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {cases.slice(0, 8).map((item) => (
+            {filteredCases.slice(0, 8).map((item) => (
               <tr key={item.tx_hash}>
                 <td className="px-4 py-3 font-mono text-xs">{formatAddress(item.tx_hash)}</td>
                 <td className="px-4 py-3">{item.risk_score != null ? formatPercent(item.risk_score * 100) : "-"}</td>
                 <td className="px-4 py-3">{item.status}</td>
                 <td className="px-4 py-3">{item.flag_reason ?? (item.is_flagged ? "Flagged" : "-")}</td>
+                <td className="px-4 py-3">
+                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                    Case
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1249,6 +1371,21 @@ function AlertChartPanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSum
 }
 
 function PolicyRulesPanel({ policies, reportingSummary }: { policies: PolicyRuleItem[]; reportingSummary: ReportingSummary | null }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
+
+  const filteredPolicies = useMemo(() => {
+    return policies.filter((policy) => {
+      const matchesActive = activeFilter === "all" || (activeFilter === "active" ? policy.is_active : !policy.is_active);
+      const keyword = searchTerm.trim().toLowerCase();
+      const matchesKeyword =
+        keyword.length === 0 ||
+        policy.rule_name.toLowerCase().includes(keyword) ||
+        (policy.description || "").toLowerCase().includes(keyword);
+      return matchesActive && matchesKeyword;
+    });
+  }, [activeFilter, policies, searchTerm]);
+
   if (!policies.length) {
     return <EmptyState message="No policy rules are stored in the backend yet." />;
   }
@@ -1261,6 +1398,28 @@ function PolicyRulesPanel({ policies, reportingSummary }: { policies: PolicyRule
         <MetricBlock label="Notifications sent" value={formatCompact(reportingSummary?.kpis.notifications_sent ?? 0)} helper="Delivery trail" tone="violet" />
         <MetricBlock label="Audit events" value={formatCompact(reportingSummary?.kpis.audit_events ?? 0)} helper="Evidence trail" tone="emerald" />
       </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search rule name or description"
+            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
+          />
+        </div>
+        <select
+          value={activeFilter}
+          onChange={(event) => setActiveFilter(event.target.value)}
+          className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
+        >
+          <option value="all">All policies</option>
+          <option value="active">Active only</option>
+          <option value="inactive">Inactive only</option>
+        </select>
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-slate-700">
         <table className="min-w-full divide-y divide-slate-800 text-sm">
           <thead className="bg-slate-900/80 text-slate-400">
@@ -1269,15 +1428,22 @@ function PolicyRulesPanel({ policies, reportingSummary }: { policies: PolicyRule
               <th className="px-4 py-3 text-left font-medium">Threshold</th>
               <th className="px-4 py-3 text-left font-medium">Priority</th>
               <th className="px-4 py-3 text-left font-medium">Active</th>
+              <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {policies.slice(0, 8).map((policy) => (
+            {filteredPolicies.slice(0, 8).map((policy) => (
               <tr key={policy.id}>
                 <td className="px-4 py-3">{policy.rule_name}</td>
                 <td className="px-4 py-3">{policy.min_risk_score}</td>
                 <td className="px-4 py-3">{policy.priority}</td>
                 <td className="px-4 py-3">{policy.is_active ? "Yes" : "No"}</td>
+                <td className="px-4 py-3">
+                  <Link href={`/insights/policy/${encodeURIComponent(policy.id)}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                    Policy
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

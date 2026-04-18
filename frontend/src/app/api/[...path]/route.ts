@@ -1,112 +1,72 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8000';
+const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  const path = params.path.join('/');
+function buildBackendUrl(request: NextRequest, params: { path: string[] }): string {
+  const path = params.path.join("/");
   const searchParams = request.nextUrl.searchParams.toString();
-  const url = `${BACKEND_URL}/${path}${searchParams ? `?${searchParams}` : ''}`;
-
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
-  } catch (error) {
-    console.error('API proxy error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch from backend' },
-      { status: 500 }
-    );
-  }
+  return `${BACKEND_URL}/${path}${searchParams ? `?${searchParams}` : ""}`;
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  const path = params.path.join('/');
-  const url = `${BACKEND_URL}/${path}`;
-  const body = await request.text();
+function forwardHeaders(request: NextRequest): Headers {
+  const headers = new Headers();
+  const contentType = request.headers.get("content-type");
+  const authorization = request.headers.get("authorization");
+  const accept = request.headers.get("accept");
+
+  if (contentType) headers.set("content-type", contentType);
+  if (authorization) headers.set("authorization", authorization);
+  if (accept) headers.set("accept", accept);
+
+  return headers;
+}
+
+async function toClientResponse(response: Response): Promise<NextResponse> {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  }
+
+  const text = await response.text();
+  return new NextResponse(text, {
+    status: response.status,
+    headers: {
+      "content-type": contentType || "text/plain; charset=utf-8",
+    },
+  });
+}
+
+async function proxy(request: NextRequest, params: { path: string[] }, method: string): Promise<NextResponse> {
+  const url = buildBackendUrl(request, params);
 
   try {
+    const body = method === "GET" || method === "DELETE" ? undefined : await request.text();
     const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      method,
+      headers: forwardHeaders(request),
       body,
     });
-
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    return toClientResponse(response);
   } catch (error) {
-    console.error('API proxy error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch from backend' },
-      { status: 500 }
-    );
+    console.error("API proxy error:", error);
+    return NextResponse.json({ error: "Failed to fetch from backend" }, { status: 500 });
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  const path = params.path.join('/');
-  const url = `${BACKEND_URL}/${path}`;
-  const body = await request.text();
-
-  try {
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body,
-    });
-
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
-  } catch (error) {
-    console.error('API proxy error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch from backend' },
-      { status: 500 }
-    );
-  }
+export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
+  return proxy(request, params, "GET");
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  const path = params.path.join('/');
-  const url = `${BACKEND_URL}/${path}`;
+export async function POST(request: NextRequest, { params }: { params: { path: string[] } }) {
+  return proxy(request, params, "POST");
+}
 
-  try {
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+export async function PUT(request: NextRequest, { params }: { params: { path: string[] } }) {
+  return proxy(request, params, "PUT");
+}
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
-  } catch (error) {
-    console.error('API proxy error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch from backend' },
-      { status: 500 }
-    );
-  }
+export async function DELETE(request: NextRequest, { params }: { params: { path: string[] } }) {
+  return proxy(request, params, "DELETE");
 }
