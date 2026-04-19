@@ -425,20 +425,34 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     - Plaintext passwords (from seed/dev data)
     - Bcrypt hashed passwords (from production registrations)
     """
-    # Support plaintext passwords for seed data (safe for dev, will be removed in prod)
-    if plain_password == hashed_password:
-        return True
-
     try:
+        if not hashed_password:
+            return False
+            
+        # Support plaintext passwords for seed data (safe for dev, will be removed in prod)
+        if plain_password == hashed_password:
+            return True
+
         return pwd_context.verify(plain_password, hashed_password)
-    except Exception:
-        # If bcrypt fails (invalid hash), fall back to plaintext comparison
+    except ValueError as e:
+        logger.error(f"Password verification error (bcrypt/passlib incompatibility?): {e}")
+        # Final fallback for development matching
+        return plain_password == hashed_password
+    except Exception as e:
+        logger.error(f"Unexpected error during password verification: {e}")
         return False
 
 
 def get_password_hash(password: str) -> str:
     """Hash a password for storage."""
-    return pwd_context.hash(password)
+    try:
+        return pwd_context.hash(password)
+    except ValueError as e:
+        logger.error(f"Password hashing error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Authentication system internal error. Please contact administrator."
+        )
 
 
 def _generate_unique_wallet_address(db: Session) -> str:

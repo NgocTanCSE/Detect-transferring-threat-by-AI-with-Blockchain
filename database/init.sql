@@ -531,7 +531,7 @@ INSERT INTO
 VALUES (
         'admin_security',
         'admin@blockchain-sentinel.io',
-        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.9HvD6s1qWq1q1q',
+        'admin123',
         'admin',
         '0x0000000000000000000000000000000000000001',
         true,
@@ -540,7 +540,7 @@ VALUES (
     (
         'linh_analyst',
         'linh.analyst@blockchain-sentinel.io',
-        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.9HvD6s1qWq1q1q',
+        'analyst123',
         'analyst',
         '0x742d35cc6634c0532925a3b844bc454e4438f44e',
         true,
