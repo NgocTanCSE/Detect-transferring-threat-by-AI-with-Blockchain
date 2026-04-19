@@ -85,6 +85,7 @@ VALUES (
 -- -----------------------------------------------------------------------------
 INSERT INTO
     wallets (
+        id,
         address,
         label,
         entity_type,
@@ -97,6 +98,7 @@ INSERT INTO
         notes
     )
 VALUES (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
         '0x1111111111111111111111111111111111111111',
         'CeFi Treasury A',
         'Exchange',
@@ -109,6 +111,7 @@ VALUES (
         'High volume but stable behavior'
     ),
     (
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002',
         '0x2222222222222222222222222222222222222222',
         'OTC Desk B',
         'Broker',
@@ -121,6 +124,7 @@ VALUES (
         'Periodic bursty settlement'
     ),
     (
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0003',
         '0x3333333333333333333333333333333333333333',
         'Bridge Router X',
         'Bridge',
@@ -133,6 +137,7 @@ VALUES (
         'Clustered cross-chain routing'
     ),
     (
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0004',
         '0x4444444444444444444444444444444444444444',
         'Mixer Ingress M1',
         'Unknown',
@@ -145,6 +150,7 @@ VALUES (
         'Frequent equal-size transfers'
     ),
     (
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0005',
         '0x5555555555555555555555555555555555555555',
         'Scam Collector S1',
         'Unknown',
@@ -157,6 +163,7 @@ VALUES (
         'Linked to phishing campaign'
     ),
     (
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0006',
         '0x6666666666666666666666666666666666666666',
         'DAO Ops Wallet',
         'DAO',
@@ -169,6 +176,7 @@ VALUES (
         'Governance payouts'
     ),
     (
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0007',
         '0x7777777777777777777777777777777777777777',
         'Arb Bot Cluster',
         'Trading',
@@ -181,6 +189,7 @@ VALUES (
         'Potential wash trading loop'
     ),
     (
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0008',
         '0x8888888888888888888888888888888888888888',
         'Vendor Settlement',
         'Merchant',
@@ -193,6 +202,7 @@ VALUES (
         'Recurring B2B payments'
     ),
     (
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0009',
         '0x9999999999999999999999999999999999999999',
         'Sanctioned Proxy',
         'Unknown',
@@ -205,6 +215,7 @@ VALUES (
         'Potential sanctions evasion'
     ),
     (
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0010',
         '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         'Gaming Treasury',
         'Gaming',

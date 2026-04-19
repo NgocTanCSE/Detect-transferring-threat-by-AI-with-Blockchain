@@ -54,6 +54,38 @@ def _execute_sql_file(cur, file_path: Path) -> None:
         cur.execute(handle.read())
 
 
+def _ensure_wallet_id_default(cur) -> None:
+    """Ensure wallets.id can be auto-generated on schema variants created outside init.sql."""
+    if not _table_exists(cur, "wallets"):
+        return
+
+    cur.execute(
+        """
+        SELECT data_type, column_default
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'wallets'
+          AND column_name = 'id'
+        LIMIT 1
+        """
+    )
+    result = cur.fetchone()
+    if not result:
+        return
+
+    data_type, column_default = result
+    if data_type != "uuid":
+        logger.warning("wallets.id is not UUID (found: %s); skipping default migration", data_type)
+        return
+
+    if column_default:
+        return
+
+    logger.info("wallets.id has no server default; applying uuid_generate_v4() default")
+    cur.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+    cur.execute("ALTER TABLE public.wallets ALTER COLUMN id SET DEFAULT uuid_generate_v4()")
+
+
 def bootstrap_database() -> None:
     if not DATABASE_URL:
         logger.info("DATABASE_URL is not set; skipping bootstrap")
@@ -64,6 +96,7 @@ def bootstrap_database() -> None:
 
     try:
         with connection.cursor() as cur:
+            _ensure_wallet_id_default(cur)
             users_table_exists = _table_exists(cur, "users")
             users_count = _scalar_count(cur, "SELECT COUNT(*) FROM users") if users_table_exists else 0
 
