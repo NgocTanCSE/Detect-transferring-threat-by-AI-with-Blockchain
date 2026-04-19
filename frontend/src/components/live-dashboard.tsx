@@ -846,6 +846,189 @@ export default function LiveDashboard() {
     sloMetrics,
   ]);
 
+  const companionPanel = useMemo(() => {
+    const totalLogs = diagnosticsLogs.length;
+    const errorLogs = diagnosticsLogs.filter((log) => (log.status_code ?? 200) >= 400 || ["error", "api_error"].includes(log.log_type)).length;
+    const endpointLogs = new Set(diagnosticsLogs.map((log) => log.endpoint).filter(Boolean)).size;
+
+    if (role.key === "system_admin") {
+      switch (activeFeatureIndex) {
+        case 0:
+          return {
+            title: "Live signal strip",
+            subtitle: "Health signals for runtime coverage and intervention",
+            content: (
+              <>
+                <div className="space-y-3">
+                  <SignalBar label="Dashboard coverage" value={dashboardStats ? percentage(dashboardStats.overview.total_alerts, Math.max(1, dashboardStats.overview.total_wallets)) : 0} tone="cyan" />
+                  <SignalBar label="Critical alerts" value={dashboardStats ? percentage(dashboardStats.overview.critical_alerts, Math.max(1, dashboardStats.overview.total_alerts)) : 0} tone="rose" />
+                  <SignalBar label="Flow window" value={Math.min(100, flowStats.length * 14)} tone="violet" />
+                  <SignalBar label="Blocked transfers" value={dashboardStats ? percentage(dashboardStats.overview.total_blocked, Math.max(1, dashboardStats.overview.total_alerts)) : 0} tone="amber" />
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <MiniStat label="Wallets" value={dashboardStats ? formatCompact(dashboardStats.overview.total_wallets) : "-"} />
+                  <MiniStat label="Alerts" value={dashboardStats ? formatCompact(dashboardStats.overview.total_alerts) : "-"} />
+                  <MiniStat label="Blocked" value={dashboardStats ? formatCompact(dashboardStats.overview.total_blocked) : "-"} />
+                  <MiniStat label="Signals" value={formatCompact(flowStats.length)} />
+                </div>
+              </>
+            ),
+          };
+        case 1:
+          return {
+            title: "Availability snapshot",
+            subtitle: "Endpoint reliability and node readiness",
+            content: (
+              <div className="grid grid-cols-2 gap-3">
+                <MiniStat label="Active nodes" value={formatCompact(nodeEndpoints.filter((item) => item.is_active).length)} />
+                <MiniStat label="Healthy nodes" value={formatCompact(nodeEndpoints.filter((item) => item.health_status === "healthy").length)} />
+                <MiniStat label="Total nodes" value={formatCompact(nodeEndpoints.length)} />
+                <MiniStat label="Availability" value={sloMetrics ? formatPercent(sloMetrics.endpoint_health.availability_pct) : "-"} />
+              </div>
+            ),
+          };
+        case 2:
+          return {
+            title: "Node operations signal",
+            subtitle: "Routing and endpoint posture",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Healthy active endpoints" value={sloMetrics ? sloMetrics.endpoint_health.availability_pct : 0} tone="cyan" />
+                <SignalBar label="Error budget burn" value={sloMetrics ? sloMetrics.endpoint_health.error_budget_burn_pct : 0} tone="rose" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Active" value={formatCompact(nodeEndpoints.filter((item) => item.is_active).length)} />
+                  <MiniStat label="Degraded" value={formatCompact(nodeEndpoints.filter((item) => item.health_status !== "healthy").length)} />
+                </div>
+              </div>
+            ),
+          };
+        case 3:
+          return {
+            title: "Pipeline quality",
+            subtitle: "Throughput and latency pressure",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Ingest p95" value={sloMetrics ? percentage(sloMetrics.latency_slo.ingest_target_ms, Math.max(1, sloMetrics.latency_slo.ingest_p95_ms)) : 0} tone="blue" />
+                <SignalBar label="Decode p95" value={sloMetrics ? percentage(sloMetrics.latency_slo.decode_target_ms, Math.max(1, sloMetrics.latency_slo.decode_p95_ms)) : 0} tone="emerald" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Points" value={formatCompact(pipelineSummary?.total_points ?? 0)} />
+                  <MiniStat label="Avg TPS" value={pipelineSummary?.avg_throughput_tps !== null && pipelineSummary?.avg_throughput_tps !== undefined ? pipelineSummary.avg_throughput_tps.toFixed(1) : "-"} />
+                </div>
+              </div>
+            ),
+          };
+        case 4:
+          return {
+            title: "Diagnostics digest",
+            subtitle: "Log health for this runtime",
+            content: (
+              <div className="grid grid-cols-2 gap-3">
+                <MiniStat label="Total logs" value={formatCompact(totalLogs)} />
+                <MiniStat label="Errors" value={formatCompact(errorLogs)} />
+                <MiniStat label="Endpoints" value={formatCompact(endpointLogs)} />
+                <MiniStat label="Log types" value={formatCompact(new Set(diagnosticsLogs.map((item) => item.log_type)).size)} />
+              </div>
+            ),
+          };
+        default:
+          return {
+            title: "SLO compliance view",
+            subtitle: "Service objective adherence",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Availability" value={sloMetrics ? sloMetrics.endpoint_health.availability_pct : 0} tone="cyan" />
+                <SignalBar label="Error budget" value={sloMetrics ? 100 - Math.min(100, sloMetrics.endpoint_health.error_budget_burn_pct) : 0} tone="violet" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Ingest breaches" value={formatCompact(sloMetrics?.latency_slo.ingest_breaches ?? 0)} />
+                  <MiniStat label="Decode breaches" value={formatCompact(sloMetrics?.latency_slo.decode_breaches ?? 0)} />
+                </div>
+              </div>
+            ),
+          };
+      }
+    }
+
+    if (role.key === "ai_data_engineer") {
+      const enabledFeatures = featureConfigs.filter((item) => item.enabled).length;
+      const activeModelCount = activeModels.length;
+      const registryCount = modelRegistry.length;
+      return {
+        title: "AI operations pulse",
+        subtitle: "Model and feature-store readiness",
+        content: (
+          <div className="space-y-3">
+            <SignalBar label="Feature enablement" value={percentage(enabledFeatures, Math.max(1, featureConfigs.length))} tone="violet" />
+            <SignalBar label="Active model coverage" value={percentage(activeModelCount, Math.max(1, registryCount))} tone="cyan" />
+            <div className="grid grid-cols-2 gap-3">
+              <MiniStat label="Features" value={formatCompact(featureConfigs.length)} />
+              <MiniStat label="Enabled" value={formatCompact(enabledFeatures)} />
+              <MiniStat label="Registry" value={formatCompact(registryCount)} />
+              <MiniStat label="Active models" value={formatCompact(activeModelCount)} />
+            </div>
+          </div>
+        ),
+      };
+    }
+
+    if (role.key === "security_analyst") {
+      const pendingCases = caseSummary?.totals?.pending ?? 0;
+      const inReviewCases = caseSummary?.totals?.under_review ?? 0;
+      return {
+        title: "Security pressure",
+        subtitle: "Alert and case handling load",
+        content: (
+          <div className="space-y-3">
+            <SignalBar label="Critical ratio" value={alertsSummary ? percentage(alertsSummary.critical, Math.max(1, alertsSummary.today)) : 0} tone="rose" />
+            <SignalBar label="High ratio" value={alertsSummary ? percentage(alertsSummary.high, Math.max(1, alertsSummary.today)) : 0} tone="amber" />
+            <div className="grid grid-cols-2 gap-3">
+              <MiniStat label="Alerts today" value={formatCompact(alertsSummary?.today ?? recentAlerts.length)} />
+              <MiniStat label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} />
+              <MiniStat label="Pending" value={formatCompact(pendingCases)} />
+              <MiniStat label="Under review" value={formatCompact(inReviewCases)} />
+            </div>
+          </div>
+        ),
+      };
+    }
+
+    return {
+      title: "Compliance posture",
+      subtitle: "Policy quality and audit readiness",
+      content: (
+        <div className="space-y-3">
+          <SignalBar label="Audit completeness" value={auditCompleteness?.completeness_pct ?? 0} tone="emerald" />
+          <SignalBar label="Block rate" value={controlEffectiveness?.metrics?.block_rate_pct ?? 0} tone="amber" />
+          <div className="grid grid-cols-2 gap-3">
+            <MiniStat label="Policy rules" value={formatCompact(policyRules.length)} />
+            <MiniStat label="Active rules" value={formatCompact(policyRules.filter((item) => item.is_active).length)} />
+            <MiniStat label="Audit gaps" value={formatCompact(auditGaps?.missing_count ?? 0)} />
+            <MiniStat label="Notifications" value={formatCompact(reportingSummary?.kpis.notifications_sent ?? 0)} />
+          </div>
+        </div>
+      ),
+    };
+  }, [
+    activeFeatureIndex,
+    activeModels,
+    alertsSummary,
+    auditCompleteness,
+    auditGaps,
+    caseSummary,
+    controlEffectiveness,
+    dashboardStats,
+    diagnosticsLogs,
+    featureConfigs,
+    flowStats.length,
+    modelRegistry.length,
+    nodeEndpoints,
+    pipelineSummary,
+    policyRules,
+    recentAlerts.length,
+    reportingSummary,
+    role.key,
+    sloMetrics,
+  ]);
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050816] text-slate-100">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.22),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(168,85,247,0.16),_transparent_30%),radial-gradient(circle_at_bottom,_rgba(245,158,11,0.13),_transparent_30%)]" />
@@ -1004,26 +1187,12 @@ export default function LiveDashboard() {
                 {selectedPanel.content}
               </CardShell>
 
-              {role.key === "system_admin" && (
-                <CardShell title="Live signal strip" subtitle="Actual backend metrics powering the current role" icon={BadgeInfo}>
-                  <div className="space-y-3">
-                    <SignalBar label="Dashboard coverage" value={dashboardStats ? percentage(dashboardStats.overview.total_alerts, Math.max(1, dashboardStats.overview.total_wallets)) : 0} tone="cyan" />
-                    <SignalBar label="Critical alerts" value={dashboardStats ? percentage(dashboardStats.overview.critical_alerts, Math.max(1, dashboardStats.overview.total_alerts)) : 0} tone="rose" />
-                    <SignalBar label="Flow window" value={Math.min(100, flowStats.length * 14)} tone="violet" />
-                    <SignalBar label="Blocked transfers" value={dashboardStats ? percentage(dashboardStats.overview.total_blocked, Math.max(1, dashboardStats.overview.total_alerts)) : 0} tone="amber" />
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <MiniStat label="Wallets" value={dashboardStats ? formatCompact(dashboardStats.overview.total_wallets) : "-"} />
-                    <MiniStat label="Alerts" value={dashboardStats ? formatCompact(dashboardStats.overview.total_alerts) : "-"} />
-                    <MiniStat label="Blocked" value={dashboardStats ? formatCompact(dashboardStats.overview.total_blocked) : "-"} />
-                    <MiniStat label="Signals" value={formatCompact(flowStats.length)} />
-                  </div>
-                </CardShell>
-              )}
+              <CardShell title={companionPanel.title} subtitle={companionPanel.subtitle} icon={BadgeInfo}>
+                {companionPanel.content}
+              </CardShell>
             </div>
 
-            {role.key === "system_admin" && (
+            {role.key === "system_admin" && activeFeatureIndex === 0 && (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <CardShell title="Recent alerts" subtitle="Actual backend alert stream" icon={AlertTriangle}>
                   <AlertList alerts={recentAlerts} />

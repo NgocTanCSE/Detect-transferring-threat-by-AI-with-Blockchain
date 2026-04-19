@@ -148,6 +148,13 @@ def get_diagnostics_status(database_session: Session = Depends(get_db)) -> Dict[
 @app.get("/admin/diagnostics/logs", tags=["Admin Diagnostics"])
 def get_diagnostics_logs(limit: int = 50, log_type: str = None) -> Dict[str, Any]:
     """Get recent diagnostic logs."""
+    log_diagnostic(
+        DiagnosticLogType.API_CALL,
+        "Diagnostics logs requested",
+        details={"limit": int(limit), "log_type": log_type},
+        status_code=200,
+        endpoint="/admin/diagnostics/logs"
+    )
     logs = diagnostic_logger.get_recent_logs(limit=limit, log_type=log_type)
     return {
         "count": len(logs),
@@ -159,6 +166,12 @@ def get_diagnostics_logs(limit: int = 50, log_type: str = None) -> Dict[str, Any
 @app.get("/admin/diagnostics/endpoint-stats", tags=["Admin Diagnostics"])
 def get_endpoint_statistics() -> Dict[str, Any]:
     """Get API endpoint statistics and health."""
+    log_diagnostic(
+        DiagnosticLogType.API_CALL,
+        "Endpoint statistics requested",
+        status_code=200,
+        endpoint="/admin/diagnostics/endpoint-stats"
+    )
     stats = diagnostic_logger.get_endpoint_stats()
     return {
         "endpoints": stats,
