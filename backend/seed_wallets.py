@@ -16,6 +16,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from sqlalchemy import func
 
 from app.core.config import DATABASE_URL
 from app.core.database import Base, SessionLocal, engine
@@ -615,6 +616,41 @@ def seed_wallets() -> None:
 
         db.commit()
 
+        # Post-seed verification report (total records, not only rows added in this run)
+        total_users = db.query(func.count(User.id)).scalar() or 0
+        total_wallets = db.query(func.count(Wallet.id)).scalar() or 0
+        total_transactions = db.query(func.count(Transaction.id)).scalar() or 0
+        total_alerts = db.query(func.count(Alert.id)).scalar() or 0
+        total_blocked = db.query(func.count(BlockedTransfer.id)).scalar() or 0
+        total_cases = db.query(func.count(TransactionCase.id)).scalar() or 0
+        total_notifications = db.query(func.count(NotificationEvent.id)).scalar() or 0
+        total_features = db.query(func.count(FeatureStoreConfig.id)).scalar() or 0
+        total_nodes = db.query(func.count(NodeEndpoint.id)).scalar() or 0
+        total_pipeline = db.query(func.count(PipelineMetric.id)).scalar() or 0
+        total_policies = db.query(func.count(PolicyRule.id)).scalar() or 0
+        total_models = db.query(func.count(ModelRegistry.id)).scalar() or 0
+
+        wallet_status_counts = {
+            status: count
+            for status, count in db.query(Wallet.account_status, func.count(Wallet.id)).group_by(Wallet.account_status).all()
+        }
+        risk_category_counts = {
+            (category or "none"): count
+            for category, count in db.query(Wallet.risk_category, func.count(Wallet.id)).group_by(Wallet.risk_category).all()
+        }
+        alert_severity_counts = {
+            severity: count
+            for severity, count in db.query(Alert.severity, func.count(Alert.id)).group_by(Alert.severity).all()
+        }
+        case_state_counts = {
+            state: count
+            for state, count in db.query(TransactionCase.state, func.count(TransactionCase.id)).group_by(TransactionCase.state).all()
+        }
+        notification_status_counts = {
+            status: count
+            for status, count in db.query(NotificationEvent.status, func.count(NotificationEvent.id)).group_by(NotificationEvent.status).all()
+        }
+
         print("\n" + "=" * 60)
         print("LOCAL DEMO SEED SUMMARY")
         print("=" * 60)
@@ -630,6 +666,27 @@ def seed_wallets() -> None:
         print(f"Feature configs added: {len(feature_configs)}")
         print(f"Node endpoints added: {len(node_endpoints)}")
         print(f"Pipeline metrics added: {len(pipeline_metrics)}")
+        print("-" * 60)
+        print("TOTAL RECORDS CURRENTLY IN DB")
+        print(f"Users: {total_users}")
+        print(f"Wallets: {total_wallets}")
+        print(f"Transactions: {total_transactions}")
+        print(f"Alerts: {total_alerts}")
+        print(f"Blocked transfers: {total_blocked}")
+        print(f"Cases: {total_cases}")
+        print(f"Notifications: {total_notifications}")
+        print(f"Feature configs: {total_features}")
+        print(f"Node endpoints: {total_nodes}")
+        print(f"Pipeline metrics: {total_pipeline}")
+        print(f"Policy rules: {total_policies}")
+        print(f"Model registry rows: {total_models}")
+        print("-" * 60)
+        print("DISTRIBUTION SNAPSHOT")
+        print(f"Wallet status: {wallet_status_counts}")
+        print(f"Risk category: {risk_category_counts}")
+        print(f"Alert severity: {alert_severity_counts}")
+        print(f"Case state: {case_state_counts}")
+        print(f"Notification status: {notification_status_counts}")
         print("✓ Seed completed successfully!")
         print("=" * 60)
 
