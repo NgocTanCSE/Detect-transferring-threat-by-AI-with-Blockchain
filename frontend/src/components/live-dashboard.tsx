@@ -55,10 +55,10 @@ type RoleDefinition = {
 function mapUserRoleToDashboardRole(role?: string | null): RoleKey {
   const normalized = (role ?? "").toLowerCase();
   if (normalized === "admin" || normalized === "system_admin") return "system_admin";
-  if (normalized === "ai_data_engineer" || normalized === "data_engineer" || normalized === "engineer") return "ai_data_engineer";
+  if (normalized === "ai_data_engineer" || normalized === "data_engineer") return "ai_data_engineer";
   if (normalized === "compliance_risk_manager" || normalized === "compliance") return "compliance_risk_manager";
-  if (normalized === "security_analyst" || normalized === "analyst" || normalized === "user") return "security_analyst";
-  return "security_analyst";
+  if (normalized === "security_analyst" || normalized === "analyst") return "security_analyst";
+  return "system_admin";
 }
 
 function isUserAdminRole(role?: string | null): boolean {
@@ -510,22 +510,24 @@ export default function LiveDashboard() {
   useEffect(() => {
     const roleParam = searchParams.get("role") as RoleKey | null;
     const fallbackRole = mapUserRoleToDashboardRole(user?.role);
-
+    
+    // 1. If we have a valid role in the URL, use it.
     if (roleParam && ROLE_DEFINITIONS.some((entry) => entry.key === roleParam)) {
-      const nextRole = roleParam;
-      if (nextRole !== activeRole) {
-        setActiveRole(nextRole);
-      }
-      if (nextRole !== roleParam) {
-        updateQuery({ role: nextRole, feature: 0 });
+      if (roleParam !== activeRole) {
+        setActiveRole(roleParam);
       }
       return;
     }
 
+    // 2. Otherwise, use the fallback role (determined by user role or default).
     if (fallbackRole !== activeRole) {
       setActiveRole(fallbackRole);
     }
-    updateQuery({ role: fallbackRole, feature: 0 });
+    
+    // 3. Ensure the URL reflects the active role.
+    if (fallbackRole !== roleParam) {
+      updateQuery({ role: fallbackRole, feature: 0 });
+    }
   }, [activeRole, searchParams, updateQuery, user?.role]);
 
   useEffect(() => {

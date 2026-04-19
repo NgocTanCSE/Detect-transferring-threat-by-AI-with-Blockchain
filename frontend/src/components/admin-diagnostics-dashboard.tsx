@@ -209,7 +209,7 @@ export default function AdminDiagnosticsDashboard() {
 
               <div className="mt-4 p-3 bg-blue-900/20 border border-blue-700/50 rounded">
                 <p className="text-xs text-blue-300">
-                  ℹ️ Expected seed: ~1000 wallets, ~5000 transactions, ~150 alerts, ~60 blocked transfers, ~100 cases
+                  ℹ️ Production-Grade Seed: ~1000 wallets, ~5000 transactions, ~150 alerts, ~60 blocked transfers, ~120 nodes, ~500 metrics
                 </p>
               </div>
             </CardContent>

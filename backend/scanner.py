@@ -22,6 +22,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.core.database import SessionLocal, engine, Base, ensure_schema
 from app.models.models import Wallet, Blacklist, Alert
 from app.services.ai_engine import MultiAgentDetectionEngine
+from app.services.persistence import persist_transactions
 from blockchain_client import fetch_wallet_history
 
 # Structured logging configuration
@@ -191,6 +192,8 @@ def scan_wallet(session: Session, wallet_address: str) -> Optional[dict]:
 
     try:
         transactions = fetch_transactions_with_retry(wallet_address)
+        # Persist transactions to database so dashboard charts are updated
+        persist_transactions(session, transactions, wallet_address)
     except Exception as e:
         logger.error(f"FETCH_FAILED | address={wallet_address[:10]}... | error={e}")
         return None

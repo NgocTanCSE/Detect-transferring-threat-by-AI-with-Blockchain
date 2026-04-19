@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.exc import DatabaseError
 
 from app.core.config import DATABASE_URL
@@ -41,11 +41,11 @@ from app.models.models import (
 )
 
 
-DEFAULT_USER_COUNT = int(os.getenv("LOCAL_DEMO_USER_COUNT", "5000"))
+DEFAULT_USER_COUNT = int(os.getenv("LOCAL_DEMO_USER_COUNT", "1000"))
 DEFAULT_TX_PER_USER = int(os.getenv("LOCAL_DEMO_TX_PER_USER", "5"))
-DEFAULT_ALERTS = int(os.getenv("LOCAL_DEMO_ALERT_COUNT", str(max(500, DEFAULT_USER_COUNT // 4))))
-DEFAULT_BLOCKED = int(os.getenv("LOCAL_DEMO_BLOCKED_COUNT", str(max(300, DEFAULT_USER_COUNT // 8))))
-DEFAULT_CASES = int(os.getenv("LOCAL_DEMO_CASE_COUNT", str(max(600, DEFAULT_USER_COUNT // 6))))
+DEFAULT_ALERTS = int(os.getenv("LOCAL_DEMO_ALERT_COUNT", "150"))
+DEFAULT_BLOCKED = int(os.getenv("LOCAL_DEMO_BLOCKED_COUNT", "60"))
+DEFAULT_CASES = int(os.getenv("LOCAL_DEMO_CASE_COUNT", "100"))
 RANDOM_SEED = int(os.getenv("LOCAL_DEMO_SEED", "1337"))
 
 ROOT_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -323,19 +323,36 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
     rng = random.Random(RANDOM_SEED)
 
     try:
-        existing_wallets = {address for (address,) in db.query(Wallet.address).all()}
-        existing_users = {username for (username,) in db.query(User.username).all()}
-        existing_tx_hashes = {tx_hash for (tx_hash,) in db.query(Transaction.tx_hash).all()}
-        existing_alert_ids = {alert_id for (alert_id,) in db.query(Alert.id).all()}
-        existing_blocked_ids = {blocked_id for (blocked_id,) in db.query(BlockedTransfer.id).all()}
-        existing_case_ids = {case_id for (case_id,) in db.query(TransactionCase.id).all()}
-        existing_audit_ids = {audit_id for (audit_id,) in db.query(AuditLog.id).all()}
-        existing_notification_ids = {notification_id for (notification_id,) in db.query(NotificationEvent.id).all()}
-        existing_feature_ids = {feature_id for (feature_id,) in db.query(FeatureStoreConfig.id).all()}
-        existing_node_ids = {node_id for (node_id,) in db.query(NodeEndpoint.id).all()}
-        existing_policy_rules = {rule_name for (rule_name,) in db.query(PolicyRule.rule_name).all()}
-        existing_models = {(model_name, version) for model_name, version in db.query(ModelRegistry.model_name, ModelRegistry.version).all()}
-        existing_pipeline_ids = {metric_id for (metric_id,) in db.query(PipelineMetric.id).all()}
+        tables_to_clear = [
+            "alerts", "audit_logs", "blocked_transfers", "diagnostic_events", 
+            "feature_store_configs", "model_registry", "node_endpoints", 
+            "notification_events", "pipeline_metrics", "policy_rules", 
+            "transaction_cases", "transactions", "wallets", "users", "token_transfers",
+            "risk_assessments", "user_warnings", "blacklist", "feedback_labels"
+        ]
+        db.commit() # Ensure clean state
+        for table in tables_to_clear:
+            try:
+                db.execute(text(f"DELETE FROM {table}"))
+                db.commit()
+                print(f"✓ Cleared {table}")
+            except Exception as e:
+                db.rollback()
+                print(f"⚠ Could not clear {table}: {e}")
+
+        existing_wallets = set()
+        existing_users = set()
+        existing_tx_hashes = set()
+        existing_alert_ids = set()
+        existing_blocked_ids = set()
+        existing_case_ids = set()
+        existing_audit_ids = set()
+        existing_notification_ids = set()
+        existing_feature_ids = set()
+        existing_node_ids = set()
+        existing_policy_rules = set()
+        existing_models = set()
+        existing_pipeline_ids = set()
 
         seed_rows = _build_seed_users(DEFAULT_USER_COUNT, rng, now)
         _validate_seed_pairs(seed_rows)
@@ -591,55 +608,70 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
             feature_configs = [feature for feature in feature_configs if feature.id not in existing_feature_ids]
 
-        for index in range(8):
-            status = _pick(["healthy", "healthy", "healthy", "degraded", "down"], index)
+        for index in range(120):
+            status = _pick(["healthy", "healthy", "healthy", "degraded", "down", "healthy"], index)
+            providers = ["Alchemy", "Infura", "QuickNode", "Ankr", "Lava", "Blast", "Bware", "Chainstack"]
+            chains = ["ethereum", "polygon", "arbitrum", "optimism", "base", "bsc"]
+            
             node_endpoints.append(
                 NodeEndpoint(
                     id=_make_uuid("node", index),
-                    provider_name=_pick(["Alchemy", "Infura", "QuickNode", "Ankr"], index),
-                    chain=_pick(["ethereum", "polygon", "arbitrum"], index),
-                    endpoint_url=f"https://node{index}.local-demo.invalid/rpc",
+                    provider_name=_pick(providers, index),
+                    chain=_pick(chains, index),
+                    endpoint_url=f"https://{_pick(chains, index)}-{index}.local-mesh.io/rpc",
                     protocol=_pick(["http", "websocket"], index),
-                    priority=10 + index,
+                    priority=10 + (index % 50),
                     is_active=True,
                     health_status=status,
                     last_error=None if status != "down" else "Timeout while contacting upstream node",
-                    last_checked_at=now - timedelta(minutes=index * 15),
-                    created_at=now - timedelta(days=25 - index),
+                    last_checked_at=now - timedelta(minutes=index % 60),
+                    created_at=now - timedelta(days=25 - (index % 20)),
                     updated_at=now,
                 )
             )
 
             node_endpoints = [node for node in node_endpoints if node.id not in existing_node_ids]
 
-        for index in range(90):
+        for index in range(500):
+            chains = ["ethereum", "polygon", "arbitrum", "optimism", "base", "bsc"]
             pipeline_metrics.append(
                 PipelineMetric(
-                    id=index + 1,
-                    chain=_pick(["ethereum", "polygon", "arbitrum"], index),
+                    chain=_pick(chains, index),
                     block_number=18_000_000 + index * 11,
-                    throughput_tps=Decimal(str(round(42.5 + (index % 7) * 3.1, 2))),
-                    ingestion_latency_ms=180 + (index % 9) * 15,
-                    decode_latency_ms=220 + (index % 11) * 18,
-                    inserted_at=now - timedelta(minutes=index * 10),
+                    throughput_tps=Decimal(str(round(42.5 + (index % 12) * 3.1, 2))),
+                    ingestion_latency_ms=150 + (index % 15) * 12,
+                    decode_latency_ms=200 + (index % 18) * 15,
+                    inserted_at=now - timedelta(minutes=index * 5),
                 )
             )
 
         pipeline_metrics = [metric for metric in pipeline_metrics if metric.id not in existing_pipeline_ids]
 
-        db.add_all(users_to_add)
-        db.add_all(wallets_to_add)
-        db.add_all(transactions_to_add)
-        db.add_all(policy_rules)
-        db.add_all(model_registry)
-        db.add_all(alerts)
-        db.add_all(blocked_transfers)
-        db.add_all(transaction_cases)
-        db.add_all(audit_logs)
-        db.add_all(notifications)
-        db.add_all(feature_configs)
-        db.add_all(node_endpoints)
-        db.add_all(pipeline_metrics)
+        def _robust_add(items, description):
+            print(f"Adding {description} ({len(items)})...")
+            count = 0
+            for item in items:
+                try:
+                    db.add(item)
+                    db.commit()
+                    count += 1
+                except Exception:
+                    db.rollback()
+            print(f"✓ Added {count} {description}")
+
+        _robust_add(users_to_add, "users")
+        _robust_add(wallets_to_add, "wallets")
+        _robust_add(transactions_to_add, "transactions")
+        _robust_add(policy_rules, "policy rules")
+        _robust_add(model_registry, "model registry")
+        _robust_add(alerts, "alerts")
+        _robust_add(blocked_transfers, "blocked transfers")
+        _robust_add(transaction_cases, "transaction cases")
+        _robust_add(audit_logs, "audit logs")
+        _robust_add(notifications, "notifications")
+        _robust_add(feature_configs, "feature configs")
+        _robust_add(node_endpoints, "node endpoints")
+        _robust_add(pipeline_metrics, "pipeline metrics")
 
         existing_blacklist = db.query(Blacklist).filter(Blacklist.address == "0xdead1000000000000000000000000000000dead").first()
         if not existing_blacklist:
