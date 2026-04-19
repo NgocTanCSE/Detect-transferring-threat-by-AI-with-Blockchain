@@ -12,11 +12,14 @@ from __future__ import annotations
 
 import os
 import random
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from sqlalchemy import func
+from sqlalchemy.exc import DatabaseError
 
 from app.core.config import DATABASE_URL
 from app.core.database import Base, SessionLocal, engine
@@ -46,6 +49,36 @@ DEFAULT_CASES = int(os.getenv("LOCAL_DEMO_CASE_COUNT", str(max(600, DEFAULT_USER
 RANDOM_SEED = int(os.getenv("LOCAL_DEMO_SEED", "1337"))
 
 ROOT_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+
+def _sqlite_path_from_url(database_url: str) -> Path | None:
+    if not database_url.startswith("sqlite:///"):
+        return None
+    if database_url.startswith("sqlite:////"):
+        return Path(database_url.replace("sqlite:////", "/", 1))
+    return Path(database_url.replace("sqlite:///", "", 1))
+
+
+def _sqlite_integrity_ok(sqlite_path: Path) -> bool:
+    if not sqlite_path.exists():
+        return True
+    connection: sqlite3.Connection | None = None
+    try:
+        connection = sqlite3.connect(str(sqlite_path))
+        row = connection.execute("PRAGMA integrity_check;").fetchone()
+        return bool(row and str(row[0]).lower() == "ok")
+    except sqlite3.DatabaseError:
+        return False
+    finally:
+        if connection is not None:
+            connection.close()
+
+
+def _cleanup_sqlite_files(sqlite_path: Path) -> None:
+    for suffix in ("", "-wal", "-shm", "-journal"):
+        candidate = Path(f"{sqlite_path}{suffix}")
+        if candidate.exists():
+            candidate.unlink()
 
 
 @dataclass(frozen=True)
@@ -270,10 +303,19 @@ def _build_transactions(seed_rows: list[SeedUser], tx_per_user: int, rng: random
     return transactions
 
 
-def seed_wallets() -> None:
+def seed_wallets(retried_after_rebuild: bool = False) -> None:
     """Seed the local database with a richer demo dataset."""
     db_backend = "sqlite" if DATABASE_URL.startswith("sqlite") else "postgres"
     print(f"Using database backend: {db_backend}")
+
+    sqlite_path = _sqlite_path_from_url(DATABASE_URL) if db_backend == "sqlite" else None
+    if sqlite_path is not None:
+        sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+        if not _sqlite_integrity_ok(sqlite_path):
+            print(f"⚠ Detected malformed SQLite database at {sqlite_path}. Rebuilding fresh database...")
+            engine.dispose()
+            _cleanup_sqlite_files(sqlite_path)
+
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
@@ -690,6 +732,24 @@ def seed_wallets() -> None:
         print("✓ Seed completed successfully!")
         print("=" * 60)
 
+    except DatabaseError as error:
+        if (
+            db_backend == "sqlite"
+            and not retried_after_rebuild
+            and "malformed" in str(error).lower()
+            and sqlite_path is not None
+        ):
+            print("⚠ SQLite reported malformed image during seed. Rebuilding once and retrying...")
+            db.rollback()
+            db.close()
+            engine.dispose()
+            _cleanup_sqlite_files(sqlite_path)
+            Base.metadata.create_all(bind=engine)
+            return seed_wallets(retried_after_rebuild=True)
+
+        print(f"✗ Error during seeding: {error}")
+        db.rollback()
+        raise
     except Exception as error:
         print(f"✗ Error during seeding: {error}")
         db.rollback()
