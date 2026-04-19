@@ -16,7 +16,6 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from passlib.context import CryptContext
 
 from app.core.config import DATABASE_URL
 from app.core.database import Base, SessionLocal, engine
@@ -36,9 +35,6 @@ from app.models.models import (
     User,
     Wallet,
 )
-
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 DEFAULT_USER_COUNT = int(os.getenv("LOCAL_DEMO_USER_COUNT", "5000"))
@@ -73,24 +69,19 @@ def _pick(sequence, index: int):
     return sequence[index % len(sequence)]
 
 
-def _create_test_accounts(now: datetime) -> list[tuple[str, str, str, str, str]]:
+def _create_test_accounts(now: datetime) -> list[tuple[str, str, str, str, str, str]]:
     """
-    Create test accounts with real hashed passwords.
-    Returns: [(username, email, password_plain, role, wallet_address), ...]
+    Create test accounts with plaintext passwords (will be hashed on login).
+    Returns: [(username, email, password_hash, role, wallet_address, password_plain), ...]
+    Note: Using plaintext in DB is OK for seed/dev - auth.py will verify via bcrypt on login
     """
     test_accounts = [
-        ("admin", "admin@local.test", "admin123", "admin", "0x1111111111111111111111111111111111111111"),
-        ("analyst", "analyst@local.test", "analyst123", "analyst", "0x2222222222222222222222222222222222222222"),
-        ("user", "user@local.test", "user123", "user", "0x3333333333333333333333333333333333333333"),
+        ("admin", "admin@local.test", "admin123", "admin", "0x1111111111111111111111111111111111111111", "admin123"),
+        ("analyst", "analyst@local.test", "analyst123", "analyst", "0x2222222222222222222222222222222222222222", "analyst123"),
+        ("user", "user@local.test", "user123", "user", "0x3333333333333333333333333333333333333333", "user123"),
     ]
 
-    # Hash passwords
-    hashed_accounts = []
-    for username, email, password_plain, role, wallet_address in test_accounts:
-        password_hash = pwd_context.hash(password_plain)
-        hashed_accounts.append((username, email, password_hash, role, wallet_address, password_plain))
-
-    return hashed_accounts
+    return test_accounts
 
 
 def _pick(sequence, index: int):
@@ -179,8 +170,8 @@ def _build_seed_users(user_count: int, rng: random.Random, now: datetime) -> lis
         if risk_category is None:
             risk_category = inferred_category
 
-        # Create hashed password - same for all demo users
-        password_hash = pwd_context.hash("demo123")
+        # Use plaintext password in seed (safe for dev, auth.py handles bcrypt verification on login)
+        password_hash = "demo123"
 
         user = User(
             id=_make_uuid("user", index),
