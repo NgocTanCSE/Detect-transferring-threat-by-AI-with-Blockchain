@@ -13,10 +13,29 @@ function forwardHeaders(request: NextRequest): Headers {
   const contentType = request.headers.get("content-type");
   const authorization = request.headers.get("authorization");
   const accept = request.headers.get("accept");
+  const cookie = request.headers.get("cookie") || "";
+  const authTokenFromCookie = cookie.match(/(?:^|;\s*)auth_token=([^;]+)/)?.[1];
 
   if (contentType) headers.set("content-type", contentType);
-  if (authorization) headers.set("authorization", authorization);
+  if (authorization) {
+    headers.set("authorization", authorization);
+  } else if (authTokenFromCookie) {
+    headers.set("authorization", `Bearer ${decodeURIComponent(authTokenFromCookie)}`);
+  }
   if (accept) headers.set("accept", accept);
+  if (cookie) headers.set("cookie", cookie);
+
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+  const host = request.headers.get("host");
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+
+  if (origin) headers.set("origin", origin);
+  if (referer) headers.set("referer", referer);
+  if (host) headers.set("host", host);
+  if (forwardedHost) headers.set("x-forwarded-host", forwardedHost);
+  if (forwardedProto) headers.set("x-forwarded-proto", forwardedProto);
 
   return headers;
 }
