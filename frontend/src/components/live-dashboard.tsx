@@ -759,11 +759,11 @@ export default function LiveDashboard() {
         case 2:
           return { title: "Feature operations", description: "Feature-store inventory with enablement ratio.", content: <FeatureOperationsPanel features={featureConfigs} /> };
         case 3:
-          return { title: "Model operations", description: "Registry depth and active model configuration.", content: <ModelRegistryTable models={modelRegistry} activeModels={activeModels} /> };
+          return { title: "Model operations", description: "Active-serving models, promotion signals, and deployment posture.", content: <ModelOperationsPanel models={modelRegistry} activeModels={activeModels} /> };
         case 4:
-          return { title: "Feature data", description: "Current feature coverage and expressions.", content: <FeatureStoreTable features={featureConfigs} /> };
+          return { title: "Feature data", description: "Expression quality and owner coverage details.", content: <FeatureDataPanel features={featureConfigs} /> };
         default:
-          return { title: "Registry data", description: "Version history and artifact paths.", content: <ModelRegistryTable models={modelRegistry} activeModels={activeModels} /> };
+          return { title: "Registry data", description: "Version lineage and artifact governance details.", content: <RegistryDataPanel models={modelRegistry} /> };
       }
     }
 
@@ -790,8 +790,8 @@ export default function LiveDashboard() {
         default:
           return {
             title: "Case data",
-            description: "Case states and assignment pressure.",
-            content: <CaseQueuePanel cases={caseItems} totalCount={totalCaseCount} caseSummary={caseSummary} contextQuery={contextQuery} urlState={caseUrlState} onUrlStateChange={updateQuery} />,
+            description: "Case distribution and recent records for audit traceability.",
+            content: <CaseDataPanel cases={caseItems} caseSummary={caseSummary} contextQuery={contextQuery} />,
           };
       }
     }
@@ -812,11 +812,11 @@ export default function LiveDashboard() {
       case 4:
         return {
           title: "Policy data",
-          description: "Current policy rules and priorities.",
-          content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} contextQuery={contextQuery} urlState={policyUrlState} onUrlStateChange={updateQuery} />,
+          description: "Rule-level policy metrics and guardrail readiness.",
+          content: <PolicyDataPanel policies={policyRules} reportingSummary={reportingSummary} />,
         };
       default:
-        return { title: "Audit data", description: "Gap analysis and missing controls.", content: <AuditPanel auditCompleteness={auditCompleteness} auditGaps={auditGaps} /> };
+        return { title: "Audit data", description: "Missing evidence trail and control ownership gaps.", content: <AuditDataPanel auditCompleteness={auditCompleteness} auditGaps={auditGaps} /> };
     }
   }, [
     activeFeatureIndex,
@@ -952,74 +952,300 @@ export default function LiveDashboard() {
       const enabledFeatures = featureConfigs.filter((item) => item.enabled).length;
       const activeModelCount = activeModels.length;
       const registryCount = modelRegistry.length;
-      return {
-        title: "AI operations pulse",
-        subtitle: "Model and feature-store readiness",
-        content: (
-          <div className="space-y-3">
-            <SignalBar label="Feature enablement" value={percentage(enabledFeatures, Math.max(1, featureConfigs.length))} tone="violet" />
-            <SignalBar label="Active model coverage" value={percentage(activeModelCount, Math.max(1, registryCount))} tone="cyan" />
-            <div className="grid grid-cols-2 gap-3">
-              <MiniStat label="Features" value={formatCompact(featureConfigs.length)} />
-              <MiniStat label="Enabled" value={formatCompact(enabledFeatures)} />
-              <MiniStat label="Registry" value={formatCompact(registryCount)} />
-              <MiniStat label="Active models" value={formatCompact(activeModelCount)} />
-            </div>
-          </div>
-        ),
-      };
+      switch (activeFeatureIndex) {
+        case 0:
+          return {
+            title: "Model serving pulse",
+            subtitle: "Serving coverage and framework diversity",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Active model coverage" value={percentage(activeModelCount, Math.max(1, registryCount))} tone="cyan" />
+                <SignalBar label="Framework diversity" value={percentage(new Set(modelRegistry.map((item) => item.framework)).size, Math.max(1, registryCount))} tone="violet" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Registry" value={formatCompact(registryCount)} />
+                  <MiniStat label="Active models" value={formatCompact(activeModelCount)} />
+                  <MiniStat label="Frameworks" value={formatCompact(new Set(modelRegistry.map((item) => item.framework)).size)} />
+                  <MiniStat label="Promotions" value={formatCompact(modelRegistry.filter((item) => Boolean(item.promoted_at)).length)} />
+                </div>
+              </div>
+            ),
+          };
+        case 1:
+          return {
+            title: "Feature readiness",
+            subtitle: "Enablement and ownership posture",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Feature enablement" value={percentage(enabledFeatures, Math.max(1, featureConfigs.length))} tone="violet" />
+                <SignalBar label="Owner coverage" value={percentage(new Set(featureConfigs.map((item) => item.owner_user_id).filter(Boolean)).size, Math.max(1, featureConfigs.length))} tone="cyan" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Features" value={formatCompact(featureConfigs.length)} />
+                  <MiniStat label="Enabled" value={formatCompact(enabledFeatures)} />
+                  <MiniStat label="Owned" value={formatCompact(new Set(featureConfigs.map((item) => item.owner_user_id).filter(Boolean)).size)} />
+                  <MiniStat label="No owner" value={formatCompact(featureConfigs.filter((item) => !item.owner_user_id).length)} />
+                </div>
+              </div>
+            ),
+          };
+        case 2:
+          return {
+            title: "Feature operations pulse",
+            subtitle: "Operational toggles and drift indicators",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Enabled toggles" value={percentage(enabledFeatures, Math.max(1, featureConfigs.length))} tone="violet" />
+                <SignalBar label="Expression coverage" value={percentage(featureConfigs.filter((item) => Boolean(item.expression)).length, Math.max(1, featureConfigs.length))} tone="amber" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="With expression" value={formatCompact(featureConfigs.filter((item) => Boolean(item.expression)).length)} />
+                  <MiniStat label="Missing expression" value={formatCompact(featureConfigs.filter((item) => !item.expression).length)} />
+                </div>
+              </div>
+            ),
+          };
+        case 3:
+          return {
+            title: "Model ops guardrails",
+            subtitle: "Promotion and serving consistency",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Promoted models" value={percentage(modelRegistry.filter((item) => Boolean(item.promoted_at)).length, Math.max(1, registryCount))} tone="cyan" />
+                <SignalBar label="Active-inactive gap" value={percentage(Math.max(0, registryCount - activeModelCount), Math.max(1, registryCount))} tone="rose" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Inactive" value={formatCompact(Math.max(0, registryCount - activeModelCount))} />
+                  <MiniStat label="Artifact URIs" value={formatCompact(modelRegistry.filter((item) => Boolean(item.artifact_uri)).length)} />
+                </div>
+              </div>
+            ),
+          };
+        case 4:
+          return {
+            title: "Feature data quality",
+            subtitle: "Data completeness for feature expressions",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Expression completeness" value={percentage(featureConfigs.filter((item) => Boolean(item.expression)).length, Math.max(1, featureConfigs.length))} tone="amber" />
+                <SignalBar label="Updated records" value={percentage(featureConfigs.filter((item) => Boolean(item.updated_at)).length, Math.max(1, featureConfigs.length))} tone="emerald" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Updated" value={formatCompact(featureConfigs.filter((item) => Boolean(item.updated_at)).length)} />
+                  <MiniStat label="Not updated" value={formatCompact(featureConfigs.filter((item) => !item.updated_at).length)} />
+                </div>
+              </div>
+            ),
+          };
+        default:
+          return {
+            title: "Registry governance",
+            subtitle: "Version lineage and operational hygiene",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Version coverage" value={percentage(registryCount, Math.max(1, registryCount + 2))} tone="cyan" />
+                <SignalBar label="Promotion hygiene" value={percentage(modelRegistry.filter((item) => Boolean(item.promoted_by)).length, Math.max(1, registryCount))} tone="violet" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Promoted by owner" value={formatCompact(modelRegistry.filter((item) => Boolean(item.promoted_by)).length)} />
+                  <MiniStat label="No promoter" value={formatCompact(modelRegistry.filter((item) => !item.promoted_by).length)} />
+                </div>
+              </div>
+            ),
+          };
+      }
     }
 
     if (role.key === "security_analyst") {
       const pendingCases = caseSummary?.totals?.pending ?? 0;
       const inReviewCases = caseSummary?.totals?.under_review ?? 0;
-      return {
-        title: "Security pressure",
-        subtitle: "Alert and case handling load",
-        content: (
-          <div className="space-y-3">
-            <SignalBar label="Critical ratio" value={alertsSummary ? percentage(alertsSummary.critical, Math.max(1, alertsSummary.today)) : 0} tone="rose" />
-            <SignalBar label="High ratio" value={alertsSummary ? percentage(alertsSummary.high, Math.max(1, alertsSummary.today)) : 0} tone="amber" />
-            <div className="grid grid-cols-2 gap-3">
-              <MiniStat label="Alerts today" value={formatCompact(alertsSummary?.today ?? recentAlerts.length)} />
-              <MiniStat label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} />
-              <MiniStat label="Pending" value={formatCompact(pendingCases)} />
-              <MiniStat label="Under review" value={formatCompact(inReviewCases)} />
-            </div>
-          </div>
-        ),
-      };
+      switch (activeFeatureIndex) {
+        case 0:
+          return {
+            title: "Alert pressure",
+            subtitle: "Severity and queue volatility",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Critical ratio" value={alertsSummary ? percentage(alertsSummary.critical, Math.max(1, alertsSummary.today)) : 0} tone="rose" />
+                <SignalBar label="High ratio" value={alertsSummary ? percentage(alertsSummary.high, Math.max(1, alertsSummary.today)) : 0} tone="amber" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Alerts today" value={formatCompact(alertsSummary?.today ?? recentAlerts.length)} />
+                  <MiniStat label="Critical" value={formatCompact(alertsSummary?.critical ?? 0)} />
+                </div>
+              </div>
+            ),
+          };
+        case 1:
+          return {
+            title: "Case queue pressure",
+            subtitle: "Assignment and verification load",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Unassigned pressure" value={percentage(caseSummary?.unassigned ?? 0, Math.max(1, pendingCases + inReviewCases))} tone="violet" />
+                <SignalBar label="High-risk unassigned" value={percentage(caseSummary?.high_risk_unassigned ?? 0, Math.max(1, caseSummary?.unassigned ?? 0))} tone="rose" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Pending" value={formatCompact(pendingCases)} />
+                  <MiniStat label="Under review" value={formatCompact(inReviewCases)} />
+                </div>
+              </div>
+            ),
+          };
+        case 2:
+          return {
+            title: "Action execution",
+            subtitle: "Fraud decision and backlog pressure",
+            content: (
+              <div className="grid grid-cols-2 gap-3">
+                <MiniStat label="Fraud" value={formatCompact(caseSummary?.totals?.fraud ?? caseSummary?.totals?.FRAUD ?? 0)} />
+                <MiniStat label="Ignored" value={formatCompact(caseSummary?.totals?.ignored ?? caseSummary?.totals?.IGNORED ?? 0)} />
+                <MiniStat label="Verified" value={formatCompact(caseSummary?.totals?.verified ?? caseSummary?.totals?.VERIFIED ?? 0)} />
+                <MiniStat label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} />
+              </div>
+            ),
+          };
+        case 3:
+          return {
+            title: "Notification delivery",
+            subtitle: "Channel throughput and status",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Sent ratio" value={percentage(notificationEvents.filter((item) => item.status.toLowerCase() === "sent").length, Math.max(1, notificationEvents.length))} tone="emerald" />
+                <SignalBar label="Failed ratio" value={percentage(notificationEvents.filter((item) => item.status.toLowerCase() !== "sent").length, Math.max(1, notificationEvents.length))} tone="rose" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Events" value={formatCompact(notificationEvents.length)} />
+                  <MiniStat label="Channels" value={formatCompact(new Set(notificationEvents.map((item) => item.channel)).size)} />
+                </div>
+              </div>
+            ),
+          };
+        case 4:
+          return {
+            title: "Alert analytics",
+            subtitle: "Severity trend snapshot",
+            content: (
+              <div className="grid grid-cols-2 gap-3">
+                <MiniStat label="Critical" value={formatCompact(alertsSummary?.critical ?? 0)} />
+                <MiniStat label="High" value={formatCompact(alertsSummary?.high ?? 0)} />
+                <MiniStat label="Medium" value={formatCompact(alertsSummary?.medium ?? 0)} />
+                <MiniStat label="Low" value={formatCompact(alertsSummary?.low ?? 0)} />
+              </div>
+            ),
+          };
+        default:
+          return {
+            title: "Case evidence quality",
+            subtitle: "Recent case data completeness",
+            content: (
+              <div className="space-y-3">
+                <SignalBar label="Flagged ratio" value={percentage(caseItems.filter((item) => item.is_flagged).length, Math.max(1, caseItems.length))} tone="amber" />
+                <SignalBar label="Has assignee" value={percentage(caseItems.filter((item) => Boolean(item.assigned_to)).length, Math.max(1, caseItems.length))} tone="cyan" />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Case rows" value={formatCompact(caseItems.length)} />
+                  <MiniStat label="Flagged" value={formatCompact(caseItems.filter((item) => item.is_flagged).length)} />
+                </div>
+              </div>
+            ),
+          };
+      }
     }
 
-    return {
-      title: "Compliance posture",
-      subtitle: "Policy quality and audit readiness",
-      content: (
-        <div className="space-y-3">
-          <SignalBar label="Audit completeness" value={auditCompleteness?.completeness_pct ?? 0} tone="emerald" />
-          <SignalBar label="Block rate" value={controlEffectiveness?.metrics?.block_rate_pct ?? 0} tone="amber" />
-          <div className="grid grid-cols-2 gap-3">
-            <MiniStat label="Policy rules" value={formatCompact(policyRules.length)} />
-            <MiniStat label="Active rules" value={formatCompact(policyRules.filter((item) => item.is_active).length)} />
-            <MiniStat label="Audit gaps" value={formatCompact(auditGaps?.missing_count ?? 0)} />
-            <MiniStat label="Notifications" value={formatCompact(reportingSummary?.kpis.notifications_sent ?? 0)} />
-          </div>
-        </div>
-      ),
-    };
+    switch (activeFeatureIndex) {
+      case 0:
+        return {
+          title: "Policy posture",
+          subtitle: "Rule coverage and activation health",
+          content: (
+            <div className="space-y-3">
+              <SignalBar label="Active policy ratio" value={percentage(policyRules.filter((item) => item.is_active).length, Math.max(1, policyRules.length))} tone="amber" />
+              <SignalBar label="High-threshold ratio" value={percentage(policyRules.filter((item) => item.min_risk_score >= 70).length, Math.max(1, policyRules.length))} tone="violet" />
+              <div className="grid grid-cols-2 gap-3">
+                <MiniStat label="Rules" value={formatCompact(policyRules.length)} />
+                <MiniStat label="Active" value={formatCompact(policyRules.filter((item) => item.is_active).length)} />
+              </div>
+            </div>
+          ),
+        };
+      case 1:
+        return {
+          title: "Audit posture",
+          subtitle: "Evidence completeness and gaps",
+          content: (
+            <div className="grid grid-cols-2 gap-3">
+              <MiniStat label="Completeness" value={formatPercent(auditCompleteness?.completeness_pct ?? 0)} />
+              <MiniStat label="Required" value={formatCompact(auditCompleteness?.required_actions ?? 0)} />
+              <MiniStat label="Present" value={formatCompact(auditCompleteness?.present_actions ?? 0)} />
+              <MiniStat label="Missing" value={formatCompact(auditGaps?.missing_count ?? 0)} />
+            </div>
+          ),
+        };
+      case 2:
+        return {
+          title: "Control effectiveness",
+          subtitle: "Decision quality and block outcomes",
+          content: (
+            <div className="space-y-3">
+              <SignalBar label="Block rate" value={controlEffectiveness?.metrics?.block_rate_pct ?? 0} tone="amber" />
+              <SignalBar label="Precision proxy" value={controlEffectiveness?.metrics?.fraud_precision_proxy_pct ?? 0} tone="emerald" />
+              <div className="grid grid-cols-2 gap-3">
+                <MiniStat label="Actionable alerts" value={formatCompact(controlEffectiveness?.inputs?.actionable_alerts ?? 0)} />
+                <MiniStat label="Fraud cases" value={formatCompact(controlEffectiveness?.inputs?.fraud_cases ?? 0)} />
+              </div>
+            </div>
+          ),
+        };
+      case 3:
+        return {
+          title: "Reporting pulse",
+          subtitle: "KPI generation and evidence output",
+          content: (
+            <div className="grid grid-cols-2 gap-3">
+              <MiniStat label="Alerts" value={formatCompact(reportingSummary?.kpis?.alerts_total ?? 0)} />
+              <MiniStat label="Critical" value={formatCompact(reportingSummary?.kpis?.critical_alerts ?? 0)} />
+              <MiniStat label="Blocked" value={formatCompact(reportingSummary?.kpis?.blocked_total ?? 0)} />
+              <MiniStat label="Audit events" value={formatCompact(reportingSummary?.kpis?.audit_events ?? 0)} />
+            </div>
+          ),
+        };
+      case 4:
+        return {
+          title: "Policy data quality",
+          subtitle: "Rule metadata and threshold consistency",
+          content: (
+            <div className="space-y-3">
+              <SignalBar label="Has description" value={percentage(policyRules.filter((item) => Boolean(item.description)).length, Math.max(1, policyRules.length))} tone="cyan" />
+              <SignalBar label="Priority mapped" value={percentage(policyRules.filter((item) => item.priority > 0).length, Math.max(1, policyRules.length))} tone="violet" />
+              <div className="grid grid-cols-2 gap-3">
+                <MiniStat label="Described" value={formatCompact(policyRules.filter((item) => Boolean(item.description)).length)} />
+                <MiniStat label="Undescribed" value={formatCompact(policyRules.filter((item) => !item.description).length)} />
+              </div>
+            </div>
+          ),
+        };
+      default:
+        return {
+          title: "Audit data quality",
+          subtitle: "Missing evidence actions and ownership",
+          content: (
+            <div className="space-y-3">
+              <SignalBar label="Gap pressure" value={percentage(auditGaps?.missing_count ?? 0, Math.max(1, auditCompleteness?.required_actions ?? 1))} tone="rose" />
+              <SignalBar label="Completion" value={auditCompleteness?.completeness_pct ?? 0} tone="emerald" />
+              <div className="grid grid-cols-2 gap-3">
+                <MiniStat label="Missing actions" value={formatCompact(auditGaps?.missing_count ?? 0)} />
+                <MiniStat label="Checks" value={formatCompact(auditCompleteness?.checks?.length ?? 0)} />
+              </div>
+            </div>
+          ),
+        };
+    }
   }, [
     activeFeatureIndex,
     activeModels,
     alertsSummary,
     auditCompleteness,
     auditGaps,
+    caseItems,
     caseSummary,
     controlEffectiveness,
     dashboardStats,
     diagnosticsLogs,
     featureConfigs,
     flowStats.length,
-    modelRegistry.length,
+    modelRegistry,
+    notificationEvents,
     nodeEndpoints,
     pipelineSummary,
     policyRules,
@@ -1584,6 +1810,132 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
   );
 }
 
+function ModelOperationsPanel({ models, activeModels }: { models: ModelRegistryItem[]; activeModels: ModelRegistryItem[] }) {
+  const activeKey = new Set(activeModels.map((item) => `${item.model_name}:${item.version}`));
+  const promoted = models.filter((item) => Boolean(item.promoted_at));
+  const inactive = models.filter((item) => !item.is_active && !activeKey.has(`${item.model_name}:${item.version}`));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricBlock label="Active serving" value={formatCompact(activeModels.length)} helper="Live models" tone="emerald" />
+        <MetricBlock label="Promoted" value={formatCompact(promoted.length)} helper="Governed promotions" tone="cyan" />
+        <MetricBlock label="Inactive" value={formatCompact(inactive.length)} helper="Needs review" tone="rose" />
+        <MetricBlock label="Frameworks" value={formatCompact(new Set(models.map((item) => item.framework)).size)} helper="Runtime diversity" tone="violet" />
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Model</th>
+              <th className="px-4 py-3 text-left font-medium">Version</th>
+              <th className="px-4 py-3 text-left font-medium">Status</th>
+              <th className="px-4 py-3 text-left font-medium">Promoted</th>
+              <th className="px-4 py-3 text-left font-medium">By</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {models.slice(0, 10).map((item) => {
+              const key = `${item.model_name}:${item.version}`;
+              const isServing = item.is_active || activeKey.has(key);
+              return (
+                <tr key={item.id}>
+                  <td className="px-4 py-3">{item.model_name}</td>
+                  <td className="px-4 py-3">{item.version}</td>
+                  <td className="px-4 py-3">{isServing ? "SERVING" : "INACTIVE"}</td>
+                  <td className="px-4 py-3">{formatDateTime(item.promoted_at)}</td>
+                  <td className="px-4 py-3">{item.promoted_by ?? "-"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function FeatureDataPanel({ features }: { features: FeatureConfigItem[] }) {
+  if (!features.length) {
+    return <EmptyState message="No feature data available." />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricBlock label="Features" value={formatCompact(features.length)} helper="All records" tone="violet" />
+        <MetricBlock label="With expression" value={formatCompact(features.filter((item) => Boolean(item.expression)).length)} helper="Ready for runtime" tone="amber" />
+        <MetricBlock label="Owned" value={formatCompact(features.filter((item) => Boolean(item.owner_user_id)).length)} helper="Has owner" tone="emerald" />
+        <MetricBlock label="Updated" value={formatCompact(features.filter((item) => Boolean(item.updated_at)).length)} helper="Fresh metadata" tone="cyan" />
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Feature key</th>
+              <th className="px-4 py-3 text-left font-medium">Expression</th>
+              <th className="px-4 py-3 text-left font-medium">Owner</th>
+              <th className="px-4 py-3 text-left font-medium">Updated</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {features.slice(0, 10).map((item) => (
+              <tr key={item.id}>
+                <td className="px-4 py-3">{item.feature_key}</td>
+                <td className="px-4 py-3">{item.expression ?? "-"}</td>
+                <td className="px-4 py-3">{item.owner_user_id ?? "-"}</td>
+                <td className="px-4 py-3">{formatDateTime(item.updated_at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function RegistryDataPanel({ models }: { models: ModelRegistryItem[] }) {
+  if (!models.length) {
+    return <EmptyState message="No registry versions available." />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricBlock label="Versions" value={formatCompact(models.length)} helper="Tracked versions" tone="violet" />
+        <MetricBlock label="Artifacts" value={formatCompact(models.filter((item) => Boolean(item.artifact_uri)).length)} helper="Stored URIs" tone="cyan" />
+        <MetricBlock label="Promoted" value={formatCompact(models.filter((item) => Boolean(item.promoted_at)).length)} helper="Lifecycle events" tone="emerald" />
+        <MetricBlock label="Missing promoter" value={formatCompact(models.filter((item) => !item.promoted_by).length)} helper="Governance gap" tone="rose" />
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Model</th>
+              <th className="px-4 py-3 text-left font-medium">Version</th>
+              <th className="px-4 py-3 text-left font-medium">Artifact URI</th>
+              <th className="px-4 py-3 text-left font-medium">Created</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {models.slice(0, 10).map((item) => (
+              <tr key={item.id}>
+                <td className="px-4 py-3">{item.model_name}</td>
+                <td className="px-4 py-3">{item.version}</td>
+                <td className="px-4 py-3">{item.artifact_uri || "-"}</td>
+                <td className="px-4 py-3">{formatDateTime(item.created_at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function AlertQueuePanel({
   alerts,
   totalCount,
@@ -2060,6 +2412,128 @@ function AlertChartPanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSum
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]; caseSummary: CaseSummary | null; contextQuery: string }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricBlock label="Total cases" value={formatCompact(cases.length)} helper="Current dataset" tone="violet" />
+        <MetricBlock label="Flagged" value={formatCompact(cases.filter((item) => item.is_flagged).length)} helper="Risk signals" tone="amber" />
+        <MetricBlock label="Assigned" value={formatCompact(cases.filter((item) => Boolean(item.assigned_to)).length)} helper="Has owner" tone="emerald" />
+        <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="rose" />
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Tx</th>
+              <th className="px-4 py-3 text-left font-medium">Risk</th>
+              <th className="px-4 py-3 text-left font-medium">Status</th>
+              <th className="px-4 py-3 text-left font-medium">Assigned</th>
+              <th className="px-4 py-3 text-left font-medium">Detail</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {cases.slice(0, 10).map((item) => (
+              <tr key={item.tx_hash}>
+                <td className="px-4 py-3 font-mono text-xs">{formatAddress(item.tx_hash)}</td>
+                <td className="px-4 py-3">{item.risk_score != null ? formatPercent(item.risk_score * 100) : "-"}</td>
+                <td className="px-4 py-3">{item.status}</td>
+                <td className="px-4 py-3">{item.assigned_to ?? "-"}</td>
+                <td className="px-4 py-3">
+                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                    Case
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleItem[]; reportingSummary: ReportingSummary | null }) {
+  if (!policies.length) {
+    return <EmptyState message="No policy data available." />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricBlock label="Rules" value={formatCompact(policies.length)} helper="All policy records" tone="amber" />
+        <MetricBlock label="Active" value={formatCompact(policies.filter((item) => item.is_active).length)} helper="Enforced now" tone="emerald" />
+        <MetricBlock label="Avg threshold" value={`${(policies.reduce((sum, item) => sum + item.min_risk_score, 0) / Math.max(1, policies.length)).toFixed(1)}`} helper="Risk floor" tone="violet" />
+        <MetricBlock label="Blocked total" value={formatCompact(reportingSummary?.kpis.blocked_total ?? 0)} helper="30-day impact" tone="rose" />
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Rule</th>
+              <th className="px-4 py-3 text-left font-medium">Threshold</th>
+              <th className="px-4 py-3 text-left font-medium">Priority</th>
+              <th className="px-4 py-3 text-left font-medium">Notify</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {policies.slice(0, 10).map((item) => (
+              <tr key={item.id}>
+                <td className="px-4 py-3">{item.rule_name}</td>
+                <td className="px-4 py-3">{item.min_risk_score}</td>
+                <td className="px-4 py-3">{item.priority}</td>
+                <td className="px-4 py-3">{item.notify_on_block ? "Yes" : "No"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: AuditCompleteness | null; auditGaps: AuditGaps | null }) {
+  const checks = auditCompleteness?.checks ?? [];
+  const missingActions = auditGaps?.missing_actions ?? [];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricBlock label="Completeness" value={formatPercent(auditCompleteness?.completeness_pct ?? 0)} helper="Audit coverage" tone="emerald" />
+        <MetricBlock label="Required" value={formatCompact(auditCompleteness?.required_actions ?? 0)} helper="Required actions" tone="violet" />
+        <MetricBlock label="Present" value={formatCompact(auditCompleteness?.present_actions ?? 0)} helper="Captured actions" tone="cyan" />
+        <MetricBlock label="Missing" value={formatCompact(auditGaps?.missing_count ?? 0)} helper="Outstanding gaps" tone="rose" />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+          <p className="text-sm font-semibold text-white">Audit checks</p>
+          <div className="mt-3 space-y-2 text-sm text-slate-300">
+            {checks.length ? checks.slice(0, 8).map((item, idx) => (
+              <div key={`${item.action}:${idx}`} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2">
+                <span>{item.action}</span>
+                <span>{item.present_count}/{item.required_count}</span>
+              </div>
+            )) : <p className="text-slate-500">No audit checks found.</p>}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+          <p className="text-sm font-semibold text-white">Missing actions</p>
+          <div className="mt-3 space-y-2 text-sm text-slate-300">
+            {missingActions.length ? missingActions.slice(0, 8).map((action) => (
+              <div key={action} className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-200">{action}</div>
+            )) : <p className="text-slate-500">No missing actions.</p>}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
