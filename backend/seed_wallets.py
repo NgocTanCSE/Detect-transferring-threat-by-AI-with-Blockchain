@@ -188,6 +188,18 @@ def _build_seed_users(user_count: int, rng: random.Random, now: datetime) -> lis
     return seed_rows
 
 
+def _validate_seed_pairs(seed_rows: list[SeedUser]) -> None:
+    for seed in seed_rows:
+        if seed.user.wallet_address != seed.wallet.address:
+            raise ValueError(f"Seed mismatch for user {seed.user.username}: {seed.user.wallet_address} != {seed.wallet.address}")
+
+
+def _attach_seed_note(seed_rows: list[SeedUser]) -> None:
+    for seed in seed_rows:
+        owner_label = seed.user.username.replace("demo_user_", "user_")
+        seed.wallet.notes = (seed.wallet.notes or "") + f" | owner={owner_label}"
+
+
 def _build_transactions(seed_rows: list[SeedUser], tx_per_user: int, rng: random.Random, now: datetime) -> list[Transaction]:
     transactions: list[Transaction] = []
     wallets = [seed.wallet.address for seed in seed_rows]
@@ -252,6 +264,8 @@ def seed_wallets() -> None:
         existing_pipeline_ids = {metric_id for (metric_id,) in db.query(PipelineMetric.id).all()}
 
         seed_rows = _build_seed_users(DEFAULT_USER_COUNT, rng, now)
+        _validate_seed_pairs(seed_rows)
+        _attach_seed_note(seed_rows)
         users_to_add = [seed.user for seed in seed_rows if seed.user.username not in existing_users]
         wallets_to_add = [seed.wallet for seed in seed_rows if seed.wallet.address not in existing_wallets]
         transactions_to_add = [tx for tx in _build_transactions(seed_rows, DEFAULT_TX_PER_USER, rng, now) if tx.tx_hash not in existing_tx_hashes]
