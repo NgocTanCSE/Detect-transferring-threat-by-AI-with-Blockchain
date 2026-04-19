@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MessageCircle, RotateCcw, SendHorizonal, Sparkles } from "lucide-react";
+import { RotateCcw, SendHorizonal, Sparkles } from "lucide-react";
 import { askDashboardAssistant, type AssistantChatResponse } from "@/lib/api";
 
 type AssistantMessage = {
@@ -132,7 +132,7 @@ export default function DashboardAssistantPanel({
         },
       ]);
     }
-  }, [onHistoryChange, panelStorageKey]);
+  }, [panelStorageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

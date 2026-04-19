@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import type { Alert, BlockedTransfer, DashboardStats, FlowStats } from "@/lib/api";
 import { fetchBlockedTransfers, fetchDashboardStats, fetchFlowStats, fetchRecentAlerts } from "@/lib/api";
-import DashboardAssistantPanel from "@/components/dashboard-assistant-panel";
 import {
   Bar,
   BarChart,
@@ -400,7 +399,6 @@ export default function LiveDashboard() {
   const [auditCompleteness, setAuditCompleteness] = useState<AuditCompleteness | null>(null);
   const [auditGaps, setAuditGaps] = useState<AuditGaps | null>(null);
   const [sloMetrics, setSloMetrics] = useState<SloMetrics | null>(null);
-  const [assistantScope, setAssistantScope] = useState<"dashboard" | "wallet" | "case" | "policy" | "tracking">("dashboard");
   const isFetchingRef = useRef(false);
   const lastAutoFetchAtRef = useRef(0);
 
@@ -778,16 +776,6 @@ export default function LiveDashboard() {
     sloMetrics,
   ]);
 
-  const assistantContext = useMemo(
-    () => ({
-      overview: dashboardStats?.overview,
-      top_risky_wallets: [],
-      wallet_focus: null,
-      screen_scope: assistantScope,
-    }),
-    [assistantScope, dashboardStats?.overview]
-  );
-
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050816] text-slate-100">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.22),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(168,85,247,0.16),_transparent_30%),radial-gradient(circle_at_bottom,_rgba(245,158,11,0.13),_transparent_30%)]" />
@@ -865,15 +853,6 @@ export default function LiveDashboard() {
         {error ? (
           <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">Live data error: {error}</div>
         ) : null}
-
-        <DashboardAssistantPanel
-          roleKey={role.key}
-          roleLabel={role.label}
-          currentScope={assistantScope}
-          walletAddress={null}
-          context={assistantContext}
-          onScopeChange={setAssistantScope}
-        />
 
         <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Role" value={role.label} hint={activeFeatureLabel} accentClass={role.accentClass} />
