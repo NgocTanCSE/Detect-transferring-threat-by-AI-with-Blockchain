@@ -12,13 +12,19 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.models import (
+    Alert,
     AuditLog,
+    BlockedTransfer,
+    DiagnosticEvent,
     FeatureStoreConfig,
     ModelRegistry,
     NodeEndpoint,
     PipelineMetric,
+    PolicyRule,
+    Transaction,
     User,
 )
+from app.utils.api_response import api_success
 
 router = APIRouter(prefix="/ops", tags=["Phase 2 Operations"])
 
@@ -114,7 +120,7 @@ def list_node_endpoints(
 
     records = query.order_by(NodeEndpoint.priority.asc(), NodeEndpoint.created_at.asc()).all()
 
-    return {
+    response = {
         "count": len(records),
         "items": [
             {
@@ -132,6 +138,7 @@ def list_node_endpoints(
             for item in records
         ],
     }
+    return api_success(data=response, message="Node endpoints fetched", meta={"count": len(records)}, legacy=response)
 
 
 @router.post("/system/node-endpoints")
@@ -220,7 +227,7 @@ def list_pipeline_metrics(
 
     records = query.order_by(PipelineMetric.inserted_at.desc()).limit(limit).all()
 
-    return {
+    response = {
         "count": len(records),
         "items": [
             {
@@ -235,6 +242,7 @@ def list_pipeline_metrics(
             for item in records
         ],
     }
+    return api_success(data=response, message="Pipeline metrics fetched", meta={"count": len(records)}, legacy=response)
 
 
 @router.post("/system/pipeline-metrics")
@@ -279,7 +287,7 @@ def get_pipeline_metrics_summary(chain: Optional[str] = Query(default=None), db:
     last_block = base_query.with_entities(func.max(PipelineMetric.block_number)).scalar()
     total_points = base_query.count()
 
-    return {
+    response = {
         "chain": chain,
         "total_points": total_points,
         "avg_throughput_tps": float(avg_tps) if avg_tps is not None else None,
@@ -287,6 +295,7 @@ def get_pipeline_metrics_summary(chain: Optional[str] = Query(default=None), db:
         "avg_decode_latency_ms": float(avg_decode) if avg_decode is not None else None,
         "last_block_number": int(last_block) if last_block is not None else None,
     }
+    return api_success(data=response, message="Pipeline summary fetched", legacy=response)
 
 
 @router.get("/ai/feature-store")
@@ -296,7 +305,7 @@ def list_feature_configs(only_enabled: bool = Query(default=False), db: Session 
         query = query.filter(FeatureStoreConfig.enabled.is_(True))
 
     records = query.order_by(FeatureStoreConfig.feature_key.asc()).all()
-    return {
+    response = {
         "count": len(records),
         "items": [
             {
@@ -310,6 +319,7 @@ def list_feature_configs(only_enabled: bool = Query(default=False), db: Session 
             for item in records
         ],
     }
+    return api_success(data=response, message="Feature configs fetched", meta={"count": len(records)}, legacy=response)
 
 
 @router.post("/ai/feature-store")
@@ -380,7 +390,7 @@ def list_model_registry(model_name: Optional[str] = Query(default=None), db: Ses
 
     records = query.order_by(ModelRegistry.created_at.desc()).all()
 
-    return {
+    response = {
         "count": len(records),
         "items": [
             {
@@ -397,6 +407,7 @@ def list_model_registry(model_name: Optional[str] = Query(default=None), db: Ses
             for item in records
         ],
     }
+    return api_success(data=response, message="Model registry fetched", meta={"count": len(records)}, legacy=response)
 
 
 @router.post("/ai/model-registry")
@@ -487,7 +498,7 @@ def activate_model(model_id: str, payload: ModelActivateRequest, db: Session = D
 def get_active_models(db: Session = Depends(get_db)) -> Dict[str, Any]:
     records = db.query(ModelRegistry).filter(ModelRegistry.is_active.is_(True)).order_by(ModelRegistry.model_name.asc()).all()
 
-    return {
+    response = {
         "count": len(records),
         "items": [
             {
@@ -501,3 +512,68 @@ def get_active_models(db: Session = Depends(get_db)) -> Dict[str, Any]:
             for item in records
         ],
     }
+    return api_success(data=response, message="Active models fetched", meta={"count": len(records)}, legacy=response)
+
+
+@router.get("/system/data-integrity")
+def get_system_data_integrity(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Report DB-backed readiness and missing controls/models for all role panels."""
+    counts = {
+        "wallets": int(db.query(func.count(Transaction.from_address.distinct())).scalar() or 0),
+        "transactions": int(db.query(func.count(Transaction.id)).scalar() or 0),
+        "alerts": int(db.query(func.count(Alert.id)).scalar() or 0),
+        "blocked_transfers": int(db.query(func.count(BlockedTransfer.id)).scalar() or 0),
+        "node_endpoints": int(db.query(func.count(NodeEndpoint.id)).scalar() or 0),
+        "pipeline_metrics": int(db.query(func.count(PipelineMetric.id)).scalar() or 0),
+        "feature_configs": int(db.query(func.count(FeatureStoreConfig.id)).scalar() or 0),
+        "model_registry": int(db.query(func.count(ModelRegistry.id)).scalar() or 0),
+        "active_models": int(db.query(func.count(ModelRegistry.id)).filter(ModelRegistry.is_active.is_(True)).scalar() or 0),
+        "policy_rules": int(db.query(func.count(PolicyRule.id)).scalar() or 0),
+        "active_policy_rules": int(db.query(func.count(PolicyRule.id)).filter(PolicyRule.is_active.is_(True)).scalar() or 0),
+        "audit_logs": int(db.query(func.count(AuditLog.id)).scalar() or 0),
+        "diagnostic_events": int(db.query(func.count(DiagnosticEvent.id)).scalar() or 0),
+    }
+
+    checks = [
+        {"key": "system.node_endpoints", "ok": counts["node_endpoints"] > 0, "required_min": 1, "actual": counts["node_endpoints"], "owner_role": "system_admin"},
+        {"key": "system.pipeline_metrics", "ok": counts["pipeline_metrics"] > 0, "required_min": 1, "actual": counts["pipeline_metrics"], "owner_role": "system_admin"},
+        {"key": "system.diagnostic_events", "ok": counts["diagnostic_events"] > 0, "required_min": 1, "actual": counts["diagnostic_events"], "owner_role": "system_admin"},
+        {"key": "ai.feature_configs", "ok": counts["feature_configs"] > 0, "required_min": 1, "actual": counts["feature_configs"], "owner_role": "ai_data_engineer"},
+        {"key": "ai.model_registry", "ok": counts["model_registry"] > 0, "required_min": 1, "actual": counts["model_registry"], "owner_role": "ai_data_engineer"},
+        {"key": "ai.active_models", "ok": counts["active_models"] > 0, "required_min": 1, "actual": counts["active_models"], "owner_role": "ai_data_engineer"},
+        {"key": "security.alerts", "ok": counts["alerts"] > 0, "required_min": 1, "actual": counts["alerts"], "owner_role": "security_analyst"},
+        {"key": "security.transactions", "ok": counts["transactions"] > 0, "required_min": 1, "actual": counts["transactions"], "owner_role": "security_analyst"},
+        {"key": "security.blocked_transfers", "ok": counts["blocked_transfers"] > 0, "required_min": 1, "actual": counts["blocked_transfers"], "owner_role": "security_analyst"},
+        {"key": "compliance.policy_rules", "ok": counts["policy_rules"] > 0, "required_min": 1, "actual": counts["policy_rules"], "owner_role": "compliance_risk_manager"},
+        {"key": "compliance.active_policy_rules", "ok": counts["active_policy_rules"] > 0, "required_min": 1, "actual": counts["active_policy_rules"], "owner_role": "compliance_risk_manager"},
+        {"key": "compliance.audit_logs", "ok": counts["audit_logs"] > 0, "required_min": 1, "actual": counts["audit_logs"], "owner_role": "compliance_risk_manager"},
+    ]
+
+    missing = [
+        {
+            "key": item["key"],
+            "owner_role": item["owner_role"],
+            "required_min": item["required_min"],
+            "actual": item["actual"],
+            "severity": "high" if item["key"].endswith("active_models") or item["key"].endswith("active_policy_rules") else "medium",
+            "recommended_next_step": f"Seed or create records for {item['key']} to enable corresponding role panels",
+        }
+        for item in checks
+        if not item["ok"]
+    ]
+
+    role_readiness = {
+        "system_admin": all(item["ok"] for item in checks if item["owner_role"] == "system_admin"),
+        "ai_data_engineer": all(item["ok"] for item in checks if item["owner_role"] == "ai_data_engineer"),
+        "security_analyst": all(item["ok"] for item in checks if item["owner_role"] == "security_analyst"),
+        "compliance_risk_manager": all(item["ok"] for item in checks if item["owner_role"] == "compliance_risk_manager"),
+    }
+
+    response = {
+        "overall_ok": len(missing) == 0,
+        "counts": counts,
+        "checks": checks,
+        "missing_controls": missing,
+        "role_readiness": role_readiness,
+    }
+    return api_success(data=response, message="Data integrity report generated", meta={"missing_count": len(missing)}, legacy=response)

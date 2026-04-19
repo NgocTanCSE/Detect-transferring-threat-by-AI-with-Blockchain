@@ -11,6 +11,9 @@ from typing import Dict, List, Any, Optional
 from enum import Enum
 from sqlalchemy import text
 
+from app.core.database import SessionLocal
+from app.models.models import DiagnosticEvent
+
 logger = logging.getLogger(__name__)
 
 class DiagnosticLogType(str, Enum):
@@ -45,6 +48,7 @@ class DiagnosticLog:
         """Add a diagnostic log entry."""
         entry = {
             "timestamp": datetime.utcnow().isoformat(),
+            "log_type": log_type.value,
             "type": log_type.value,
             "message": message,
             "details": details or {},
@@ -119,6 +123,29 @@ def log_diagnostic(
 
     logger.log(log_level, f"[{log_type.value.upper()}] {message}")
 
+    # Persist to DB so diagnostics survive process restarts and can be queried globally.
+    db = None
+    try:
+        db = SessionLocal()
+        db.add(
+            DiagnosticEvent(
+                log_type=log_type.value,
+                message=message,
+                details=details or {},
+                status_code=status_code,
+                endpoint=endpoint,
+                source="backend",
+            )
+        )
+        db.commit()
+    except Exception as exc:
+        logger.warning(f"Failed to persist diagnostic log event: {exc}")
+        if db is not None:
+            db.rollback()
+    finally:
+        if db is not None:
+            db.close()
+
 
 def get_seed_data_counts(database_session) -> Dict[str, int]:
     """Get counts of all seeded data types."""
@@ -142,6 +169,7 @@ def get_seed_data_counts(database_session) -> Dict[str, int]:
         "node_endpoints": database_session.query(NodeEndpoint).count(),
         "pipeline_metrics": database_session.query(PipelineMetric).count(),
         "audit_logs": database_session.query(AuditLog).count(),
+        "diagnostic_events": database_session.query(DiagnosticEvent).count(),
     }
     return counts
 

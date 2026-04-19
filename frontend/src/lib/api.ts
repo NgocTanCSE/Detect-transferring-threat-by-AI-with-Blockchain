@@ -164,11 +164,19 @@ export interface AssistantChatResponse {
   model_enabled: boolean;
 }
 
+function unwrapApiResponse<T>(payload: unknown): T {
+  if (payload && typeof payload === "object" && "status" in payload && "data" in payload) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+}
+
 // API Functions
 export async function fetchDashboardStats(): Promise<DashboardStats> {
   const res = await fetch(`${API_BASE}/statistics/dashboard`);
   if (!res.ok) throw new Error("Failed to fetch dashboard stats");
-  return res.json();
+  const payload = await res.json();
+  return unwrapApiResponse<DashboardStats>(payload);
 }
 
 export async function fetchWallets(params?: {
@@ -221,7 +229,8 @@ export interface WalletTransaction {
 export async function fetchWalletStats(address: string): Promise<WalletStats> {
   const res = await fetch(`${API_BASE}/wallets/${address}/stats`);
   if (!res.ok) throw new Error("Failed to fetch wallet stats");
-  return res.json();
+  const payload = await res.json();
+  return unwrapApiResponse<WalletStats>(payload);
 }
 
 export async function fetchWalletTransactionHistory(
@@ -348,13 +357,15 @@ export interface UserWarning {
 export async function fetchUserHistory(walletAddress: string): Promise<UserHistory> {
   const res = await fetch(`${API_BASE}/user/${walletAddress}/history`);
   if (!res.ok) throw new Error("Failed to fetch user history");
-  return res.json();
+  const payload = await res.json();
+  return unwrapApiResponse<UserHistory>(payload);
 }
 
 export async function fetchWalletBalance(address: string): Promise<WalletBalance> {
   const res = await fetch(`${API_BASE}/wallet/${address}/balance`);
   if (!res.ok) throw new Error("Failed to fetch wallet balance");
-  return res.json();
+  const payload = await res.json();
+  return unwrapApiResponse<WalletBalance>(payload);
 }
 
 export async function fetchWalletTransactions(
@@ -385,7 +396,8 @@ export async function sendProtectedTransfer(
     }),
   });
   if (!res.ok) throw new Error("Failed to send transfer");
-  return res.json();
+  const payload = await res.json();
+  return unwrapApiResponse<TransferResponse>(payload);
 }
 
 export async function analyzeAddress(address: string): Promise<{
@@ -398,7 +410,8 @@ export async function analyzeAddress(address: string): Promise<{
 }> {
   const res = await fetch(`${API_BASE}/analyze/${address}`);
   if (!res.ok) throw new Error("Failed to analyze address");
-  return res.json();
+  const payload = await res.json();
+  return unwrapApiResponse(payload);
 }
 
 export async function askDashboardAssistant(

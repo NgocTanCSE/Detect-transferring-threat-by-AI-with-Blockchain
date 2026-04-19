@@ -3,16 +3,21 @@
 import logging
 import os
 from datetime import datetime
+from datetime import timezone
+from io import StringIO
+import csv
 from typing import Dict, List, Any
+import uuid
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case
 
 from app.core.database import engine, get_db, Base, ensure_schema
-from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase, NodeEndpoint, PipelineMetric, FeatureStoreConfig, ModelRegistry, PolicyRule, NotificationEvent
+from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase, NodeEndpoint, PipelineMetric, FeatureStoreConfig, ModelRegistry, PolicyRule, NotificationEvent, DiagnosticEvent
 from blockchain_client import fetch_wallet_history
 from app.core.config import ALCHEMY_API_KEY, ALCHEMY_RPC_URL
 from app.services.ai_engine import MultiAgentDetectionEngine
@@ -25,6 +30,7 @@ from app.admin_diagnostics import (
     get_seed_data_counts,
     DiagnosticLogType,
 )
+from app.utils.api_response import api_success, api_error
 
 
 def _get_or_create_wallet(database_session: Session, address: str) -> Wallet:
@@ -126,7 +132,7 @@ def get_diagnostics_status(database_session: Session = Depends(get_db)) -> Dict[
             status_code=200,
             endpoint="/admin/diagnostics/status"
         )
-        return status
+        return api_success(data=status, message="Diagnostics status fetched", legacy=status)
     except Exception as e:
         logger.exception(f"Failed to get diagnostics status: {e}")
         log_diagnostic(
@@ -135,7 +141,7 @@ def get_diagnostics_status(database_session: Session = Depends(get_db)) -> Dict[
             status_code=500,
             endpoint="/admin/diagnostics/status"
         )
-        return {
+        fallback = {
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e),
             "database": {"health": {"status": "error", "error": str(e)}},
@@ -143,24 +149,193 @@ def get_diagnostics_status(database_session: Session = Depends(get_db)) -> Dict[
             "endpoints": {},
             "recent_errors": [],
         }
+        return api_error(message="Failed to get diagnostics status", code="DIAGNOSTICS_STATUS_FAILED", details={"error": str(e)}, legacy=fallback)
+
+
+class DiagnosticLogCreatePayload(BaseModel):
+    log_type: str
+    message: str
+    details: Dict[str, Any] | None = None
+    status_code: int | None = None
+    endpoint: str | None = None
+
+
+class DiagnosticLogArchivePayload(BaseModel):
+    archived: bool = True
+
+
+def _parse_diagnostic_uuid(raw_id: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(raw_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid diagnostic log id") from exc
 
 
 @app.get("/admin/diagnostics/logs", tags=["Admin Diagnostics"])
-def get_diagnostics_logs(limit: int = 50, log_type: str = None) -> Dict[str, Any]:
+def get_diagnostics_logs(
+    limit: int = 50,
+    log_type: str = None,
+    endpoint: str | None = None,
+    min_status_code: int | None = None,
+    include_archived: bool = False,
+    database_session: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """Get recent diagnostic logs."""
     log_diagnostic(
         DiagnosticLogType.API_CALL,
         "Diagnostics logs requested",
-        details={"limit": int(limit), "log_type": log_type},
+        details={
+            "limit": int(limit),
+            "log_type": log_type,
+            "endpoint": endpoint,
+            "min_status_code": min_status_code,
+            "include_archived": include_archived,
+        },
         status_code=200,
         endpoint="/admin/diagnostics/logs"
     )
-    logs = diagnostic_logger.get_recent_logs(limit=limit, log_type=log_type)
-    return {
+
+    limit = max(1, min(int(limit or 50), 1000))
+    query = database_session.query(DiagnosticEvent)
+    if not include_archived:
+        query = query.filter(DiagnosticEvent.is_archived.is_(False))
+
+    if log_type:
+        query = query.filter(DiagnosticEvent.log_type == log_type)
+    if endpoint:
+        query = query.filter(DiagnosticEvent.endpoint.ilike(f"%{endpoint.strip()}%"))
+    if min_status_code is not None:
+        query = query.filter(DiagnosticEvent.status_code.isnot(None), DiagnosticEvent.status_code >= int(min_status_code))
+
+    rows = query.order_by(DiagnosticEvent.timestamp.desc()).limit(limit).all()
+    logs = [
+        {
+            "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+            "log_type": row.log_type,
+            "type": row.log_type,
+            "message": row.message,
+            "details": row.details or {},
+            "status_code": row.status_code,
+            "endpoint": row.endpoint,
+            "source": row.source,
+            "is_archived": bool(row.is_archived),
+            "archived_at": row.archived_at.isoformat() if row.archived_at else None,
+        }
+        for row in rows
+    ]
+    response = {
         "count": len(logs),
         "logs": logs,
         "timestamp": datetime.utcnow().isoformat(),
     }
+    return api_success(data=response, message="Diagnostics logs fetched", meta={"count": len(logs)}, legacy=response)
+
+
+@app.post("/admin/diagnostics/logs", tags=["Admin Diagnostics"])
+def create_diagnostics_log(payload: DiagnosticLogCreatePayload, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    event = DiagnosticEvent(
+        log_type=payload.log_type.strip().lower(),
+        message=payload.message,
+        details=payload.details or {},
+        status_code=payload.status_code,
+        endpoint=payload.endpoint,
+        source="admin",
+    )
+    database_session.add(event)
+    database_session.commit()
+    database_session.refresh(event)
+
+    response = {
+        "id": str(event.id),
+        "log_type": event.log_type,
+        "message": event.message,
+        "timestamp": event.timestamp.isoformat() if event.timestamp else None,
+    }
+    return api_success(data=response, message="Diagnostic log created", legacy=response)
+
+
+@app.patch("/admin/diagnostics/logs/{log_id}/archive", tags=["Admin Diagnostics"])
+def archive_diagnostics_log(log_id: str, payload: DiagnosticLogArchivePayload, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    event_id = _parse_diagnostic_uuid(log_id)
+    event = database_session.query(DiagnosticEvent).filter(DiagnosticEvent.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Diagnostic log not found")
+
+    event.is_archived = bool(payload.archived)
+    event.archived_at = datetime.now(timezone.utc) if payload.archived else None
+    database_session.commit()
+
+    response = {
+        "id": str(event.id),
+        "is_archived": bool(event.is_archived),
+        "archived_at": event.archived_at.isoformat() if event.archived_at else None,
+    }
+    return api_success(data=response, message="Diagnostic log archive status updated", legacy=response)
+
+
+@app.delete("/admin/diagnostics/logs/{log_id}", tags=["Admin Diagnostics"])
+def delete_diagnostics_log(log_id: str, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    event_id = _parse_diagnostic_uuid(log_id)
+    event = database_session.query(DiagnosticEvent).filter(DiagnosticEvent.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Diagnostic log not found")
+
+    database_session.delete(event)
+    database_session.commit()
+
+    response = {"id": log_id, "deleted": True}
+    return api_success(data=response, message="Diagnostic log deleted", legacy=response)
+
+
+@app.get("/admin/diagnostics/logs/export", tags=["Admin Diagnostics"])
+def export_diagnostics_logs(
+    date: str | None = Query(default=None, description="YYYY-MM-DD in UTC"),
+    include_archived: bool = False,
+    database_session: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    query = database_session.query(DiagnosticEvent)
+    if not include_archived:
+        query = query.filter(DiagnosticEvent.is_archived.is_(False))
+
+    selected_date = None
+    if date:
+        try:
+            selected_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD") from exc
+
+    rows = query.order_by(DiagnosticEvent.timestamp.desc()).all()
+    if selected_date is not None:
+        rows = [item for item in rows if item.timestamp and item.timestamp.date() == selected_date]
+
+    csv_buffer = StringIO()
+    writer = csv.DictWriter(csv_buffer, fieldnames=["id", "timestamp", "log_type", "message", "status_code", "endpoint", "source", "is_archived"])
+    writer.writeheader()
+    export_rows = []
+    for row in rows:
+        row_data = {
+            "id": str(row.id),
+            "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+            "log_type": row.log_type,
+            "message": row.message,
+            "status_code": row.status_code,
+            "endpoint": row.endpoint,
+            "source": row.source,
+            "is_archived": bool(row.is_archived),
+        }
+        writer.writerow(row_data)
+        export_rows.append(row_data)
+
+    filename_date = selected_date.isoformat() if selected_date else datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    response = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "date": filename_date,
+        "count": len(export_rows),
+        "filename": f"diagnostics_logs_{filename_date}.csv",
+        "rows": export_rows,
+        "csv": csv_buffer.getvalue(),
+    }
+    return api_success(data=response, message="Diagnostics export generated", meta={"count": len(export_rows)}, legacy=response)
 
 
 @app.get("/admin/diagnostics/endpoint-stats", tags=["Admin Diagnostics"])
@@ -173,10 +348,11 @@ def get_endpoint_statistics() -> Dict[str, Any]:
         endpoint="/admin/diagnostics/endpoint-stats"
     )
     stats = diagnostic_logger.get_endpoint_stats()
-    return {
+    response = {
         "endpoints": stats,
         "timestamp": datetime.utcnow().isoformat(),
     }
+    return api_success(data=response, message="Endpoint statistics fetched", legacy=response)
 
 
 @app.get("/admin/diagnostics/seed-data", tags=["Admin Diagnostics"])
@@ -191,10 +367,11 @@ def get_seed_data_status(database_session: Session = Depends(get_db)) -> Dict[st
             status_code=200,
             endpoint="/admin/diagnostics/seed-data"
         )
-        return {
+        response = {
             "timestamp": datetime.utcnow().isoformat(),
             "counts": counts,
         }
+        return api_success(data=response, message="Seed data status fetched", legacy=response)
     except Exception as e:
         logger.exception(f"Failed to get seed data counts: {e}")
         log_diagnostic(
@@ -203,24 +380,29 @@ def get_seed_data_status(database_session: Session = Depends(get_db)) -> Dict[st
             status_code=500,
             endpoint="/admin/diagnostics/seed-data"
         )
-        return {
+        fallback = {
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e),
             "counts": {},
         }
+        return api_error(message="Failed to fetch seed data status", code="SEED_STATUS_FAILED", details={"error": str(e)}, legacy=fallback)
 
 
 @app.delete("/admin/diagnostics/logs", tags=["Admin Diagnostics"])
-def clear_diagnostics_logs() -> Dict[str, str]:
+def clear_diagnostics_logs(database_session: Session = Depends(get_db)) -> Dict[str, str]:
     """Clear all diagnostic logs."""
+    deleted_count = database_session.query(DiagnosticEvent).delete(synchronize_session=False)
+    database_session.commit()
     diagnostic_logger.clear()
     log_diagnostic(
         DiagnosticLogType.INFO,
         "Diagnostic logs cleared by admin",
+        details={"deleted_rows": int(deleted_count)},
         status_code=200,
         endpoint="/admin/diagnostics/logs"
     )
-    return {"status": "cleared", "timestamp": datetime.utcnow().isoformat()}
+    response = {"status": "cleared", "timestamp": datetime.utcnow().isoformat(), "deleted_rows": int(deleted_count)}
+    return api_success(data=response, message="Diagnostics logs cleared", legacy=response)
 
 
 # ============================================================================

@@ -20,6 +20,7 @@ from app.models.models import (
     User,
 )
 from app.admin_diagnostics import log_diagnostic, DiagnosticLogType
+from app.utils.api_response import api_success
 
 router = APIRouter(prefix="/ops", tags=["Phase 3 Governance"])
 logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ def list_policy_rules(
             status_code=200,
             endpoint="/ops/compliance/policy-rules"
         )
-        return response
+        return api_success(data=response, message="Policy rules fetched", meta={"count": response["count"]}, legacy=response)
     except Exception as e:
         logger.exception(f"Failed to list policy rules: {e}")
         log_diagnostic(
@@ -305,7 +306,7 @@ def get_case_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
             status_code=200,
             endpoint="/ops/security/case-summary"
         )
-        return response
+        return api_success(data=response, message="Case summary fetched", legacy=response)
     except Exception as e:
         logger.exception(f"Failed to get case summary: {e}")
         log_diagnostic(
@@ -367,7 +368,7 @@ def list_notification_events(
 ) -> Dict[str, Any]:
     records = db.query(NotificationEvent).order_by(NotificationEvent.created_at.desc()).limit(limit).all()
 
-    return {
+    response = {
         "count": len(records),
         "items": [
             {
@@ -384,6 +385,7 @@ def list_notification_events(
             for item in records
         ],
     }
+    return api_success(data=response, message="Notification events fetched", meta={"count": len(records)}, legacy=response)
 
 
 @router.get("/security/alerts-summary")
@@ -411,7 +413,7 @@ def get_alerts_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
             status_code=200,
             endpoint="/ops/security/alerts-summary"
         )
-        return response
+        return api_success(data=response, message="Alerts summary fetched", legacy=response)
     except Exception as e:
         logger.exception(f"Failed to get alerts summary: {e}")
         log_diagnostic(

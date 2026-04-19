@@ -299,7 +299,12 @@ async function fetchJson<T>(path: string, defaultValue: T | null = null): Promis
       if (defaultValue !== null) return defaultValue;
       throw new Error(`Request failed: ${path}`);
     }
-    return response.json() as Promise<T>;
+    const payload = await response.json();
+    // Accept both legacy payloads and unified envelope payloads.
+    if (payload && typeof payload === "object" && "status" in payload && "data" in payload) {
+      return (payload.data as T);
+    }
+    return payload as T;
   } catch (error) {
     console.error(`Fetch error for ${path}:`, error);
     if (defaultValue !== null) return defaultValue;
@@ -1577,13 +1582,14 @@ function DiagnosticsLogsPanel({
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
   const logTypeColors: Record<string, string> = {
-    ERROR: "bg-red-500/20 text-red-300 border-red-500/30",
-    WARNING: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-    INFO: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-    SUCCESS: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-    DATABASE: "bg-violet-500/20 text-violet-300 border-violet-500/30",
-    API: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-    SEED_DATA: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+    error: "bg-red-500/20 text-red-300 border-red-500/30",
+    warning: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    info: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    api_call: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+    api_error: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+    database: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+    seed_data: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+    ai_service: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30",
   };
 
   const filteredLogs = logs.filter((log) => {
@@ -1596,7 +1602,10 @@ function DiagnosticsLogsPanel({
   });
 
   const uniqueTypes = Array.from(new Set(logs.map((log) => log.log_type))).sort();
-  const errorCount = logs.filter((log) => log.log_type === "ERROR").length;
+  const errorCount = logs.filter((log) => {
+    const kind = (log.log_type || "").toLowerCase();
+    return kind === "error" || kind === "api_error" || (log.status_code ?? 200) >= 400;
+  }).length;
   const statusCodes = Array.from(new Set(logs.map((log) => log.status_code).filter(Boolean))) as number[];
 
   return (
@@ -1648,8 +1657,8 @@ function DiagnosticsLogsPanel({
               <tr key={idx} className="hover:bg-slate-900/30">
                 <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-400">{new Date(log.timestamp).toLocaleTimeString()}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-block rounded-lg border px-2 py-1 text-xs font-medium ${logTypeColors[log.log_type] || "bg-slate-700/50 text-slate-300"}`}>
-                    {log.log_type}
+                  <span className={`inline-block rounded-lg border px-2 py-1 text-xs font-medium ${logTypeColors[(log.log_type || "").toLowerCase()] || "bg-slate-700/50 text-slate-300"}`}>
+                    {(log.log_type || "unknown").toUpperCase()}
                   </span>
                 </td>
                 <td className="px-4 py-3 max-w-sm truncate text-slate-300">{log.message}</td>
@@ -2517,9 +2526,9 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
           <p className="text-sm font-semibold text-white">Audit checks</p>
           <div className="mt-3 space-y-2 text-sm text-slate-300">
             {checks.length ? checks.slice(0, 8).map((item, idx) => (
-              <div key={`${item.action}:${idx}`} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2">
-                <span>{item.action}</span>
-                <span>{item.present_count}/{item.required_count}</span>
+              <div key={`${item.action_type}:${idx}`} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2">
+                <span>{item.action_type}</span>
+                <span>{item.count} · {item.present ? "PRESENT" : "MISSING"}</span>
               </div>
             )) : <p className="text-slate-500">No audit checks found.</p>}
           </div>
@@ -2528,8 +2537,11 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
         <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
           <p className="text-sm font-semibold text-white">Missing actions</p>
           <div className="mt-3 space-y-2 text-sm text-slate-300">
-            {missingActions.length ? missingActions.slice(0, 8).map((action) => (
-              <div key={action} className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-200">{action}</div>
+            {missingActions.length ? missingActions.slice(0, 8).map((item, idx) => (
+              <div key={`${item.action_type}:${idx}`} className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-200">
+                <p className="font-medium">{item.action_type}</p>
+                <p className="text-xs text-rose-300/80 mt-1">Owner: {item.owner_role} · {item.reason}</p>
+              </div>
             )) : <p className="text-slate-500">No missing actions.</p>}
           </div>
         </div>

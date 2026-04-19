@@ -21,6 +21,7 @@ from app.models.models import (
     PolicyRule,
     Transaction,
 )
+from app.utils.api_response import api_success
 
 router = APIRouter(prefix="/ops", tags=["Phase 4 Reporting"])
 
@@ -75,7 +76,7 @@ def system_slo_metrics(
     ingest_breaches = len([value for value in ingest_values if value > ingest_target_ms])
     decode_breaches = len([value for value in decode_values if value > decode_target_ms])
 
-    return {
+    response = {
         "period_days": days,
         "endpoint_health": {
             "total": len(endpoints),
@@ -94,6 +95,7 @@ def system_slo_metrics(
             "sample_points": len(metrics),
         },
     }
+    return api_success(data=response, message="System SLO metrics fetched", legacy=response)
 
 
 @router.get("/compliance/reporting/summary")
@@ -153,7 +155,7 @@ def compliance_reporting_summary(
         db.query(func.count(AuditLog.id)).filter(AuditLog.timestamp >= period_start).scalar() or 0
     )
 
-    return {
+    response = {
         "period": {
             "days": days,
             "start": period_start.isoformat(),
@@ -176,6 +178,7 @@ def compliance_reporting_summary(
             "IGNORED": int(cases_by_state.get("IGNORED", 0)),
         },
     }
+    return api_success(data=response, message="Compliance summary fetched", legacy=response)
 
 
 @router.get("/compliance/reporting/control-effectiveness")
@@ -216,7 +219,7 @@ def compliance_control_effectiveness(
     block_rate = (blocked_total / actionable_alerts * 100.0) if actionable_alerts > 0 else 0.0
     fraud_precision_proxy = (fraud_cases / decided_cases * 100.0) if decided_cases > 0 else 0.0
 
-    return {
+    response = {
         "period_days": days,
         "inputs": {
             "actionable_alerts": actionable_alerts,
@@ -230,6 +233,7 @@ def compliance_control_effectiveness(
             "decision_coverage": decided_cases,
         },
     }
+    return api_success(data=response, message="Control effectiveness fetched", legacy=response)
 
 
 @router.get("/compliance/reporting/audit-completeness")
@@ -273,13 +277,14 @@ def compliance_audit_completeness(
 
     completeness_pct = (present_count / len(required_actions) * 100.0) if required_actions else 0.0
 
-    return {
+    response = {
         "period_days": days,
         "required_actions": len(required_actions),
         "present_actions": present_count,
         "completeness_pct": round(completeness_pct, 2),
         "checks": checks,
     }
+    return api_success(data=response, message="Audit completeness fetched", legacy=response)
 
 
 @router.get("/compliance/reporting/audit-gaps")
@@ -314,11 +319,12 @@ def compliance_audit_gaps(
             }
         )
 
-    return {
+    response = {
         "period_days": days,
         "missing_count": len(missing_actions),
         "missing_actions": missing_actions,
     }
+    return api_success(data=response, message="Audit gaps fetched", legacy=response)
 
 
 @router.get("/compliance/reporting/export")
@@ -351,9 +357,10 @@ def compliance_export(
     writer.writerows(rows)
 
     now = datetime.now(timezone.utc)
-    return {
+    response = {
         "generated_at": now.isoformat(),
         "filename": f"compliance_report_{now.strftime('%Y%m%d_%H%M%S')}.csv",
         "rows": rows,
         "csv": buffer.getvalue(),
     }
+    return api_success(data=response, message="Compliance export generated", legacy=response)

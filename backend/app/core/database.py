@@ -224,6 +224,28 @@ def ensure_schema() -> None:
             connection.execute(
                 text(
                     """
+                    CREATE TABLE IF NOT EXISTS diagnostic_events (
+                        id UUID PRIMARY KEY,
+                        log_type VARCHAR(30) NOT NULL,
+                        message TEXT NOT NULL,
+                        details JSONB,
+                        status_code INTEGER,
+                        endpoint VARCHAR(255),
+                        source VARCHAR(50) NOT NULL DEFAULT 'backend',
+                        is_archived BOOLEAN NOT NULL DEFAULT false,
+                        archived_at TIMESTAMPTZ,
+                        timestamp TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_diagnostic_events_timestamp ON diagnostic_events (timestamp DESC)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_diagnostic_events_type ON diagnostic_events (log_type)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_diagnostic_events_archived ON diagnostic_events (is_archived)"))
+
+            connection.execute(
+                text(
+                    """
                     CREATE TABLE IF NOT EXISTS policy_rules (
                         id UUID PRIMARY KEY,
                         rule_name VARCHAR(120) NOT NULL UNIQUE,

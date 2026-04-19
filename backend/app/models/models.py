@@ -410,3 +410,23 @@ class NotificationEvent(Base):
     def __repr__(self) -> str:
         return f"<NotificationEvent(channel={self.channel}, severity={self.severity}, status={self.status})>"
 
+
+class DiagnosticEvent(Base):
+    """Persistent diagnostics event stream for system observability."""
+
+    __tablename__ = "diagnostic_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    log_type = Column(String(30), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    details = Column(JSONB, nullable=True)
+    status_code = Column(Integer, nullable=True, index=True)
+    endpoint = Column(String(255), nullable=True, index=True)
+    source = Column(String(50), nullable=False, default="backend")
+    is_archived = Column(Boolean, nullable=False, default=False, index=True)
+    archived_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def __repr__(self) -> str:
+        return f"<DiagnosticEvent(type={self.log_type}, endpoint={self.endpoint}, status={self.status_code})>"
+
