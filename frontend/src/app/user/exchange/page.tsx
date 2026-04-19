@@ -48,6 +48,7 @@ import { useAuth } from "@/lib/auth-context";
 export default function UserExchange() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const fallbackWallet = user?.wallet_address ?? "";
 
   const [fromWalletId, setFromWalletId] = useState("");
   const [toWalletId, setToWalletId] = useState("");
@@ -182,8 +183,9 @@ export default function UserExchange() {
 
   // Fetch transactions
   const { data: transactions, isLoading: txLoading } = useQuery<Transaction[]>({
-    queryKey: ["walletTransactions", DEMO_WALLET],
-    queryFn: () => fetchWalletTransactions(DEMO_WALLET, 10),
+    queryKey: ["walletTransactions", fallbackWallet],
+    queryFn: () => fetchWalletTransactions(fallbackWallet, 10),
+    enabled: !!fallbackWallet,
     refetchInterval: 30000,
   });
 
@@ -241,7 +243,8 @@ export default function UserExchange() {
   };
 
   const copyAddress = () => {
-    navigator.clipboard.writeText(DEMO_WALLET);
+    if (!fallbackWallet) return;
+    navigator.clipboard.writeText(fallbackWallet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -484,7 +487,7 @@ export default function UserExchange() {
             ) : (
               <div className="space-y-3">
                 {(fromWalletId ? senderTransactions : transactions)?.slice(0, 5).map((tx: any) => {
-                  const currentWallet = fromWalletId || DEMO_WALLET;
+                  const currentWallet = fromWalletId || fallbackWallet;
                   const isSent =
                     tx.from_address.toLowerCase() === currentWallet.toLowerCase();
                   return (
