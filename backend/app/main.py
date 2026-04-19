@@ -215,6 +215,7 @@ def clear_diagnostics_logs() -> Dict[str, str]:
 # ============================================================================
 
 
+def _build_dashboard_assistant_context(
     database_session: Session,
     role: str,
     wallet_address: str | None = None,
