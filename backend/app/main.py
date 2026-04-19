@@ -158,6 +158,51 @@ def _build_structured_context_answer(question: str, context: Dict[str, Any]) -> 
         "- Ưu tiên critical trước, sau đó rà soát case tồn và policy gây nhiều chặn."
     )
 
+
+def _is_account_support_question(question: str) -> bool:
+    text = (question or "").lower()
+    support_terms = [
+        "tạo tài khoản",
+        "tao tai khoan",
+        "đăng ký",
+        "dang ky",
+        "register",
+        "signup",
+        "sign up",
+        "account",
+        "login",
+        "đăng nhập",
+        "dang nhap",
+    ]
+    return any(term in text for term in support_terms)
+
+
+def _build_account_support_answer(question: str) -> str:
+    q = (question or "").lower()
+
+    if any(term in q for term in ["đăng nhập", "dang nhap", "login"]):
+        return (
+            "1) Giải thích ý nghĩa chỉ số\n"
+            "- Lỗi đăng nhập thường đến từ tài khoản/mật khẩu sai, tài khoản bị vô hiệu hóa, hoặc token không hợp lệ.\n\n"
+            "2) Nhận định nhanh theo dữ liệu hiện tại\n"
+            "- Nếu màn hình báo lỗi parse JSON hoặc 500, nguyên nhân thường là backend trả lỗi nội bộ thay vì thông báo chuẩn.\n"
+            "- Nếu bạn vừa đăng nhập xong nhưng bị chuyển sai trang, có thể role trong user profile chưa khớp với route hiện tại.\n\n"
+            "3) Hành động đề xuất cho operator\n"
+            "- Kiểm tra lại username/email, mật khẩu, và trạng thái tài khoản trong backend.\n"
+            "- Mở log backend để xem response thật; nếu cần, hãy gửi lại message lỗi đầy đủ để mình dò đúng nguyên nhân."
+        )
+
+    return (
+        "1) Giải thích ý nghĩa chỉ số\n"
+        "- Không tạo được tài khoản thường do thiếu wallet address, username/email bị trùng, hoặc ví chưa có trong dữ liệu hệ thống.\n\n"
+        "2) Nhận định nhanh theo dữ liệu hiện tại\n"
+        "- Ở backend hiện tại, đăng ký user thường yêu cầu wallet_address và ví đó phải đã tồn tại trong wallet profile, transaction, alert, hoặc blocked transfer.\n"
+        "- Nếu backend đang chạy chế độ auth disabled hoặc database chưa seed đủ dữ liệu, form đăng ký cũng có thể bị chặn.\n\n"
+        "3) Hành động đề xuất cho operator\n"
+        "- Kiểm tra lại wallet address đã nhập, đảm bảo nó có trong dữ liệu hệ thống và không bị trùng username/email.\n"
+        "- Nếu vẫn lỗi, mở log backend để xem HTTP status và chi tiết `detail` trả về từ /auth/register."
+    )
+
 def _initialize_database() -> None:
     ensure_schema()
     try:
@@ -695,6 +740,29 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             endpoint="/assistant/chat"
         )
         raise HTTPException(status_code=400, detail="Missing message")
+
+    if _is_account_support_question(message):
+        answer = _build_account_support_answer(message)
+        log_diagnostic(
+            DiagnosticLogType.API_CALL,
+            "Assistant answered account support question via deterministic path",
+            details={"message": message, "role": role, "scope": screen_scope},
+            status_code=200,
+            endpoint="/assistant/chat"
+        )
+        return {
+            "answer": answer,
+            "context": {
+                "role": role,
+                "screen_scope": screen_scope,
+                "overview": {},
+                "top_risky_wallets": [],
+                "wallet_focus": None,
+            },
+            "sources": ["auth/register", "auth/login"],
+            "knowledge_sources": [],
+            "model_enabled": False,
+        }
 
     context = {}
     knowledge_snippets = []
