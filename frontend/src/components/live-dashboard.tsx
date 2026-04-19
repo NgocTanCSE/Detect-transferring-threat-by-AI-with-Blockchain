@@ -407,6 +407,9 @@ export default function LiveDashboard() {
   const [auditCompleteness, setAuditCompleteness] = useState<AuditCompleteness | null>(null);
   const [auditGaps, setAuditGaps] = useState<AuditGaps | null>(null);
   const [sloMetrics, setSloMetrics] = useState<SloMetrics | null>(null);
+  const [totalAlertCount, setTotalAlertCount] = useState<number>(0);
+  const [totalBlockedCount, setTotalBlockedCount] = useState<number>(0);
+  const [totalCaseCount, setTotalCaseCount] = useState<number>(0);
   const isFetchingRef = useRef(false);
   const lastAutoFetchAtRef = useRef(0);
 
@@ -479,7 +482,9 @@ export default function LiveDashboard() {
       setDashboardStats(dashboardResult);
       setFlowStats(flowResult);
       setRecentAlerts(alertsResult.alerts ?? []);
-      setBlockedTransfers(blockedResult ?? []);
+      setTotalAlertCount((alertsResult.statistics?.total_matching as number) ?? (alertsResult.alerts?.length ?? 0));
+      setBlockedTransfers(blockedResult.blocked_transfers ?? []);
+      setTotalBlockedCount((blockedResult.statistics?.total_matching as number) ?? (blockedResult.blocked_transfers?.length ?? 0));
 
       if (roleKey === "system_admin") {
         const [nodeRes, pipelineRes, pipelineSummaryRes, sloRes] = await Promise.allSettled([
@@ -512,13 +517,16 @@ export default function LiveDashboard() {
           fetchJson<AlertsSummary>("/api/ops/security/alerts-summary", { today: 0, critical: 0, high: 0, medium: 0, low: 0 }),
           fetchJson<CaseSummary>("/api/ops/security/case-summary", { totals: {}, unassigned: 0, high_risk_unassigned: 0 }),
           fetchJson<{ count: number; items: NotificationItem[] }>("/api/ops/security/notifications?limit=10", { count: 0, items: [] }),
-          fetchJson<{ count: number; cases: CaseItem[] }>("/api/cases?limit=500&min_risk=0", { count: 0, cases: [] }),
+          fetchJson<{ count: number; cases: CaseItem[]; statistics: Record<string, unknown> }>("/api/cases?limit=500&min_risk=0", { count: 0, cases: [], statistics: {} }),
         ]);
 
         if (alertSummaryRes.status === "fulfilled") setAlertsSummary(alertSummaryRes.value);
         if (caseSummaryRes.status === "fulfilled") setCaseSummary(caseSummaryRes.value);
         if (notificationsRes.status === "fulfilled") setNotificationEvents(notificationsRes.value.items ?? []);
-        if (casesRes.status === "fulfilled") setCaseItems(casesRes.value.cases ?? []);
+        if (casesRes.status === "fulfilled") {
+          setCaseItems(casesRes.value.cases ?? []);
+          setTotalCaseCount((casesRes.value.statistics?.matching_cases as number) ?? (casesRes.value.cases?.length ?? 0));
+        }
       }
 
       if (roleKey === "compliance_risk_manager") {
@@ -711,13 +719,13 @@ export default function LiveDashboard() {
           return {
             title: "Alert queue",
             description: "Recent alerts and severity distribution from the backend.",
-            content: <AlertQueuePanel alerts={recentAlerts} alertsSummary={alertsSummary} contextQuery={contextQuery} urlState={alertUrlState} onUrlStateChange={updateQuery} />,
+            content: <AlertQueuePanel alerts={recentAlerts} totalCount={totalAlertCount} alertsSummary={alertsSummary} contextQuery={contextQuery} urlState={alertUrlState} onUrlStateChange={updateQuery} />,
           };
         case 1:
           return {
             title: "Case queue",
             description: "High-risk cases that need analyst attention.",
-            content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} contextQuery={contextQuery} urlState={caseUrlState} onUrlStateChange={updateQuery} />,
+            content: <CaseQueuePanel cases={caseItems} totalCount={totalCaseCount} caseSummary={caseSummary} contextQuery={contextQuery} urlState={caseUrlState} onUrlStateChange={updateQuery} />,
           };
         case 2:
           return { title: "Case actions", description: "Live case workflow state from the analyst queue.", content: <CaseActionPanel caseSummary={caseSummary} /> };
@@ -729,7 +737,7 @@ export default function LiveDashboard() {
           return {
             title: "Case data",
             description: "Case states and assignment pressure.",
-            content: <CaseQueuePanel cases={caseItems} caseSummary={caseSummary} contextQuery={contextQuery} urlState={caseUrlState} onUrlStateChange={updateQuery} />,
+            content: <CaseQueuePanel cases={caseItems} totalCount={totalCaseCount} caseSummary={caseSummary} contextQuery={contextQuery} urlState={caseUrlState} onUrlStateChange={updateQuery} />,
           };
       }
     }
@@ -1216,12 +1224,14 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
 
 function AlertQueuePanel({
   alerts,
+  totalCount,
   alertsSummary,
   contextQuery,
   urlState,
   onUrlStateChange,
 }: {
   alerts: Alert[];
+  totalCount: number;
   alertsSummary: AlertsSummary | null;
   contextQuery: string;
   urlState: { search: string; severity: string; sortBy: "time" | "severity" | "wallet" | "type"; sortDir: "asc" | "desc"; page: number; pageSize: number };
@@ -1270,7 +1280,7 @@ function AlertQueuePanel({
     return sorted;
   }, [filteredAlerts, sortBy, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedAlerts.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(Math.max(totalCount, sortedAlerts.length) / pageSize));
   const pagedAlerts = useMemo(() => {
     const startIndex = (page - 1) * pageSize;
     return sortedAlerts.slice(startIndex, startIndex + pageSize);
@@ -1371,7 +1381,7 @@ function AlertQueuePanel({
           totalPages={totalPages}
           onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
           onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-          itemCount={sortedAlerts.length}
+          itemCount={Math.max(totalCount, sortedAlerts.length)}
           pageSize={pageSize}
           pageSizeOptions={pageSizeOptions}
           onPageSizeChange={(size) => {
@@ -1427,12 +1437,14 @@ function AlertSeverityCard({ alertsSummary, alerts }: { alertsSummary: AlertsSum
 
 function CaseQueuePanel({
   cases,
+  totalCount,
   caseSummary,
   contextQuery,
   urlState,
   onUrlStateChange,
 }: {
   cases: CaseItem[];
+  totalCount: number;
   caseSummary: CaseSummary | null;
   contextQuery: string;
   urlState: { search: string; status: string; sortBy: "risk" | "status" | "tx"; sortDir: "asc" | "desc"; page: number; pageSize: number };
@@ -1479,7 +1491,7 @@ function CaseQueuePanel({
     return sorted;
   }, [filteredCases, sortBy, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedCases.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(Math.max(totalCount, sortedCases.length) / pageSize));
   const pagedCases = useMemo(() => {
     const startIndex = (page - 1) * pageSize;
     return sortedCases.slice(startIndex, startIndex + pageSize);
@@ -1586,7 +1598,7 @@ function CaseQueuePanel({
         totalPages={totalPages}
         onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
         onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-        itemCount={sortedCases.length}
+        itemCount={Math.max(totalCount, sortedCases.length)}
         pageSize={pageSize}
         pageSizeOptions={pageSizeOptions}
         onPageSizeChange={(size) => {

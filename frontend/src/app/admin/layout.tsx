@@ -38,6 +38,12 @@ const sidebarItems = [
     icon: History,
     description: "Blocked Transfers",
   },
+  {
+    title: "Logs",
+    href: "/admin/diagnostics",
+    icon: Activity,
+    description: "System Diagnostics",
+  },
 ];
 
 export default function AdminLayout({

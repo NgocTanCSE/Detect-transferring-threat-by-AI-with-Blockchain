@@ -287,7 +287,7 @@ export async function fetchBlockedTransfers(
   limit = 500,
   search?: string,
   minRisk?: number
-): Promise<BlockedTransfer[]> {
+): Promise<{ blocked_transfers: BlockedTransfer[]; statistics: Record<string, unknown> }> {
   try {
     const params = new URLSearchParams();
     params.set("limit", limit.toString());
@@ -296,12 +296,12 @@ export async function fetchBlockedTransfers(
 
     const res = await fetch(`${API_BASE}/blocked-transfers?${params}`);
     if (!res.ok) {
-      return [];
+      return { blocked_transfers: [], statistics: {} };
     }
     const data = await res.json();
-    return data.blocked_transfers || [];
+    return { blocked_transfers: data.blocked_transfers || [], statistics: data.statistics || {} };
   } catch {
-    return [];
+    return { blocked_transfers: [], statistics: {} };
   }
 }
 
