@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   BadgeInfo,
@@ -382,6 +382,8 @@ function CardShell({ title, subtitle, children, icon: Icon }: { title: string; s
 }
 
 export default function LiveDashboard() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
@@ -420,10 +422,19 @@ export default function LiveDashboard() {
   const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace";
 
   const updateQuery = useCallback(
-    (_patch: Record<string, string | number | null | undefined>) => {
-      // Intentionally disabled to avoid navigation loops from URL sync.
+    (patch: Record<string, string | number | null | undefined>) => {
+      const nextParams = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null || value === undefined || value === "") {
+          nextParams.delete(key);
+        } else {
+          nextParams.set(key, String(value));
+        }
+      }
+      const query = nextParams.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     },
-    []
+    [pathname, router, searchParams]
   );
 
   useEffect(() => {
@@ -852,7 +863,11 @@ export default function LiveDashboard() {
                 <button
                   key={entry.key}
                   type="button"
-                  onClick={() => setActiveRole(entry.key)}
+                  onClick={() => {
+                    setActiveRole(entry.key);
+                    setActiveFeatureIndex(0);
+                    updateQuery({ role: entry.key, feature: 0 });
+                  }}
                   className={[
                     "rounded-2xl border px-4 py-2 text-sm font-medium transition",
                     isActive ? `${entry.accentClass} shadow-[0_0_0_1px_rgba(148,163,184,0.18)]` : "border-slate-700 bg-slate-800/70 text-slate-300 hover:border-slate-500 hover:text-white",
@@ -913,7 +928,10 @@ export default function LiveDashboard() {
                       <button
                         key={feature}
                         type="button"
-                        onClick={() => setActiveFeatureIndex(index)}
+                        onClick={() => {
+                          setActiveFeatureIndex(index);
+                          updateQuery({ feature: index });
+                        }}
                         className={[
                           "w-full rounded-2xl border px-3 py-3 text-left transition",
                           isActiveFeature

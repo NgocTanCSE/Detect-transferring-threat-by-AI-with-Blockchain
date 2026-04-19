@@ -39,9 +39,9 @@ from app.models.models import (
 
 DEFAULT_USER_COUNT = int(os.getenv("LOCAL_DEMO_USER_COUNT", "5000"))
 DEFAULT_TX_PER_USER = int(os.getenv("LOCAL_DEMO_TX_PER_USER", "5"))
-DEFAULT_ALERTS = int(os.getenv("LOCAL_DEMO_ALERT_COUNT", "150"))
-DEFAULT_BLOCKED = int(os.getenv("LOCAL_DEMO_BLOCKED_COUNT", "60"))
-DEFAULT_CASES = int(os.getenv("LOCAL_DEMO_CASE_COUNT", "100"))
+DEFAULT_ALERTS = int(os.getenv("LOCAL_DEMO_ALERT_COUNT", str(max(500, DEFAULT_USER_COUNT // 4))))
+DEFAULT_BLOCKED = int(os.getenv("LOCAL_DEMO_BLOCKED_COUNT", str(max(300, DEFAULT_USER_COUNT // 8))))
+DEFAULT_CASES = int(os.getenv("LOCAL_DEMO_CASE_COUNT", str(max(600, DEFAULT_USER_COUNT // 6))))
 RANDOM_SEED = int(os.getenv("LOCAL_DEMO_SEED", "1337"))
 
 ROOT_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -96,19 +96,28 @@ def _role_for_index(index: int) -> str:
     return "user"
 
 
-def _risk_score_for_index(index: int, rng: random.Random) -> float:
-    base = 8.0 + (index % 100) * 0.55
-    jitter = rng.uniform(-6.0, 8.0)
-    return max(0.5, min(99.9, round(base + jitter, 2)))
+def _risk_score_for_index(index: int, rng: random.Random, user_count: int) -> float:
+    # Purposeful distribution for 5k wallets: ~500 normal, remaining wallets spread across richer risk states.
+    normal_cutoff = min(500, user_count)
+    review_cutoff = min(normal_cutoff + int(user_count * 0.40), user_count)
+    suspended_cutoff = min(review_cutoff + int(user_count * 0.30), user_count)
+
+    if index < normal_cutoff:
+        return round(rng.uniform(5.0, 34.0), 2)
+    if index < review_cutoff:
+        return round(rng.uniform(45.0, 69.0), 2)
+    if index < suspended_cutoff:
+        return round(rng.uniform(70.0, 84.0), 2)
+    return round(rng.uniform(85.0, 99.8), 2)
 
 
 def _status_for_score(score: float) -> tuple[str, str | None]:
     if score >= 85:
         return "frozen", "scam"
-    if score >= 65:
-        return "under_review", "manipulation"
+    if score >= 70:
+        return "suspended", "manipulation"
     if score >= 45:
-        return "active", "suspicious_activity"
+        return "under_review", "manipulation"
     return "active", None
 
 
@@ -160,7 +169,7 @@ def _build_seed_users(user_count: int, rng: random.Random, now: datetime) -> lis
         else:
             address = _make_address(rng, index)
             label = f"Demo Wallet {index:05d}"
-            risk_score = _risk_score_for_index(index, rng)
+            risk_score = _risk_score_for_index(index, rng, user_count)
             risk_category = _status_for_score(risk_score)[1]
             total_transactions = 10 + (index % 40)
             total_sent = _eth(rng.uniform(0.5, 25.0))
@@ -181,7 +190,7 @@ def _build_seed_users(user_count: int, rng: random.Random, now: datetime) -> lis
             role=_role_for_index(index),
             wallet_address=address,
             is_active=True,
-            warning_count=0 if risk_score < 65 else 2,
+            warning_count=0 if account_status == "active" else (2 if account_status == "under_review" else 3),
             last_login_at=now - timedelta(days=index % 14),
             created_at=now - timedelta(days=180 - (index % 60)),
             updated_at=now,
@@ -322,7 +331,7 @@ def seed_wallets() -> None:
                     address=wallet_address,
                     label=f"Test {role.title()} Wallet",
                     entity_type="User",
-                    account_status="ACTIVE",
+                    account_status="active",
                     risk_score=10.0 if role == "admin" else 25.0,
                     risk_category=None,
                     total_transactions=5,
