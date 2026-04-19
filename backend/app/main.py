@@ -18,6 +18,13 @@ from app.core.config import ALCHEMY_API_KEY, ALCHEMY_RPC_URL
 from app.services.ai_engine import MultiAgentDetectionEngine
 from app.services.hf_security_analyst import HFSecurityAnalyst
 from app.services.assistant_knowledge_base import retrieve_relevant_snippets
+from app.admin_diagnostics import (
+    diagnostic_logger,
+    log_diagnostic,
+    get_system_status,
+    get_seed_data_counts,
+    DiagnosticLogType,
+)
 
 
 def _get_or_create_wallet(database_session: Session, address: str) -> Wallet:
@@ -104,7 +111,110 @@ def health_check() -> Dict[str, str]:
     return {"status": "operational", "service": "Blockchain Risk Assessment API v3.0"}
 
 
-def _build_dashboard_assistant_context(
+# ============================================================================
+# ADMIN DIAGNOSTICS ENDPOINTS
+# ============================================================================
+
+@app.get("/admin/diagnostics/status", tags=["Admin Diagnostics"])
+def get_diagnostics_status(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get comprehensive system status for admin dashboard."""
+    try:
+        status = get_system_status(database_session)
+        log_diagnostic(
+            DiagnosticLogType.INFO,
+            "Admin diagnostics status checked",
+            status_code=200,
+            endpoint="/admin/diagnostics/status"
+        )
+        return status
+    except Exception as e:
+        logger.exception(f"Failed to get diagnostics status: {e}")
+        log_diagnostic(
+            DiagnosticLogType.ERROR,
+            f"Diagnostics status failed: {str(e)}",
+            status_code=500,
+            endpoint="/admin/diagnostics/status"
+        )
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": str(e),
+            "database": {"health": {"status": "error", "error": str(e)}},
+            "seed_data": {},
+            "endpoints": {},
+            "recent_errors": [],
+        }
+
+
+@app.get("/admin/diagnostics/logs", tags=["Admin Diagnostics"])
+def get_diagnostics_logs(limit: int = 50, log_type: str = None) -> Dict[str, Any]:
+    """Get recent diagnostic logs."""
+    logs = diagnostic_logger.get_recent_logs(limit=limit, log_type=log_type)
+    return {
+        "count": len(logs),
+        "logs": logs,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+@app.get("/admin/diagnostics/endpoint-stats", tags=["Admin Diagnostics"])
+def get_endpoint_statistics() -> Dict[str, Any]:
+    """Get API endpoint statistics and health."""
+    stats = diagnostic_logger.get_endpoint_stats()
+    return {
+        "endpoints": stats,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+@app.get("/admin/diagnostics/seed-data", tags=["Admin Diagnostics"])
+def get_seed_data_status(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get seed data counts for all tables."""
+    try:
+        counts = get_seed_data_counts(database_session)
+        log_diagnostic(
+            DiagnosticLogType.SEED_DATA,
+            "Seed data status checked",
+            details=counts,
+            status_code=200,
+            endpoint="/admin/diagnostics/seed-data"
+        )
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "counts": counts,
+        }
+    except Exception as e:
+        logger.exception(f"Failed to get seed data counts: {e}")
+        log_diagnostic(
+            DiagnosticLogType.ERROR,
+            f"Seed data check failed: {str(e)}",
+            status_code=500,
+            endpoint="/admin/diagnostics/seed-data"
+        )
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": str(e),
+            "counts": {},
+        }
+
+
+@app.delete("/admin/diagnostics/logs", tags=["Admin Diagnostics"])
+def clear_diagnostics_logs() -> Dict[str, str]:
+    """Clear all diagnostic logs."""
+    diagnostic_logger.clear()
+    log_diagnostic(
+        DiagnosticLogType.INFO,
+        "Diagnostic logs cleared by admin",
+        status_code=200,
+        endpoint="/admin/diagnostics/logs"
+    )
+    return {"status": "cleared", "timestamp": datetime.utcnow().isoformat()}
+
+
+# ============================================================================
+# END ADMIN DIAGNOSTICS ENDPOINTS
+# ============================================================================
+
+
     database_session: Session,
     role: str,
     wallet_address: str | None = None,
@@ -209,12 +319,18 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
     conversation_history = payload.get("conversation_history") or []
 
     if not message:
+        log_diagnostic(
+            DiagnosticLogType.API_ERROR,
+            "Chat request missing message",
+            status_code=400,
+            endpoint="/assistant/chat"
+        )
         raise HTTPException(status_code=400, detail="Missing message")
 
     context = {}
     knowledge_snippets = []
     analyst = HFSecurityAnalyst()
-    
+
     try:
         context = _build_dashboard_assistant_context(
             database_session,
@@ -222,8 +338,22 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             wallet_address=wallet_address,
             screen_scope=screen_scope,
         )
+        log_diagnostic(
+            DiagnosticLogType.API_CALL,
+            "Assistant context built successfully",
+            details={"role": role, "wallet_address": wallet_address, "scope": screen_scope},
+            status_code=200,
+            endpoint="/assistant/chat"
+        )
     except Exception as e:
         logger.warning(f"Failed to build assistant context: {e}")
+        log_diagnostic(
+            DiagnosticLogType.API_ERROR,
+            f"Failed to build assistant context: {str(e)}",
+            details={"role": role, "error_type": type(e).__name__},
+            status_code=500,
+            endpoint="/assistant/chat"
+        )
         context = {
             "role": role,
             "screen_scope": screen_scope,
@@ -246,8 +376,20 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             scope=screen_scope,
             limit=4,
         )
+        log_diagnostic(
+            DiagnosticLogType.API_CALL,
+            f"Retrieved {len(knowledge_snippets)} knowledge snippets",
+            status_code=200,
+            endpoint="/assistant/chat"
+        )
     except Exception as e:
         logger.warning(f"Failed to retrieve knowledge snippets: {e}")
+        log_diagnostic(
+            DiagnosticLogType.API_ERROR,
+            f"Failed to retrieve knowledge snippets: {str(e)}",
+            status_code=500,
+            endpoint="/assistant/chat"
+        )
         knowledge_snippets = []
 
     try:
@@ -257,8 +399,22 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             knowledge_snippets=knowledge_snippets,
             conversation_history=conversation_history,
         )
+        log_diagnostic(
+            DiagnosticLogType.AI_SERVICE,
+            f"AI answer generated (model_enabled={analyst.enabled})",
+            details={"message_length": len(message), "answer_length": len(answer)},
+            status_code=200,
+            endpoint="/assistant/chat"
+        )
     except Exception as e:
         logger.exception(f"Assistant answer generation failed: {e}")
+        log_diagnostic(
+            DiagnosticLogType.AI_SERVICE,
+            f"AI answer generation failed: {str(e)}",
+            details={"error_type": type(e).__name__},
+            status_code=500,
+            endpoint="/assistant/chat"
+        )
         answer = (
             "Xin lỗi, trợ lý AI gặp lỗi khi xử lý câu hỏi. "
             "Vui lòng kiểm tra HF_TOKEN trong Space Secrets hoặc thử lại sau."
@@ -272,7 +428,7 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
     if wallet_address:
         sources.append("wallet_focus: wallets/transactions/alerts")
 
-    return {
+    response = {
         "answer": answer,
         "context": {
             "role": role,
@@ -288,6 +444,14 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         ],
         "model_enabled": analyst.enabled,
     }
+
+    log_diagnostic(
+        DiagnosticLogType.API_CALL,
+        "Chat response prepared successfully",
+        status_code=200,
+        endpoint="/assistant/chat"
+    )
+    return response
 
 
 @app.get("/diagnostics/alchemy/{wallet_address}", tags=["Diagnostics"])

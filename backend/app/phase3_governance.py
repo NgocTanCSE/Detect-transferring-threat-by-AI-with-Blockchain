@@ -1,5 +1,6 @@
 """Phase 3 governance APIs: policy rules, security summaries, and notification adapters."""
 
+import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 import uuid
@@ -18,8 +19,10 @@ from app.models.models import (
     Transaction,
     User,
 )
+from app.admin_diagnostics import log_diagnostic, DiagnosticLogType
 
 router = APIRouter(prefix="/ops", tags=["Phase 3 Governance"])
+logger = logging.getLogger(__name__)
 
 
 def _parse_uuid(raw_id: Optional[str], field_name: str) -> Optional[uuid.UUID]:
@@ -92,32 +95,51 @@ def list_policy_rules(
     only_active: bool = Query(default=False),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    query = db.query(PolicyRule)
-    if only_active:
-        query = query.filter(PolicyRule.is_active.is_(True))
+    try:
+        query = db.query(PolicyRule)
+        if only_active:
+            query = query.filter(PolicyRule.is_active.is_(True))
 
-    records = query.order_by(PolicyRule.priority.asc(), PolicyRule.created_at.asc()).all()
+        records = query.order_by(PolicyRule.priority.asc(), PolicyRule.created_at.asc()).all()
 
-    return {
-        "count": len(records),
-        "items": [
-            {
-                "id": str(item.id),
-                "rule_name": item.rule_name,
-                "description": item.description,
-                "min_risk_score": float(item.min_risk_score),
-                "block_blacklisted": bool(item.block_blacklisted),
-                "block_suspended": bool(item.block_suspended),
-                "notify_on_block": bool(item.notify_on_block),
-                "priority": int(item.priority),
-                "is_active": bool(item.is_active),
-                "created_by": str(item.created_by) if item.created_by else None,
-                "created_at": item.created_at.isoformat() if item.created_at else None,
-                "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-            }
-            for item in records
-        ],
-    }
+        response = {
+            "count": len(records),
+            "items": [
+                {
+                    "id": str(item.id),
+                    "rule_name": item.rule_name,
+                    "description": item.description,
+                    "min_risk_score": float(item.min_risk_score),
+                    "block_blacklisted": bool(item.block_blacklisted),
+                    "block_suspended": bool(item.block_suspended),
+                    "notify_on_block": bool(item.notify_on_block),
+                    "priority": int(item.priority),
+                    "is_active": bool(item.is_active),
+                    "created_by": str(item.created_by) if item.created_by else None,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                    "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+                }
+                for item in records
+            ],
+        }
+
+        log_diagnostic(
+            DiagnosticLogType.API_CALL,
+            f"Policy rules fetched: {response['count']} items",
+            status_code=200,
+            endpoint="/ops/compliance/policy-rules"
+        )
+        return response
+    except Exception as e:
+        logger.exception(f"Failed to list policy rules: {e}")
+        log_diagnostic(
+            DiagnosticLogType.API_ERROR,
+            f"Failed to list policy rules: {str(e)}",
+            details={"error_type": type(e).__name__},
+            status_code=500,
+            endpoint="/ops/compliance/policy-rules"
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to list policy rules: {str(e)}")
 
 
 @router.post("/compliance/policy-rules")
@@ -245,36 +267,55 @@ def evaluate_policy(payload: PolicyEvaluateRequest, db: Session = Depends(get_db
 
 @router.get("/security/case-summary")
 def get_case_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    totals = dict(
-        db.query(Transaction.case_status, func.count(Transaction.tx_hash))
-        .group_by(Transaction.case_status)
-        .all()
-    )
+    try:
+        totals = dict(
+            db.query(Transaction.case_status, func.count(Transaction.tx_hash))
+            .group_by(Transaction.case_status)
+            .all()
+        )
 
-    unassigned = (
-        db.query(func.count(Transaction.tx_hash))
-        .filter(Transaction.assigned_to.is_(None))
-        .scalar()
-        or 0
-    )
+        unassigned = (
+            db.query(func.count(Transaction.tx_hash))
+            .filter(Transaction.assigned_to.is_(None))
+            .scalar()
+            or 0
+        )
 
-    high_risk_unassigned = (
-        db.query(func.count(Transaction.tx_hash))
-        .filter(Transaction.assigned_to.is_(None), Transaction.normalized_risk_score >= 0.8)
-        .scalar()
-        or 0
-    )
+        high_risk_unassigned = (
+            db.query(func.count(Transaction.tx_hash))
+            .filter(Transaction.assigned_to.is_(None), Transaction.normalized_risk_score >= 0.8)
+            .scalar()
+            or 0
+        )
 
-    return {
-        "totals": {
-            "PENDING": int(totals.get("PENDING", 0)),
-            "VERIFIED": int(totals.get("VERIFIED", 0)),
-            "FRAUD": int(totals.get("FRAUD", 0)),
-            "IGNORED": int(totals.get("IGNORED", 0)),
-        },
-        "unassigned": int(unassigned),
-        "high_risk_unassigned": int(high_risk_unassigned),
-    }
+        response = {
+            "totals": {
+                "PENDING": int(totals.get("PENDING", 0)),
+                "VERIFIED": int(totals.get("VERIFIED", 0)),
+                "FRAUD": int(totals.get("FRAUD", 0)),
+                "IGNORED": int(totals.get("IGNORED", 0)),
+            },
+            "unassigned": int(unassigned),
+            "high_risk_unassigned": int(high_risk_unassigned),
+        }
+
+        log_diagnostic(
+            DiagnosticLogType.API_CALL,
+            f"Case summary: {int(unassigned)} unassigned, {int(high_risk_unassigned)} high-risk unassigned",
+            status_code=200,
+            endpoint="/ops/security/case-summary"
+        )
+        return response
+    except Exception as e:
+        logger.exception(f"Failed to get case summary: {e}")
+        log_diagnostic(
+            DiagnosticLogType.API_ERROR,
+            f"Failed to get case summary: {str(e)}",
+            details={"error_type": type(e).__name__},
+            status_code=500,
+            endpoint="/ops/security/case-summary"
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to get case summary: {str(e)}")
 
 
 @router.post("/security/notifications/test")
@@ -347,18 +388,37 @@ def list_notification_events(
 
 @router.get("/security/alerts-summary")
 def get_alerts_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    try:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    by_severity = dict(
-        db.query(Alert.severity, func.count(Alert.id))
-        .group_by(Alert.severity)
-        .all()
-    )
+        by_severity = dict(
+            db.query(Alert.severity, func.count(Alert.id))
+            .group_by(Alert.severity)
+            .all()
+        )
 
-    return {
-        "today": int(db.query(func.count(Alert.id)).filter(Alert.detected_at >= today_start).scalar() or 0),
-        "critical": int(by_severity.get("CRITICAL", 0)),
-        "high": int(by_severity.get("HIGH", 0)),
-        "medium": int(by_severity.get("MEDIUM", 0)),
-        "low": int(by_severity.get("LOW", 0)),
-    }
+        response = {
+            "today": int(db.query(func.count(Alert.id)).filter(Alert.detected_at >= today_start).scalar() or 0),
+            "critical": int(by_severity.get("CRITICAL", 0)),
+            "high": int(by_severity.get("HIGH", 0)),
+            "medium": int(by_severity.get("MEDIUM", 0)),
+            "low": int(by_severity.get("LOW", 0)),
+        }
+
+        log_diagnostic(
+            DiagnosticLogType.API_CALL,
+            f"Alerts summary: {response.get('critical', 0)} critical, {response.get('today', 0)} today",
+            status_code=200,
+            endpoint="/ops/security/alerts-summary"
+        )
+        return response
+    except Exception as e:
+        logger.exception(f"Failed to get alerts summary: {e}")
+        log_diagnostic(
+            DiagnosticLogType.API_ERROR,
+            f"Failed to get alerts summary: {str(e)}",
+            details={"error_type": type(e).__name__},
+            status_code=500,
+            endpoint="/ops/security/alerts-summary"
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to get alerts summary: {str(e)}")
