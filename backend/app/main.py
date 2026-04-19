@@ -2534,8 +2534,8 @@ def get_node_endpoints(only_active: bool = True, database_session: Session = Dep
                     "protocol": node.protocol or "HTTP",
                     "priority": node.priority or 1,
                     "is_active": node.is_active,
-                    "health_status": "healthy" if node.is_active else "unhealthy",
-                    "last_error": None,
+                    "health_status": node.health_status or ("healthy" if node.is_active else "unknown"),
+                    "last_error": node.last_error,
                     "last_checked_at": node.last_checked_at.isoformat() if node.last_checked_at else None
                 }
                 for node in (nodes if not only_active else [n for n in nodes if n.is_active])
@@ -2549,27 +2549,28 @@ def get_node_endpoints(only_active: bool = True, database_session: Session = Dep
 @app.get("/api/ops/system/pipeline-metrics", tags=["System Admin"])
 def get_pipeline_metrics(limit: int = 12, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get pipeline ingestion metrics."""
+    limit = max(1, min(int(limit or 12), 200))
     try:
-        from datetime import timedelta
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(hours=24)
-
-        # Simulate pipeline metrics from transaction data
-        transactions = database_session.query(Transaction).filter(Transaction.timestamp >= start_date).all()
+        metrics = (
+            database_session.query(PipelineMetric)
+            .order_by(PipelineMetric.inserted_at.desc(), PipelineMetric.id.desc())
+            .limit(limit)
+            .all()
+        )
 
         return {
-            "count": min(limit, 12),
+            "count": len(metrics),
             "items": [
                 {
-                    "id": i,
-                    "chain": "ethereum",
-                    "block_number": 19000000 + i * 1000,
-                    "throughput_tps": 15.5 + (i % 5) * 2.1,
-                    "ingestion_latency_ms": 250 + (i % 10) * 15,
-                    "decode_latency_ms": 125 + (i % 8) * 10,
-                    "inserted_at": (end_date - timedelta(hours=limit-i)).isoformat()
+                    "id": int(metric.id),
+                    "chain": metric.chain,
+                    "block_number": int(metric.block_number) if metric.block_number is not None else None,
+                    "throughput_tps": float(metric.throughput_tps) if metric.throughput_tps is not None else None,
+                    "ingestion_latency_ms": metric.ingestion_latency_ms,
+                    "decode_latency_ms": metric.decode_latency_ms,
+                    "inserted_at": metric.inserted_at.isoformat() if metric.inserted_at else None,
                 }
-                for i in range(min(limit, 12))
+                for metric in metrics
             ]
         }
     except Exception as e:
@@ -2581,13 +2582,18 @@ def get_pipeline_metrics(limit: int = 12, database_session: Session = Depends(ge
 def get_pipeline_metrics_summary(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get pipeline metrics summary."""
     try:
-        transactions = database_session.query(Transaction).all()
+        total_points = database_session.query(func.count(PipelineMetric.id)).scalar() or 0
+        avg_throughput_tps = database_session.query(func.avg(PipelineMetric.throughput_tps)).scalar()
+        avg_ingestion_latency_ms = database_session.query(func.avg(PipelineMetric.ingestion_latency_ms)).scalar()
+        avg_decode_latency_ms = database_session.query(func.avg(PipelineMetric.decode_latency_ms)).scalar()
+        last_block_number = database_session.query(func.max(PipelineMetric.block_number)).scalar()
+
         return {
-            "total_points": len(transactions),
-            "avg_throughput_tps": 18.5,
-            "avg_ingestion_latency_ms": 312,
-            "avg_decode_latency_ms": 156,
-            "last_block_number": 19450000
+            "total_points": int(total_points),
+            "avg_throughput_tps": float(avg_throughput_tps) if avg_throughput_tps is not None else None,
+            "avg_ingestion_latency_ms": float(avg_ingestion_latency_ms) if avg_ingestion_latency_ms is not None else None,
+            "avg_decode_latency_ms": float(avg_decode_latency_ms) if avg_decode_latency_ms is not None else None,
+            "last_block_number": int(last_block_number) if last_block_number is not None else None,
         }
     except Exception as e:
         logger.exception(f"Failed to fetch pipeline summary: {e}")
@@ -2597,24 +2603,47 @@ def get_pipeline_metrics_summary(database_session: Session = Depends(get_db)) ->
 @app.get("/api/ops/system/slo-metrics", tags=["System Admin"])
 def get_slo_metrics(days: int = 14, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get SLO compliance metrics."""
+    days = max(1, min(int(days or 14), 90))
     try:
+        from datetime import timedelta
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+
+        endpoints = database_session.query(NodeEndpoint).all()
+        total = len(endpoints)
+        active = len([n for n in endpoints if n.is_active])
+        healthy_active = len([n for n in endpoints if n.is_active and (n.health_status or "unknown").lower() == "healthy"])
+        availability_pct = (healthy_active / active * 100.0) if active > 0 else 0.0
+        error_budget_burn_pct = max(0.0, min(100.0, 100.0 - availability_pct))
+
+        metrics_window = database_session.query(PipelineMetric).filter(PipelineMetric.inserted_at >= start_date).all()
+        ingest_values = [m.ingestion_latency_ms for m in metrics_window if m.ingestion_latency_ms is not None]
+        decode_values = [m.decode_latency_ms for m in metrics_window if m.decode_latency_ms is not None]
+        ingest_target_ms = 500.0
+        decode_target_ms = 200.0
+
+        ingest_p95_ms = float(max(ingest_values)) if ingest_values else 0.0
+        decode_p95_ms = float(max(decode_values)) if decode_values else 0.0
+        ingest_breaches = len([v for v in ingest_values if v > ingest_target_ms])
+        decode_breaches = len([v for v in decode_values if v > decode_target_ms])
+
         return {
             "period_days": days,
             "endpoint_health": {
-                "total": 8,
-                "active": 7,
-                "healthy_active": 6,
-                "availability_pct": 85.5,
-                "error_budget_burn_pct": 14.5
+                "total": total,
+                "active": active,
+                "healthy_active": healthy_active,
+                "availability_pct": round(availability_pct, 2),
+                "error_budget_burn_pct": round(error_budget_burn_pct, 2),
             },
             "latency_slo": {
-                "ingest_target_ms": 500,
-                "decode_target_ms": 200,
-                "ingest_p95_ms": 425,
-                "decode_p95_ms": 185,
-                "ingest_breaches": 2,
-                "decode_breaches": 0,
-                "sample_points": 1440
+                "ingest_target_ms": ingest_target_ms,
+                "decode_target_ms": decode_target_ms,
+                "ingest_p95_ms": round(ingest_p95_ms, 2),
+                "decode_p95_ms": round(decode_p95_ms, 2),
+                "ingest_breaches": ingest_breaches,
+                "decode_breaches": decode_breaches,
+                "sample_points": len(metrics_window),
             }
         }
     except Exception as e:
@@ -2719,8 +2748,9 @@ def get_alerts_summary(database_session: Session = Depends(get_db)) -> Dict[str,
     """Get alerts summary."""
     try:
         alerts = database_session.query(Alert).all()
+        today = datetime.utcnow().date()
         return {
-            "today": len([a for a in alerts if a.detected_at.date() == datetime.utcnow().date()]),
+            "today": len([a for a in alerts if a.detected_at and a.detected_at.date() == today]),
             "critical": len([a for a in alerts if a.severity == "CRITICAL"]),
             "high": len([a for a in alerts if a.severity == "HIGH"]),
             "medium": len([a for a in alerts if a.severity == "MEDIUM"]),
@@ -2761,10 +2791,15 @@ def get_notifications(limit: int = 10, database_session: Session = Depends(get_d
             "items": [
                 {
                     "id": str(n.id),
+                    "channel": n.channel,
                     "recipient": n.recipient,
+                    "severity": n.severity,
                     "message": n.message,
+                    "status": n.status,
                     "delivery_status": n.status,
-                    "created_at": n.created_at.isoformat() if n.created_at else None
+                    "metadata": n.meta or None,
+                    "created_at": n.created_at.isoformat() if n.created_at else None,
+                    "sent_at": n.sent_at.isoformat() if n.sent_at else None,
                 }
                 for n in notifications
             ]
@@ -2788,8 +2823,12 @@ def get_policy_rules(database_session: Session = Depends(get_db)) -> Dict[str, A
                     "min_risk_score": float(rule.min_risk_score or 0),
                     "block_blacklisted": bool(rule.block_blacklisted),
                     "block_suspended": bool(rule.block_suspended),
+                    "notify_on_block": bool(rule.notify_on_block),
+                    "priority": int(rule.priority or 0),
+                    "is_active": bool(rule.is_active),
                     "enabled": bool(rule.is_active),
-                    "created_at": rule.created_at.isoformat() if rule.created_at else None
+                    "created_at": rule.created_at.isoformat() if rule.created_at else None,
+                    "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
                 }
                 for rule in rules
             ]
@@ -2910,24 +2949,34 @@ def get_audit_completeness(
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=max(1, min(days, 365)))
 
-        cases = database_session.query(TransactionCase).filter(TransactionCase.created_at >= start_date).all()
-        verified_cases = len([c for c in cases if c.state == "VERIFIED"])
+        # Build compliance checks from actual audit logs to match frontend contract.
+        audit_rows = database_session.query(AuditLog).filter(AuditLog.timestamp >= start_date).all()
+        required_action_types = ["CREATE", "UPDATE", "BLOCK", "REVIEW", "EXPORT"]
+        count_by_action: Dict[str, int] = {action: 0 for action in required_action_types}
+        for row in audit_rows:
+            action = (row.action_type or "").upper()
+            if action in count_by_action:
+                count_by_action[action] += 1
 
-        required_actions = len(cases)
-        present_actions = verified_cases
-        completeness = (present_actions / max(1, required_actions)) * 100 if required_actions > 0 else 0
+        checks = [
+            {
+                "action_type": action,
+                "count": count,
+                "present": count > 0,
+            }
+            for action, count in count_by_action.items()
+        ]
+
+        required_actions = len(required_action_types)
+        present_actions = len([item for item in checks if item["present"]])
+        completeness = (present_actions / max(1, required_actions)) * 100
 
         return {
             "period_days": days,
             "required_actions": required_actions,
             "present_actions": present_actions,
             "completeness_pct": round(completeness, 2),
-            "checks": [
-                {"name": "Evidence collection", "status": "complete" if present_actions > 0 else "pending"},
-                {"name": "Chain of custody", "status": "complete"},
-                {"name": "Digital signatures", "status": "complete"},
-                {"name": "Timestamp validation", "status": "complete"}
-            ]
+            "checks": checks,
         }
     except Exception as e:
         logger.exception(f"Failed to fetch audit completeness: {e}")
@@ -2952,21 +3001,22 @@ def get_audit_gaps(
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=max(1, min(days, 365)))
 
-        cases = database_session.query(TransactionCase).filter(TransactionCase.created_at >= start_date).all()
-        unverified_cases = [c for c in cases if c.state in ("PENDING", "IGNORED")]
+        audit_rows = database_session.query(AuditLog).filter(AuditLog.timestamp >= start_date).all()
+        required_action_types = ["CREATE", "UPDATE", "BLOCK", "REVIEW", "EXPORT"]
+        seen_actions = {(row.action_type or "").upper() for row in audit_rows}
+        missing_action_types = [action for action in required_action_types if action not in seen_actions]
 
         return {
             "period_days": days,
-            "missing_count": len(unverified_cases),
+            "missing_count": len(missing_action_types),
             "missing_actions": [
                 {
-                    "case_id": str(case.id),
-                    "tx_hash": case.tx_hash,
-                    "action": f"Review case {case.state.lower()}",
-                    "priority": "HIGH" if case.state == "PENDING" else "MEDIUM",
-                    "assigned_to": str(case.analyst_id) if case.analyst_id else None
+                    "action_type": action,
+                    "owner_role": "compliance_risk_manager",
+                    "reason": "No audit entries found for this action in the selected period",
+                    "recommended_next_step": "Trigger and record at least one audit event for this action type",
                 }
-                for case in unverified_cases[:20]  # Limit to 20
+                for action in missing_action_types
             ]
         }
     except Exception as e:

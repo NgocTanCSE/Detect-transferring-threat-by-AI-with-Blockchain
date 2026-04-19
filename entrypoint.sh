@@ -17,6 +17,13 @@ if [ -n "$SPACE_ID" ]; then
     export DATABASE_URL="sqlite:////data/blockchain_local.db"
     echo "DATABASE_URL set to: $DATABASE_URL"
 
+    # Optional one-shot DB reset for persistent HF storage.
+    # Set RESET_DB=1 in Space variables, restart once, then unset it.
+    if [ "$RESET_DB" = "1" ]; then
+        echo "RESET_DB=1 detected. Removing persistent database at /data/blockchain_local.db"
+        rm -f /data/blockchain_local.db
+    fi
+
     # Run migration to move old data to /data if it exists elsewhere
     echo "Running persistent storage migration..."
     cd /app/backend
