@@ -152,6 +152,65 @@ blockchain-ai-project/
 
 ---
 
+## 🧭 Chuc Nang He Thong (Tu Co Ban Den Nang Cao)
+
+### 1) Nhom chuc nang co ban
+- **Xac thuc va phan quyen**: dang ky, dang nhap, route protection, role-based access.
+- **Tong quan du lieu**: hien thi chi so tong so vi, tong canh bao, critical alerts, blocked transfers.
+- **Theo doi giao dich/vi**: tra cuu vi, lich su giao dich, canh bao gan voi vi.
+
+### 2) Nhom chuc nang nghiep vu theo role
+- **System Admin**:
+   - Theo doi node endpoints, pipeline metrics, SLO metrics.
+   - Quan ly diagnostics logs: filter, export CSV, archive/unarchive.
+   - Kiem tra data integrity va auto-fix control bi thieu.
+- **AI Data Engineer**:
+   - Quan ly feature store (feature key, expression, enablement).
+   - Quan ly model registry (version, active model, promoted metadata).
+   - Theo doi do san sang cua du lieu phuc vu AI suy luan rui ro.
+- **Security Analyst**:
+   - Alert queue, case queue, case actions.
+   - Theo doi notifications va blocked transfers.
+   - Uu tien xu ly case theo muc do rui ro.
+- **Compliance Risk Manager**:
+   - Policy state, audit state, policy actions.
+   - Reporting summary, audit completeness, audit gaps.
+   - Theo doi do day du bang chung va hieu qua kiem soat.
+
+### 3) Nhom chuc nang nang cao
+- **DB-first diagnostics**: log van hanh duoc luu ben vung trong DB, phuc vu audit va truy vet.
+- **Data integrity automation**:
+   - `GET /ops/system/data-integrity`
+   - `GET /ops/system/data-integrity/export?format=csv|json`
+   - `POST /ops/system/data-integrity/auto-fix`
+- **Assistant van hanh theo ngu canh**:
+   - Chat theo scope dashboard/wallet/case/policy/tracking.
+   - Su dung Gemini API key (AI Studio).
+   - Co co che quality guard de tranh cau tra loi qua ngan/lech format.
+- **Live refresh UX**:
+   - Tu dong refresh khi doi tab/chuc nang.
+   - Polling dinh ky va refresh khi quay lai tab/window.
+
+---
+
+## ⚖️ Uu Diem Va Nhuoc Diem
+
+### Uu diem
+- **Phan vai tro ro rang**: giao dien va nghiep vu tach theo 4 role van hanh.
+- **DB-first**: diagnostics/audit duoc luu ben vung, de truy vet va bao cao.
+- **Tinh van hanh cao**: co export, archive/unarchive, integrity checks, auto-fix.
+- **Trien khai linh hoat**: co the chay 1 Hugging Face Space cho toan bo app.
+- **Tro ly AI theo ngu canh**: giup giai thich chi so va de xuat hanh dong nhanh.
+
+### Nhuoc diem
+- **Dashboard component lon**: logic tap trung nhieu o mot file, kho mo rong ve sau.
+- **Do tre du lieu**: hien dang polling, chua phai realtime push (WebSocket/SSE).
+- **Phu thuoc chat luong data seed**: du lieu ngheo se lam giam do sau cua phan tich.
+- **Phu thuoc runtime HF**: Space free co the sleep/cold start anh huong trai nghiem.
+- **Chat luong AI bien dong**: da co guard/fallback nhung van can tiep tuc fine-tune prompt.
+
+---
+
 ## 🔐 Security Notes
 
 ### ⚠️ NEVER COMMIT THESE FILES:
