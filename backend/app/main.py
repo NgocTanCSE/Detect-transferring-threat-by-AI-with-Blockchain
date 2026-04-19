@@ -1809,46 +1809,62 @@ def get_money_flow_statistics(
     """
     from datetime import timedelta
 
+    days = max(1, min(int(days or 7), 365))
+    normalized_wallet = (wallet_address or "").lower().strip() or None
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days)
 
-    query = database_session.query(
-        func.date(Transaction.timestamp).label('date'),
-        func.sum(
-            case(
-                (Transaction.to_address == wallet_address, Transaction.value) if wallet_address else (True, Transaction.value),
-                else_=0
+    try:
+        if normalized_wallet:
+            query = database_session.query(
+                func.date(Transaction.timestamp).label('date'),
+                func.sum(
+                    case(
+                        (Transaction.to_address == normalized_wallet, Transaction.value),
+                        else_=0
+                    )
+                ).label('inflow'),
+                func.sum(
+                    case(
+                        (Transaction.from_address == normalized_wallet, Transaction.value),
+                        else_=0
+                    )
+                ).label('outflow')
+            ).filter(
+                Transaction.timestamp >= start_date,
+                (Transaction.from_address == normalized_wallet) | (Transaction.to_address == normalized_wallet)
             )
-        ).label('inflow'),
-        func.sum(
-            case(
-                (Transaction.from_address == wallet_address, Transaction.value) if wallet_address else (True, Transaction.value),
-                else_=0
+        else:
+            query = database_session.query(
+                func.date(Transaction.timestamp).label('date'),
+                func.sum(Transaction.value).label('inflow'),
+                func.sum(Transaction.value).label('outflow')
+            ).filter(
+                Transaction.timestamp >= start_date
             )
-        ).label('outflow')
-    ).filter(
-        Transaction.timestamp >= start_date
-    )
 
-    if wallet_address:
-        query = query.filter(
-            (Transaction.from_address == wallet_address) | (Transaction.to_address == wallet_address)
-        )
+        daily_flow = query.group_by(func.date(Transaction.timestamp)).order_by(func.date(Transaction.timestamp)).all()
 
-    daily_flow = query.group_by(func.date(Transaction.timestamp)).order_by(func.date(Transaction.timestamp)).all()
-
-    return {
-        "flow_data": [
-            {
-                "date": str(row.date) if row.date else None,
-                "inflow_eth": _eth_from_wei(int(row.inflow or 0)),
-                "outflow_eth": _eth_from_wei(int(row.outflow or 0))
-            }
-            for row in daily_flow
-        ],
-        "period_days": days,
-        "wallet_address": wallet_address
-    }
+        return {
+            "flow_data": [
+                {
+                    "date": str(row.date) if row.date else None,
+                    "inflow_eth": _eth_from_wei(int(row.inflow or 0)),
+                    "outflow_eth": _eth_from_wei(int(row.outflow or 0))
+                }
+                for row in daily_flow
+            ],
+            "period_days": days,
+            "wallet_address": normalized_wallet
+        }
+    except Exception as flow_error:
+        logger.exception(f"Failed to compute flow stats: {flow_error}")
+        return {
+            "flow_data": [],
+            "period_days": days,
+            "wallet_address": normalized_wallet,
+            "error": "flow_stats_unavailable"
+        }
 
 
 # ==========================================

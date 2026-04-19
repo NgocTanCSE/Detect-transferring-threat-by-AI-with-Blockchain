@@ -276,16 +276,26 @@ export async function fetchBlockedTransfers(): Promise<BlockedTransfer[]> {
 }
 
 export async function fetchFlowStats(): Promise<FlowStats[]> {
-  const res = await fetch(`${API_BASE}/statistics/flow?days=7`);
-  if (!res.ok) throw new Error("Failed to fetch flow stats");
-  const data = await res.json();
-  // Transform API response to expected format
-  const flowData = data.flow_data || data;
-  return flowData.map((item: { date: string; inflow_eth?: number; outflow_eth?: number; inflow?: number; outflow?: number }) => ({
-    date: item.date,
-    inflow: item.inflow_eth ?? item.inflow ?? 0,
-    outflow: item.outflow_eth ?? item.outflow ?? 0,
-  }));
+  try {
+    const res = await fetch(`${API_BASE}/statistics/flow?days=7`);
+    if (!res.ok) {
+      return [];
+    }
+
+    const data = await res.json();
+    const flowData = data.flow_data || data;
+    if (!Array.isArray(flowData)) {
+      return [];
+    }
+
+    return flowData.map((item: { date: string; inflow_eth?: number; outflow_eth?: number; inflow?: number; outflow?: number }) => ({
+      date: item.date,
+      inflow: item.inflow_eth ?? item.inflow ?? 0,
+      outflow: item.outflow_eth ?? item.outflow ?? 0,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export interface UserHistory {
