@@ -990,32 +990,36 @@ export default function LiveDashboard() {
                 {selectedPanel.content}
               </CardShell>
 
-              <CardShell title="Live signal strip" subtitle="Actual backend metrics powering the current role" icon={BadgeInfo}>
-                <div className="space-y-3">
-                  <SignalBar label="Dashboard coverage" value={dashboardStats ? percentage(dashboardStats.overview.total_alerts, Math.max(1, dashboardStats.overview.total_wallets)) : 0} tone="cyan" />
-                  <SignalBar label="Critical alerts" value={dashboardStats ? percentage(dashboardStats.overview.critical_alerts, Math.max(1, dashboardStats.overview.total_alerts)) : 0} tone="rose" />
-                  <SignalBar label="Flow window" value={Math.min(100, flowStats.length * 14)} tone="violet" />
-                  <SignalBar label="Blocked transfers" value={dashboardStats ? percentage(dashboardStats.overview.total_blocked, Math.max(1, dashboardStats.overview.total_alerts)) : 0} tone="amber" />
-                </div>
+              {role.key === "system_admin" && (
+                <CardShell title="Live signal strip" subtitle="Actual backend metrics powering the current role" icon={BadgeInfo}>
+                  <div className="space-y-3">
+                    <SignalBar label="Dashboard coverage" value={dashboardStats ? percentage(dashboardStats.overview.total_alerts, Math.max(1, dashboardStats.overview.total_wallets)) : 0} tone="cyan" />
+                    <SignalBar label="Critical alerts" value={dashboardStats ? percentage(dashboardStats.overview.critical_alerts, Math.max(1, dashboardStats.overview.total_alerts)) : 0} tone="rose" />
+                    <SignalBar label="Flow window" value={Math.min(100, flowStats.length * 14)} tone="violet" />
+                    <SignalBar label="Blocked transfers" value={dashboardStats ? percentage(dashboardStats.overview.total_blocked, Math.max(1, dashboardStats.overview.total_alerts)) : 0} tone="amber" />
+                  </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <MiniStat label="Wallets" value={dashboardStats ? formatCompact(dashboardStats.overview.total_wallets) : "-"} />
-                  <MiniStat label="Alerts" value={dashboardStats ? formatCompact(dashboardStats.overview.total_alerts) : "-"} />
-                  <MiniStat label="Blocked" value={dashboardStats ? formatCompact(dashboardStats.overview.total_blocked) : "-"} />
-                  <MiniStat label="Signals" value={formatCompact(flowStats.length)} />
-                </div>
-              </CardShell>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <MiniStat label="Wallets" value={dashboardStats ? formatCompact(dashboardStats.overview.total_wallets) : "-"} />
+                    <MiniStat label="Alerts" value={dashboardStats ? formatCompact(dashboardStats.overview.total_alerts) : "-"} />
+                    <MiniStat label="Blocked" value={dashboardStats ? formatCompact(dashboardStats.overview.total_blocked) : "-"} />
+                    <MiniStat label="Signals" value={formatCompact(flowStats.length)} />
+                  </div>
+                </CardShell>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <CardShell title="Recent alerts" subtitle="Actual backend alert stream" icon={AlertTriangle}>
-                <AlertList alerts={recentAlerts} />
-              </CardShell>
+            {role.key === "system_admin" && (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <CardShell title="Recent alerts" subtitle="Actual backend alert stream" icon={AlertTriangle}>
+                  <AlertList alerts={recentAlerts} />
+                </CardShell>
 
-              <CardShell title="Blocked transfers" subtitle="Confirmed interventions from the backend" icon={Shield}>
-                <BlockedTransferList blockedTransfers={blockedTransfers} />
-              </CardShell>
-            </div>
+                <CardShell title="Blocked transfers" subtitle="Confirmed interventions from the backend" icon={Shield}>
+                  <BlockedTransferList blockedTransfers={blockedTransfers} />
+                </CardShell>
+              </div>
+            )}
           </main>
         </div>
       </div>
