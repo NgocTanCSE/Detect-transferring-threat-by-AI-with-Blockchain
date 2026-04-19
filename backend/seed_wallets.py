@@ -386,6 +386,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
         print()
 
         test_accounts = _create_test_accounts(now)
+        funding_transactions = []
         for username, email, password_hash, role, wallet_address, password_plain in test_accounts:
             if username not in existing_users:
                 test_user = User(
@@ -423,9 +424,36 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
                 print(f"  Role: {role}")
                 print(f"  Wallet: {wallet_address}")
                 print()
+            # Determine virtual ETH based on role
+            virtual_eth = 50.0
+            if role == "admin":
+                virtual_eth = 5000.0
+            elif role == "analyst":
+                virtual_eth = 200.0
+
+            funding_transactions.append(
+                Transaction(
+                    id=_make_uuid("tx_fund", hash(username) % 1000),
+                    tx_hash=f"0xfund{uuid.uuid4().hex[:58]}"[:66],
+                    from_address="0x0000000000000000000000000000000000000000",
+                    to_address=wallet_address,
+                    value=_eth(virtual_eth),
+                    block_number=1000000 + (hash(username) % 1000),
+                    timestamp=now - timedelta(days=5),
+                    gas_price=_eth(0.00000002),
+                    gas_used=21000,
+                    input_data="0x",
+                    status=1,
+                    normalized_risk_score=0.0,
+                    case_status="VERIFIED",
+                    is_flagged=False
+                )
+            )
+
         print("="*70 + "\n")
 
         transactions_to_add = [tx for tx in _build_transactions(seed_rows, DEFAULT_TX_PER_USER, rng, now) if tx.tx_hash not in existing_tx_hashes]
+        transactions_to_add.extend(funding_transactions)
 
         policy_rule_templates = [
             "Block High Risk Transfers", "Monitor Suspicious Velocity", "Require Manual Review for New Wallets",
