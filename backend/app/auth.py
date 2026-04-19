@@ -2,6 +2,7 @@
 
 import logging
 import os
+import secrets
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -440,6 +441,20 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
+def _generate_unique_wallet_address(db: Session) -> str:
+    """Generate a unique Ethereum-like address not used by users/wallets."""
+    for _ in range(20):
+        candidate = "0x" + secrets.token_hex(20)
+        user_exists = db.query(User.id).filter(User.wallet_address == candidate).first() is not None
+        wallet_exists = db.query(Wallet.id).filter(Wallet.address == candidate).first() is not None
+        if not user_exists and not wallet_exists:
+            return candidate
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Unable to allocate a unique wallet address at the moment"
+    )
+
+
 def _fetch_login_user(db: Session, normalized_username: str) -> Optional[Dict[str, object]]:
     """Fetch user for login with a resilient path for SQLite schema drift."""
     bind = db.get_bind()
@@ -635,40 +650,36 @@ def register_user(user_data: UserCreate, request: Request, db: Session = Depends
             detail="Email already registered"
         )
 
-    # Check if wallet address exists (if provided)
-    if user_data.wallet_address:
-        existing_wallet = db.query(User).filter(User.wallet_address == user_data.wallet_address).first()
-        if existing_wallet:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Wallet address already linked to another account"
-            )
+    # If wallet not provided, auto-provision a unique wallet address.
+    wallet_address = user_data.wallet_address.lower() if user_data.wallet_address else _generate_unique_wallet_address(db)
 
-    if not user_data.wallet_address:
+    # Check if wallet address exists on another user account.
+    existing_wallet = db.query(User).filter(User.wallet_address == wallet_address).first()
+    if existing_wallet:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Wallet address is required for regular user registration"
+            detail="Wallet address already linked to another account"
         )
 
-    wallet_address = user_data.wallet_address.lower()
-    wallet_exists = db.query(Wallet.id).filter(Wallet.address == wallet_address).first() is not None
-    tx_exists = (
-        db.query(Transaction.id)
-        .filter(or_(Transaction.from_address == wallet_address, Transaction.to_address == wallet_address))
-        .first()
-        is not None
-    )
-    alert_exists = db.query(Alert.id).filter(Alert.wallet_address == wallet_address).first() is not None
-    blocked_exists = db.query(BlockedTransfer.id).filter(BlockedTransfer.sender_address == wallet_address).first() is not None
-
-    if not (wallet_exists or tx_exists or alert_exists or blocked_exists):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Wallet must already be linked to existing system data "
-                "(wallet profile, transactions, alerts, or blocked transfers)"
-            )
+    # Ensure a wallet profile row exists for this address (new or existing).
+    wallet_profile = db.query(Wallet).filter(Wallet.address == wallet_address).first()
+    if not wallet_profile:
+        wallet_profile = Wallet(
+            id=uuid.uuid4(),
+            address=wallet_address,
+            label=f"{user_data.username} wallet",
+            entity_type="User",
+            account_status="active",
+            risk_score=0.0,
+            risk_category=None,
+            total_transactions=0,
+            total_value_sent=0,
+            total_value_received=0,
+            first_seen_at=datetime.utcnow(),
+            last_activity_at=datetime.utcnow(),
+            notes="Auto-created during user registration",
         )
+        db.add(wallet_profile)
 
     # Create new user
     new_user = User(
