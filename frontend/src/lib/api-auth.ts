@@ -33,6 +33,21 @@ export interface LoginData {
   password: string;
 }
 
+async function readResponseError(response: Response, fallbackMessage: string): Promise<string> {
+  const rawText = await response.text();
+
+  if (!rawText) {
+    return fallbackMessage;
+  }
+
+  try {
+    const payload = JSON.parse(rawText) as { detail?: string; error?: string; message?: string };
+    return payload.detail || payload.error || payload.message || fallbackMessage;
+  } catch {
+    return rawText;
+  }
+}
+
 /**
  * Register a new user account.
  */
@@ -46,8 +61,7 @@ export async function registerUser(data: RegisterData): Promise<UserData> {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Registration failed");
+    throw new Error(await readResponseError(response, "Registration failed"));
   }
 
   return response.json();
@@ -71,8 +85,7 @@ export async function loginUser(data: LoginData): Promise<LoginResponse> {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Login failed");
+    throw new Error(await readResponseError(response, "Login failed"));
   }
 
   return response.json();
@@ -90,8 +103,7 @@ export async function getCurrentUser(token: string): Promise<UserData> {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to get user info");
+    throw new Error(await readResponseError(response, "Failed to get user info"));
   }
 
   return response.json();

@@ -667,39 +667,48 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
         JWT access token
     """
 
-    # Try to find user by username or email
-    user = db.query(User).filter(
-        (User.username == form_data.username.lower()) |
-        (User.email == form_data.username.lower())
-    ).first()
+    try:
+        # Try to find user by username or email
+        user = db.query(User).filter(
+            (User.username == form_data.username.lower()) |
+            (User.email == form_data.username.lower())
+        ).first()
 
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+        if not user or not verify_password(form_data.password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is disabled. Contact admin for assistance."
+            )
+
+        # Update last login
+        user.last_login_at = datetime.utcnow()
+        db.commit()
+
+        # Create access token
+        access_token = create_access_token(
+            data={"sub": str(user.id), "username": user.username, "role": user.role}
         )
 
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is disabled. Contact admin for assistance."
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
         )
-
-    # Update last login
-    user.last_login_at = datetime.utcnow()
-    db.commit()
-
-    # Create access token
-    access_token = create_access_token(
-        data={"sub": str(user.id), "username": user.username, "role": user.role}
-    )
-
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Unexpected error during login for username=%s", form_data.username)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed due to an internal error: {exc.__class__.__name__}"
+        ) from exc
 
 
 @router.get("/me", response_model=UserResponse)
