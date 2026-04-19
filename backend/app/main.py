@@ -102,6 +102,62 @@ def _dedupe_preserve_order(values: List[str]) -> List[str]:
         deduped.append(key)
     return deduped
 
+
+def _is_low_quality_answer(answer: str) -> bool:
+    text = (answer or "").strip()
+    if len(text) < 120:
+        return True
+    required_sections = ["1)", "2)", "3)"]
+    return any(section not in text for section in required_sections)
+
+
+def _build_structured_context_answer(question: str, context: Dict[str, Any]) -> str:
+    """Build a deterministic response when model output is too short or malformed."""
+    overview = context.get("overview", {}) if isinstance(context, dict) else {}
+    total_wallets = int(overview.get("total_wallets", 0) or 0)
+    total_alerts = int(overview.get("total_alerts", 0) or 0)
+    critical_alerts = int(overview.get("critical_alerts", 0) or 0)
+    alerts_today = int(overview.get("alerts_today", 0) or 0)
+    total_blocked = int(overview.get("total_blocked", 0) or 0)
+
+    q = (question or "").lower()
+
+    if "4 chỉ số" in q or "4 chi so" in q or "dashboard" in q:
+        return (
+            "1) Giải thích ý nghĩa chỉ số\n"
+            f"- Tổng số ví ({total_wallets}): số lượng ví đang được hệ thống theo dõi rủi ro.\n"
+            f"- Tổng cảnh báo ({total_alerts}): tổng tín hiệu rủi ro đã phát hiện trong kỳ dữ liệu hiện có.\n"
+            f"- Cảnh báo critical ({critical_alerts}): nhóm cảnh báo mức nghiêm trọng cao nhất, cần ưu tiên xử lý.\n"
+            f"- Giao dịch đã chặn ({total_blocked}): số giao dịch bị chặn bởi policy/kiểm soát.\n\n"
+            "2) Nhận định nhanh theo dữ liệu hiện tại\n"
+            f"- Alerts hôm nay hiện là {alerts_today}; nếu tỷ lệ critical cao thì áp lực vận hành đang tăng.\n"
+            f"- Tỷ lệ critical/tổng alerts hiện tại là {(critical_alerts / max(1, total_alerts)) * 100:.1f}%, dùng để đánh giá mức căng thẳng xử lý.\n\n"
+            "3) Hành động đề xuất cho operator\n"
+            "- Ưu tiên xử lý cảnh báo critical trước, sau đó mới đến high/medium.\n"
+            "- Soát các ví/case lặp lại trong ngày để giảm false positives và tránh backlog."
+        )
+
+    if "alerts hôm nay" in q or "alerts hom nay" in q or "tăng hay giảm" in q or "tang hay giam" in q:
+        return (
+            "1) Giải thích ý nghĩa chỉ số\n"
+            f"- Alerts hôm nay = {alerts_today}, là số cảnh báo phát sinh trong ngày hiện tại theo dữ liệu đang có.\n\n"
+            "2) Nhận định nhanh theo dữ liệu hiện tại\n"
+            "- Hiện chỉ có snapshot thời điểm hiện tại, chưa có chuỗi đối chiếu ngày trước trong cùng câu hỏi để kết luận tăng/giảm chắc chắn.\n"
+            f"- Bối cảnh hiện tại: tổng alerts = {total_alerts}, critical = {critical_alerts}.\n\n"
+            "3) Hành động đề xuất cho operator\n"
+            "- Mở so sánh theo mốc 24h hoặc 7 ngày để xác định xu hướng tăng/giảm.\n"
+            "- Nếu critical tăng nhanh, ưu tiên case có risk_score cao và ví tái phạm."
+        )
+
+    return (
+        "1) Giải thích ý nghĩa chỉ số\n"
+        f"- Tổng ví: {total_wallets}, tổng cảnh báo: {total_alerts}, critical: {critical_alerts}, đã chặn: {total_blocked}.\n\n"
+        "2) Nhận định nhanh theo dữ liệu hiện tại\n"
+        f"- Alerts hôm nay: {alerts_today}. Cần theo dõi thêm theo mốc thời gian để kết luận xu hướng.\n\n"
+        "3) Hành động đề xuất cho operator\n"
+        "- Ưu tiên critical trước, sau đó rà soát case tồn và policy gây nhiều chặn."
+    )
+
 def _initialize_database() -> None:
     ensure_schema()
     try:
@@ -747,6 +803,8 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         sources.append("wallet_focus: wallets/transactions/alerts")
 
     normalized_answer = _normalize_assistant_answer(answer)
+    if _is_low_quality_answer(normalized_answer):
+        normalized_answer = _build_structured_context_answer(message, context)
     deduped_sources = _dedupe_preserve_order(sources)
 
     raw_knowledge_sources = [

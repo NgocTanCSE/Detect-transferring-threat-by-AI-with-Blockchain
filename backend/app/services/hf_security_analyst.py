@@ -142,6 +142,8 @@ Ràng buộc output:
 - Không chèn mục "Sources" hoặc "Docs" trong nội dung trả lời.
 - Mỗi mục tối đa 2 câu ngắn.
 - Nếu thiếu dữ liệu so sánh (ví dụ tăng/giảm theo hôm trước), nói rõ "chưa có dữ liệu so sánh".
+- Bắt buộc dùng số liệu trong CONTEXT_DASHBOARD_JSON (ví dụ total_wallets, alerts_today, critical_alerts, total_blocked) khi phù hợp.
+- Không trả lời chung chung kiểu "Dưới đây là giải thích..." mà không có diễn giải cụ thể.
 
 <|eot_id|><|start_header_id|>user<|end_header_id|>
 CONTEXT_DASHBOARD_JSON:
