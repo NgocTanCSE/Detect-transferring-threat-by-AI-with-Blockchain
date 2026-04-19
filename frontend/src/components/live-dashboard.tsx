@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 import {
   AlertTriangle,
   BadgeInfo,
@@ -385,6 +386,7 @@ export default function LiveDashboard() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { isAuthenticated, user } = useAuth();
   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -420,6 +422,26 @@ export default function LiveDashboard() {
   const role = useMemo(() => ROLE_DEFINITIONS.find((entry) => entry.key === activeRole) ?? ROLE_DEFINITIONS[0], [activeRole]);
   const sidebarIcons = useMemo(() => ROLE_ICONS, []);
   const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace";
+
+  // Filter navigation routes based on authentication status
+  const visibleRoutes = useMemo(() => {
+    const isAdmin = user?.role === "admin";
+    return QUICK_ROUTES.filter(route => {
+      // Hide login/register if already authenticated
+      if (['/login', '/register'].includes(route.href)) {
+        return !isAuthenticated;
+      }
+      // Show user routes only if authenticated
+      if (route.href.startsWith('/user')) {
+        return isAuthenticated;
+      }
+      // Show admin routes only for admin role
+      if (route.href.startsWith('/admin') || route.href.includes('role=')) {
+        return isAdmin;
+      }
+      return true;
+    });
+  }, [isAuthenticated, user?.role]);
 
   const updateQuery = useCallback(
     (patch: Record<string, string | number | null | undefined>) => {
@@ -881,7 +903,7 @@ export default function LiveDashboard() {
 
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900/50 p-2">
             <span className="px-2 text-xs uppercase tracking-[0.25em] text-slate-500">Quick routes</span>
-            {QUICK_ROUTES.map((route) => (
+            {visibleRoutes.map((route) => (
               <Link
                 key={route.href}
                 href={route.href}

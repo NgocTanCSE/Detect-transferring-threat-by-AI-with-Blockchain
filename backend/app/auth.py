@@ -533,7 +533,6 @@ def register_user(user_data: UserCreate, request: Request, db: Session = Depends
     Returns:
         Created user data (without password)
     """
-    _ensure_auth_enabled()
 
     # Get client IP for rate limiting
     client_ip = request.client.host if request.client else "unknown"
@@ -667,7 +666,6 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
     Returns:
         JWT access token
     """
-    _ensure_auth_enabled()
 
     # Try to find user by username or email
     user = db.query(User).filter(
@@ -712,7 +710,6 @@ def get_current_user_info(current_user: User = Depends(require_auth)):
     Returns:
         Current user data (without password)
     """
-    _ensure_auth_enabled()
 
     return UserResponse(
         id=str(current_user.id),

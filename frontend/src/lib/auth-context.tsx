@@ -85,8 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const response = await loginUser(data);
 
-    // Store token
+    // Store token in localStorage and cookies
     localStorage.setItem(TOKEN_KEY, response.access_token);
+    // Set cookie for middleware to access
+    document.cookie = `auth_token=${response.access_token}; path=/; max-age=${24 * 60 * 60}`;
     setToken(response.access_token);
 
     return response;
@@ -99,6 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     logoutUser();
     localStorage.removeItem(TOKEN_KEY);
+    // Clear auth token cookie
+    document.cookie = "auth_token=; path=/; max-age=0";
     setToken(null);
     setUser(null);
   }, []);
