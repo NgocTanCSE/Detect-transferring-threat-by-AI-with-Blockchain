@@ -254,11 +254,26 @@ export async function fetchWalletConnections(address: string): Promise<WalletCon
   return res.json();
 }
 
-export async function fetchRecentAlerts(limit = 50): Promise<{ alerts: Alert[]; statistics: Record<string, unknown> }> {
-  const res = await fetch(`${API_BASE}/alerts/recent?limit=${limit}`);
-  if (!res.ok) throw new Error("Failed to fetch recent alerts");
-  const data = await res.json();
-  return { alerts: data.alerts || [], statistics: data.statistics || {} };
+export async function fetchRecentAlerts(
+  limit = 500,
+  severity?: string,
+  search?: string
+): Promise<{ alerts: Alert[]; statistics: Record<string, unknown> }> {
+  const params = new URLSearchParams();
+  params.set("limit", limit.toString());
+  if (severity && severity !== "all") params.set("severity", severity);
+  if (search && search.trim()) params.set("search", search.trim());
+
+  try {
+    const res = await fetch(`${API_BASE}/alerts/recent?${params}`);
+    if (!res.ok) {
+      return { alerts: [], statistics: {} };
+    }
+    const data = await res.json();
+    return { alerts: data.alerts || [], statistics: data.statistics || {} };
+  } catch {
+    return { alerts: [], statistics: {} };
+  }
 }
 
 export async function fetchLatestAlerts(): Promise<Alert[]> {
@@ -268,9 +283,18 @@ export async function fetchLatestAlerts(): Promise<Alert[]> {
   return data.alerts || [];
 }
 
-export async function fetchBlockedTransfers(): Promise<BlockedTransfer[]> {
+export async function fetchBlockedTransfers(
+  limit = 500,
+  search?: string,
+  minRisk?: number
+): Promise<BlockedTransfer[]> {
   try {
-    const res = await fetch(`${API_BASE}/blocked-transfers`);
+    const params = new URLSearchParams();
+    params.set("limit", limit.toString());
+    if (search && search.trim()) params.set("search", search.trim());
+    if (minRisk !== undefined) params.set("min_risk", minRisk.toString());
+
+    const res = await fetch(`${API_BASE}/blocked-transfers?${params}`);
     if (!res.ok) {
       return [];
     }

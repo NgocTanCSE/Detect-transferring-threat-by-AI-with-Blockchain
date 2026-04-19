@@ -472,8 +472,8 @@ export default function LiveDashboard() {
       const [dashboardResult, flowResult, alertsResult, blockedResult] = await Promise.all([
         fetchDashboardStats(),
         fetchFlowStats(),
-        fetchRecentAlerts(12),
-        fetchBlockedTransfers(),
+        fetchRecentAlerts(500),  // Fetch more alerts for filtering
+        fetchBlockedTransfers(500),  // Fetch more blocked transfers for filtering
       ]);
 
       setDashboardStats(dashboardResult);
@@ -512,7 +512,7 @@ export default function LiveDashboard() {
           fetchJson<AlertsSummary>("/api/ops/security/alerts-summary", { today: 0, critical: 0, high: 0, medium: 0, low: 0 }),
           fetchJson<CaseSummary>("/api/ops/security/case-summary", { totals: {}, unassigned: 0, high_risk_unassigned: 0 }),
           fetchJson<{ count: number; items: NotificationItem[] }>("/api/ops/security/notifications?limit=10", { count: 0, items: [] }),
-          fetchJson<{ count: number; cases: CaseItem[] }>("/api/cases?limit=12&min_risk=0.7", { count: 0, cases: [] }),
+          fetchJson<{ count: number; cases: CaseItem[] }>("/api/cases?limit=500&min_risk=0", { count: 0, cases: [] }),
         ]);
 
         if (alertSummaryRes.status === "fulfilled") setAlertsSummary(alertSummaryRes.value);

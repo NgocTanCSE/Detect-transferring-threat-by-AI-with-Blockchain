@@ -774,23 +774,44 @@ def _persist_blockchain_data(
 @app.get("/alerts/recent", tags=["Alerts"])
 def get_recent_alerts(
     limit: int = 50,
+    severity: str | None = None,
+    search: str | None = None,
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
-    Retrieve recent security alerts from scanner service.
+    Retrieve recent security alerts with optional filtering.
 
     Args:
         limit: Maximum number of alerts to return
+        severity: Filter by severity (CRITICAL, HIGH, MEDIUM, LOW)
+        search: Search by wallet_address, alert_type, or message
         database_session: Database session dependency
 
     Returns:
-        Dictionary containing alerts list and statistics
+        Dictionary containing filtered alerts list and statistics
     """
     from datetime import timedelta
 
-    recent_alerts = database_session.query(Alert).order_by(
-        Alert.detected_at.desc()
-    ).limit(limit).all()
+    query = database_session.query(Alert).order_by(Alert.detected_at.desc())
+
+    # Apply severity filter
+    if severity and severity.upper() != "ALL":
+        query = query.filter(Alert.severity == severity.upper())
+
+    # Apply search filter
+    if search:
+        search_term = f"%{search.lower()}%"
+        query = query.filter(
+            (Alert.wallet_address.ilike(search_term)) |
+            (Alert.alert_type.ilike(search_term)) |
+            (Alert.message.ilike(search_term))
+        )
+
+    # Get total count before limit
+    total_count = query.count()
+
+    # Apply limit
+    recent_alerts = query.limit(limit).all()
 
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     alerts_today = database_session.query(Alert).filter(
@@ -804,13 +825,13 @@ def get_recent_alerts(
     return {
         "alerts": [
             {
-                "id": str(alert.id),
+                "alert_id": str(alert.id),
                 "wallet_address": alert.wallet_address,
                 "alert_type": alert.alert_type,
                 "severity": alert.severity,
                 "message": alert.message,
                 "risk_score": alert.risk_score,
-                "metadata": alert.meta,
+                "context": alert.meta or {},
                 "detected_at": alert.detected_at.isoformat(),
                 "acknowledged": bool(alert.acknowledged)
             }
@@ -819,7 +840,8 @@ def get_recent_alerts(
         "statistics": {
             "total_alerts_today": alerts_today,
             "critical_count": critical_alerts,
-            "total_recent": len(recent_alerts)
+            "total_matching": total_count,
+            "returned_count": len(recent_alerts)
         }
     }
 
@@ -1862,17 +1884,40 @@ def get_wallet_connections(
 @app.get("/blocked-transfers", tags=["Admin - History"])
 def get_blocked_transfers(
     limit: int = 100,
+    search: str | None = None,
+    min_risk: float | None = None,
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
-    Get history of all blocked transfers for audit purposes.
+    Get history of all blocked transfers with optional filtering.
+
+    Args:
+        limit: Maximum number to return
+        search: Search by sender or receiver address
+        min_risk: Minimum risk score filter
     """
     limit = max(1, min(int(limit or 100), 500))
 
     try:
-        blocked = database_session.query(BlockedTransfer).order_by(
+        query = database_session.query(BlockedTransfer).order_by(
             BlockedTransfer.blocked_at.desc()
-        ).limit(limit).all()
+        )
+
+        # Apply search filter
+        if search:
+            search_term = f"%{search.lower()}%"
+            query = query.filter(
+                (BlockedTransfer.sender_address.ilike(search_term)) |
+                (BlockedTransfer.receiver_address.ilike(search_term))
+            )
+
+        # Apply min_risk filter
+        if min_risk is not None:
+            query = query.filter(BlockedTransfer.risk_score >= min_risk)
+
+        # Get total count before limit
+        total_count = query.count()
+        blocked = query.limit(limit).all()
 
         total_blocked = database_session.query(BlockedTransfer).count()
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -1901,7 +1946,8 @@ def get_blocked_transfers(
             "statistics": {
                 "total_blocked": total_blocked,
                 "blocked_today": blocked_today,
-                "total_value_blocked_eth": _eth_from_wei(int(total_value_blocked))
+                "total_value_blocked_eth": _eth_from_wei(int(total_value_blocked)),
+                "total_matching": total_count
             },
             "count": len(blocked)
         }
@@ -1916,6 +1962,88 @@ def get_blocked_transfers(
             },
             "count": 0,
             "error": "blocked_transfers_unavailable",
+        }
+
+
+@app.get("/cases", tags=["Cases"])
+def get_cases(
+    limit: int = 100,
+    min_risk: float | None = None,
+    search: str | None = None,
+    status: str | None = None,
+    database_session: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get transaction cases with optional filtering.
+
+    Args:
+        limit: Maximum number to return
+        min_risk: Minimum risk score filter
+        search: Search by transaction hash
+        status: Filter by case status (PENDING, VERIFIED, FRAUD, IGNORED)
+    """
+    limit = max(1, min(int(limit or 100), 500))
+
+    try:
+        query = database_session.query(TransactionCase).order_by(
+            TransactionCase.created_at.desc()
+        )
+
+        # Apply status filter
+        if status and status != "all":
+            query = query.filter(TransactionCase.state == status)
+
+        # Apply search filter (by tx_hash)
+        if search:
+            search_term = f"%{search.lower()}%"
+            query = query.filter(TransactionCase.tx_hash.ilike(search_term))
+
+        # Get transaction data to filter by risk
+        total_count = query.count()
+        case_rows = query.limit(limit).all()
+
+        # Join with transactions to get risk_score if needed
+        cases_with_risk = []
+        for case in case_rows:
+            tx = database_session.query(Transaction).filter(
+                Transaction.tx_hash == case.tx_hash
+            ).first()
+
+            risk_score = float(tx.normalized_risk_score * 100) if tx and tx.normalized_risk_score else 0.0
+
+            # Apply min_risk filter post-query
+            if min_risk is not None and risk_score < min_risk:
+                continue
+
+            cases_with_risk.append({
+                "tx_hash": case.tx_hash,
+                "from_address": tx.from_address if tx else None,
+                "to_address": tx.to_address if tx else None,
+                "value": str(tx.value) if tx else "0",
+                "risk_score": risk_score,
+                "status": case.state,
+                "assigned_to": str(case.analyst_id) if case.analyst_id else None,
+                "is_flagged": bool(tx.is_flagged) if tx else False,
+                "flag_reason": tx.flag_reason if tx else None,
+                "timestamp": tx.timestamp.isoformat() if tx and tx.timestamp else None,
+                "updated_at": case.updated_at.isoformat() if case.updated_at else None,
+            })
+
+        return {
+            "count": len(cases_with_risk),
+            "cases": cases_with_risk,
+            "statistics": {
+                "total_cases": database_session.query(TransactionCase).count(),
+                "matching_cases": total_count,
+            }
+        }
+    except Exception as cases_error:
+        logger.exception(f"Failed to fetch cases: {cases_error}")
+        return {
+            "count": 0,
+            "cases": [],
+            "statistics": {"total_cases": 0, "matching_cases": 0},
+            "error": "cases_unavailable",
         }
 
 
