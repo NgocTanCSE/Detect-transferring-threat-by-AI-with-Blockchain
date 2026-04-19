@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case
 
 from app.core.database import engine, get_db, Base, ensure_schema
-from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase
+from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase, NodeEndpoint, PipelineMetric, FeatureStoreConfig, ModelRegistry, PolicyRule, NotificationEvent
 from blockchain_client import fetch_wallet_history
 from app.core.config import ALCHEMY_API_KEY, ALCHEMY_RPC_URL
 from app.services.ai_engine import MultiAgentDetectionEngine
@@ -2522,7 +2522,7 @@ def get_user_history(
 def get_node_endpoints(only_active: bool = True, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get blockchain node endpoints for system monitoring."""
     try:
-        nodes = database_session.query(BlockchainNode).all()
+        nodes = database_session.query(NodeEndpoint).all()
         return {
             "count": len(nodes),
             "items": [
@@ -2536,7 +2536,7 @@ def get_node_endpoints(only_active: bool = True, database_session: Session = Dep
                     "is_active": node.is_active,
                     "health_status": "healthy" if node.is_active else "unhealthy",
                     "last_error": None,
-                    "last_checked_at": node.last_checked.isoformat() if hasattr(node, 'last_checked') and node.last_checked else None
+                    "last_checked_at": node.last_checked_at.isoformat() if node.last_checked_at else None
                 }
                 for node in (nodes if not only_active else [n for n in nodes if n.is_active])
             ]
@@ -2635,7 +2635,7 @@ def get_slo_metrics(days: int = 14, database_session: Session = Depends(get_db))
 def get_feature_store(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get feature store configuration."""
     try:
-        features = database_session.query(FeatureConfig).all()
+        features = database_session.query(FeatureStoreConfig).all()
         enabled = len([f for f in features if f.enabled])
         return {
             "count": len(features),
@@ -2755,7 +2755,7 @@ def get_case_summary(database_session: Session = Depends(get_db)) -> Dict[str, A
 def get_notifications(limit: int = 10, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get recent notifications."""
     try:
-        notifications = database_session.query(Notification).order_by(Notification.created_at.desc()).limit(limit).all()
+        notifications = database_session.query(NotificationEvent).order_by(NotificationEvent.created_at.desc()).limit(limit).all()
         return {
             "count": len(notifications),
             "items": [
@@ -2763,7 +2763,7 @@ def get_notifications(limit: int = 10, database_session: Session = Depends(get_d
                     "id": str(n.id),
                     "recipient": n.recipient,
                     "message": n.message,
-                    "delivery_status": n.delivery_status,
+                    "delivery_status": n.status,
                     "created_at": n.created_at.isoformat() if n.created_at else None
                 }
                 for n in notifications
@@ -2788,7 +2788,7 @@ def get_policy_rules(database_session: Session = Depends(get_db)) -> Dict[str, A
                     "min_risk_score": float(rule.min_risk_score or 0),
                     "block_blacklisted": bool(rule.block_blacklisted),
                     "block_suspended": bool(rule.block_suspended),
-                    "enabled": True,
+                    "enabled": bool(rule.is_active),
                     "created_at": rule.created_at.isoformat() if rule.created_at else None
                 }
                 for rule in rules
@@ -2814,7 +2814,7 @@ def get_reporting_summary(
         blocked = database_session.query(BlockedTransfer).filter(BlockedTransfer.blocked_at >= start_date).all()
         cases = database_session.query(TransactionCase).filter(TransactionCase.created_at >= start_date).all()
         rules = database_session.query(PolicyRule).all()
-        notifications = database_session.query(Notification).filter(Notification.created_at >= start_date).all()
+        notifications = database_session.query(NotificationEvent).filter(NotificationEvent.created_at >= start_date).all()
 
         critical_count = len([a for a in alerts if a.severity == "CRITICAL"])
         blocked_value = sum(float(_eth_from_wei(int(b.amount or 0))) for b in blocked)
@@ -2830,9 +2830,9 @@ def get_reporting_summary(
                 "critical_alerts": critical_count,
                 "blocked_total": len(blocked),
                 "blocked_value_eth": blocked_value,
-                "policy_rules_active": len([r for r in rules if r.enabled]),
-                "notifications_sent": len([n for n in notifications if n.delivery_status == "sent"]),
-                "notifications_failed": len([n for n in notifications if n.delivery_status == "failed"]),
+                "policy_rules_active": len([r for r in rules if r.is_active]),
+                "notifications_sent": len([n for n in notifications if n.status == "sent"]),
+                "notifications_failed": len([n for n in notifications if n.status == "failed"]),
                 "audit_events": len(cases)
             },
             "cases": {
