@@ -79,6 +79,34 @@ class HFSecurityAnalyst:
                 knowledge_snippets=knowledge_snippets,
             )
 
+    def answer_general_question(
+        self,
+        question: str,
+        context: Dict[str, Any],
+        knowledge_snippets: Optional[List[KnowledgeSnippet]] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
+        """Answer general project questions without forcing dashboard analytics structure."""
+        if not self.enabled:
+            return self._fallback_general_answer(question=question, context=context, conversation_history=conversation_history, knowledge_snippets=knowledge_snippets)
+
+        prompt = self._construct_general_chat_prompt(
+            question=question,
+            context=context,
+            knowledge_snippets=knowledge_snippets or [],
+            conversation_history=conversation_history or [],
+        )
+        try:
+            return self._generate_text(prompt=prompt, max_new_tokens=420, temperature=0.55)
+        except Exception as error:
+            logger.error(f"Gemini general chat failed: {error}")
+            return self._fallback_general_answer(
+                question=question,
+                context=context,
+                conversation_history=conversation_history,
+                knowledge_snippets=knowledge_snippets,
+            )
+
     def _generate_text(self, prompt: str, max_new_tokens: int, temperature: float) -> str:
         payload = {
             "contents": [
@@ -159,6 +187,39 @@ CÂU HỎI:
 {question}
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
+    def _construct_general_chat_prompt(
+        self,
+        question: str,
+        context: Dict[str, Any],
+        knowledge_snippets: List[KnowledgeSnippet],
+        conversation_history: List[Dict[str, str]],
+    ) -> str:
+        context_json = json.dumps(context, ensure_ascii=False)
+        knowledge_text = render_snippets_for_prompt(knowledge_snippets)
+        history_text = json.dumps(conversation_history[-6:], ensure_ascii=False)
+        return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+Bạn là trợ lý chung của hệ thống blockchain AI.
+Trả lời trực tiếp, đúng trọng tâm, bằng tiếng Việt.
+Nếu câu hỏi là về tài khoản, đăng nhập, đăng ký, lỗi giao diện, deploy, API, hoặc cách dùng hệ thống thì giải thích theo ngữ cảnh dự án.
+Nếu câu hỏi không đủ dữ liệu, hãy nói rõ thiếu gì và hỏi lại ngắn gọn, không bịa.
+Không bắt buộc dùng format 3 mục như dashboard; hãy chọn định dạng phù hợp nhất với câu hỏi.
+Ưu tiên trả lời ngắn gọn, dễ hiểu, nhưng vẫn đủ thông tin để người dùng hành động.
+
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+CONTEXT_JSON:
+{context_json}
+
+LỊCH SỬ HỘI THOẠI GẦN ĐÂY:
+{history_text}
+
+TRÍCH DẪN TÀI LIỆU DỰ ÁN:
+{knowledge_text or "Không có snippet phù hợp."}
+
+CÂU HỎI:
+{question}
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+
     def _fallback_dashboard_answer(
         self,
         question: str,
@@ -185,6 +246,25 @@ CÂU HỎI:
             f"Câu hỏi của bạn: {question}\n"
             + snippet_hint
             + "\nGợi ý: nếu cần giải thích sâu hơn theo ví cụ thể, hãy cung cấp địa chỉ ví để mình phân tích theo ngữ cảnh chi tiết."
+        )
+
+    def _fallback_general_answer(
+        self,
+        question: str,
+        context: Dict[str, Any],
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        knowledge_snippets: Optional[List[KnowledgeSnippet]] = None,
+    ) -> str:
+        snippet_hint = ""
+        if knowledge_snippets:
+            top_snippet = knowledge_snippets[0]
+            snippet_hint = f"\n- Nguồn tham khảo gần nhất: {top_snippet.source} / {top_snippet.heading}"
+
+        return (
+            "Mình chưa lấy được câu trả lời từ mô hình, nhưng mình có thể hỗ trợ theo ngữ cảnh hệ thống.\n\n"
+            f"Câu hỏi của bạn: {question}\n"
+            + snippet_hint
+            + "\nNếu bạn muốn, mình có thể trả lời theo 3 kiểu: lỗi đăng ký/đăng nhập, lỗi giao diện, hoặc câu hỏi về dashboard/ops."
         )
 
     def _construct_prompt(

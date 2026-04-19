@@ -177,6 +177,29 @@ def _is_account_support_question(question: str) -> bool:
     return any(term in text for term in support_terms)
 
 
+def _is_dashboard_analytics_question(question: str) -> bool:
+    text = (question or "").lower()
+    analytics_terms = [
+        "dashboard",
+        "alert",
+        "alerts",
+        "case",
+        "policy",
+        "wallet",
+        "critical",
+        "blocked",
+        "tổng ví",
+        "tổng cảnh báo",
+        "alerts hôm nay",
+        "chỉ số",
+        "số liệu",
+        "tăng hay giảm",
+        "xu hướng",
+        "rủi ro",
+    ]
+    return any(term in text for term in analytics_terms)
+
+
 def _build_account_support_answer(question: str) -> str:
     q = (question or "").lower()
 
@@ -762,6 +785,58 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             "sources": ["auth/register", "auth/login"],
             "knowledge_sources": [],
             "model_enabled": False,
+        }
+
+    if not _is_dashboard_analytics_question(message):
+        general_context = {
+            "role": role,
+            "screen_scope": screen_scope,
+            "ui_context": ui_context,
+        }
+        answer = analyst.answer_general_question(
+            question=message,
+            context=general_context,
+            knowledge_snippets=knowledge_snippets,
+            conversation_history=conversation_history,
+        )
+        normalized_answer = _normalize_assistant_answer(answer)
+        if _is_low_quality_answer(normalized_answer):
+            normalized_answer = _build_account_support_answer(message) if _is_account_support_question(message) else (
+                "Mình chưa có đủ dữ liệu để trả lời chính xác câu hỏi này. Hãy cho mình biết bạn đang hỏi về đăng ký tài khoản, lỗi giao diện, hay dashboard vận hành để mình trả lời đúng hơn."
+            )
+
+        raw_knowledge_sources = [
+            {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}
+            for snippet in knowledge_snippets
+        ]
+        seen_knowledge = set()
+        knowledge_sources = []
+        for item in raw_knowledge_sources:
+            key = (str(item.get("source", "")).strip(), str(item.get("heading", "")).strip())
+            if key in seen_knowledge:
+                continue
+            seen_knowledge.add(key)
+            knowledge_sources.append(item)
+
+        log_diagnostic(
+            DiagnosticLogType.AI_SERVICE,
+            "General assistant response generated",
+            details={"message_length": len(message), "answer_length": len(normalized_answer)},
+            status_code=200,
+            endpoint="/assistant/chat"
+        )
+        return {
+            "answer": normalized_answer,
+            "context": {
+                "role": role,
+                "screen_scope": screen_scope,
+                "overview": context.get("overview", {}) if isinstance(context, dict) else {},
+                "top_risky_wallets": context.get("top_risky_wallets", []) if isinstance(context, dict) else [],
+                "wallet_focus": context.get("wallet_focus") if isinstance(context, dict) else None,
+            },
+            "sources": _dedupe_preserve_order(["assistant_general", "knowledge_base"]),
+            "knowledge_sources": knowledge_sources,
+            "model_enabled": analyst.enabled,
         }
 
     context = {}
