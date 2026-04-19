@@ -288,12 +288,20 @@ const TONAL_STYLES: Record<string, string> = {
   slate: "border-slate-500/20 bg-slate-500/10 text-slate-100",
 };
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Request failed: ${path}`);
+async function fetchJson<T>(path: string, defaultValue: T | null = null): Promise<T> {
+  try {
+    const response = await fetch(path, { cache: "no-store" });
+    if (!response.ok) {
+      console.warn(`API request failed: ${path} (${response.status})`);
+      if (defaultValue !== null) return defaultValue;
+      throw new Error(`Request failed: ${path}`);
+    }
+    return response.json() as Promise<T>;
+  } catch (error) {
+    console.error(`Fetch error for ${path}:`, error);
+    if (defaultValue !== null) return defaultValue;
+    throw error;
   }
-  return response.json() as Promise<T>;
 }
 
 function formatAddress(address: string | null | undefined): string {
@@ -475,10 +483,10 @@ export default function LiveDashboard() {
 
       if (roleKey === "system_admin") {
         const [nodeRes, pipelineRes, pipelineSummaryRes, sloRes] = await Promise.allSettled([
-          fetchJson<{ count: number; items: NodeEndpointItem[] }>("/api/ops/system/node-endpoints?only_active=true"),
-          fetchJson<{ count: number; items: PipelineMetricItem[] }>("/api/ops/system/pipeline-metrics?limit=12"),
-          fetchJson<{ total_points: number; avg_throughput_tps: number | null; avg_ingestion_latency_ms: number | null; avg_decode_latency_ms: number | null; last_block_number: number | null }>("/api/ops/system/pipeline-metrics/summary"),
-          fetchJson<SloMetrics>("/api/ops/system/slo-metrics?days=14"),
+          fetchJson<{ count: number; items: NodeEndpointItem[] }>("/api/ops/system/node-endpoints?only_active=true", { count: 0, items: [] }),
+          fetchJson<{ count: number; items: PipelineMetricItem[] }>("/api/ops/system/pipeline-metrics?limit=12", { count: 0, items: [] }),
+          fetchJson<{ total_points: number; avg_throughput_tps: number | null; avg_ingestion_latency_ms: number | null; avg_decode_latency_ms: number | null; last_block_number: number | null }>("/api/ops/system/pipeline-metrics/summary", { total_points: 0, avg_throughput_tps: null, avg_ingestion_latency_ms: null, avg_decode_latency_ms: null, last_block_number: null }),
+          fetchJson<SloMetrics>("/api/ops/system/slo-metrics?days=14", { period_days: 14, endpoint_health: { total: 0, active: 0, healthy_active: 0, availability_pct: 0, error_budget_burn_pct: 0 }, latency_slo: { ingest_target_ms: 500, decode_target_ms: 200, ingest_p95_ms: 0, decode_p95_ms: 0, ingest_breaches: 0, decode_breaches: 0, sample_points: 0 } }),
         ]);
 
         if (nodeRes.status === "fulfilled") setNodeEndpoints(nodeRes.value.items ?? []);
@@ -489,9 +497,9 @@ export default function LiveDashboard() {
 
       if (roleKey === "ai_data_engineer") {
         const [featureRes, registryRes, activeRes] = await Promise.allSettled([
-          fetchJson<{ count: number; items: FeatureConfigItem[] }>("/api/ops/ai/feature-store"),
-          fetchJson<{ count: number; items: ModelRegistryItem[] }>("/api/ops/ai/model-registry"),
-          fetchJson<{ count: number; items: ModelRegistryItem[] }>("/api/ops/ai/model-registry/active"),
+          fetchJson<{ count: number; items: FeatureConfigItem[] }>("/api/ops/ai/feature-store", { count: 0, items: [] }),
+          fetchJson<{ count: number; items: ModelRegistryItem[] }>("/api/ops/ai/model-registry", { count: 0, items: [] }),
+          fetchJson<{ count: number; items: ModelRegistryItem[] }>("/api/ops/ai/model-registry/active", { count: 0, items: [] }),
         ]);
 
         if (featureRes.status === "fulfilled") setFeatureConfigs(featureRes.value.items ?? []);
@@ -501,10 +509,10 @@ export default function LiveDashboard() {
 
       if (roleKey === "security_analyst") {
         const [alertSummaryRes, caseSummaryRes, notificationsRes, casesRes] = await Promise.allSettled([
-          fetchJson<AlertsSummary>("/api/ops/security/alerts-summary"),
-          fetchJson<CaseSummary>("/api/ops/security/case-summary"),
-          fetchJson<{ count: number; items: NotificationItem[] }>("/api/ops/security/notifications?limit=10"),
-          fetchJson<{ count: number; cases: CaseItem[] }>("/api/cases?limit=12&min_risk=0.7"),
+          fetchJson<AlertsSummary>("/api/ops/security/alerts-summary", { today: 0, critical: 0, high: 0, medium: 0, low: 0 }),
+          fetchJson<CaseSummary>("/api/ops/security/case-summary", { totals: {}, unassigned: 0, high_risk_unassigned: 0 }),
+          fetchJson<{ count: number; items: NotificationItem[] }>("/api/ops/security/notifications?limit=10", { count: 0, items: [] }),
+          fetchJson<{ count: number; cases: CaseItem[] }>("/api/cases?limit=12&min_risk=0.7", { count: 0, cases: [] }),
         ]);
 
         if (alertSummaryRes.status === "fulfilled") setAlertsSummary(alertSummaryRes.value);
@@ -515,11 +523,11 @@ export default function LiveDashboard() {
 
       if (roleKey === "compliance_risk_manager") {
         const [policyRes, reportRes, effectivenessRes, completenessRes, gapsRes] = await Promise.allSettled([
-          fetchJson<{ count: number; items: PolicyRuleItem[] }>("/api/ops/compliance/policy-rules"),
-          fetchJson<ReportingSummary>("/api/ops/compliance/reporting/summary?days=30"),
-          fetchJson<ControlEffectiveness>("/api/ops/compliance/reporting/control-effectiveness?days=30"),
-          fetchJson<AuditCompleteness>("/api/ops/compliance/reporting/audit-completeness?days=30"),
-          fetchJson<AuditGaps>("/api/ops/compliance/reporting/audit-gaps?days=30"),
+          fetchJson<{ count: number; items: PolicyRuleItem[] }>("/api/ops/compliance/policy-rules", { count: 0, items: [] }),
+          fetchJson<ReportingSummary>("/api/ops/compliance/reporting/summary?days=30", { period: { days: 30, start: new Date().toISOString(), end: new Date().toISOString() }, kpis: { alerts_total: 0, critical_alerts: 0, blocked_total: 0, blocked_value_eth: 0, policy_rules_active: 0, notifications_sent: 0, notifications_failed: 0, audit_events: 0 }, cases: {} }),
+          fetchJson<ControlEffectiveness>("/api/ops/compliance/reporting/control-effectiveness?days=30", { period_days: 30, inputs: { actionable_alerts: 0, blocked_total: 0, fraud_cases: 0, ignored_cases: 0 }, metrics: { block_rate_pct: 0, fraud_precision_proxy_pct: 0, decision_coverage: 0 } }),
+          fetchJson<AuditCompleteness>("/api/ops/compliance/reporting/audit-completeness?days=30", { period_days: 30, required_actions: 0, present_actions: 0, completeness_pct: 0, checks: [] }),
+          fetchJson<AuditGaps>("/api/ops/compliance/reporting/audit-gaps?days=30", { period_days: 30, missing_count: 0, missing_actions: [] }),
         ]);
 
         if (policyRes.status === "fulfilled") setPolicyRules(policyRes.value.items ?? []);
