@@ -191,12 +191,12 @@ def get_database_health(database_session) -> Dict[str, Any]:
 
 def get_system_status(database_session) -> Dict[str, Any]:
     """Get overall system status for admin diagnostics."""
-    from app.core.config import HF_API_TOKEN, DATABASE_URL
+    from app.core.config import GEMINI_API_KEY, GEMINI_MODEL, DATABASE_URL
 
     seed_counts = get_seed_data_counts(database_session)
     db_health = get_database_health(database_session)
 
-    hf_configured = bool(HF_API_TOKEN)
+    gemini_configured = bool(GEMINI_API_KEY)
 
     return {
         "timestamp": datetime.utcnow().isoformat(),
@@ -205,7 +205,11 @@ def get_system_status(database_session) -> Dict[str, Any]:
             "health": db_health,
         },
         "ai_service": {
-            "hf_token_configured": hf_configured,
+            "provider": "gemini",
+            "gemini_api_key_configured": gemini_configured,
+            "gemini_model": GEMINI_MODEL,
+            # Legacy field kept so existing frontend code can continue reading it.
+            "hf_token_configured": gemini_configured,
         },
         "seed_data": seed_counts,
         "endpoints": diagnostic_logger.get_endpoint_stats(),

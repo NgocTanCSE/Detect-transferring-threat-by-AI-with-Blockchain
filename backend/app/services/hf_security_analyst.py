@@ -3,24 +3,30 @@ import logging
 import requests
 from typing import Dict, List, Any, Optional
 
-from app.core.config import HF_API_TOKEN, HF_INFERENCE_URL, HF_REQUEST_TIMEOUT_SECONDS
+from app.core.config import (
+    GEMINI_API_KEY,
+    GEMINI_API_BASE_URL,
+    GEMINI_MODEL,
+    GEMINI_REQUEST_TIMEOUT_SECONDS,
+)
 from app.services.assistant_knowledge_base import KnowledgeSnippet, render_snippets_for_prompt
 
 logger = logging.getLogger(__name__)
 
 class HFSecurityAnalyst:
     """
-    AI Security Analyst that leverages Hugging Face Inference API (LLMs)
+    AI Security Analyst that leverages Gemini API (AI Studio key)
     to provide intelligent reasoning and insights for blockchain threats.
     """
 
     def __init__(self):
-        self.api_url = HF_INFERENCE_URL
-        self.headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-        self.enabled = bool(HF_API_TOKEN)
+        self.api_key = GEMINI_API_KEY
+        self.model = GEMINI_MODEL
+        self.api_url = f"{GEMINI_API_BASE_URL}/models/{self.model}:generateContent"
+        self.enabled = bool(self.api_key)
 
         if not self.enabled:
-            logger.warning("HF_TOKEN not found. AI Security Analyst will be disabled.")
+            logger.warning("GEMINI_API_KEY/GOOGLE_API_KEY not found. AI Security Analyst will use fallback mode.")
 
     def analyze_threat(
         self,
@@ -34,7 +40,7 @@ class HFSecurityAnalyst:
         Generate a natural language analysis of the detected threats using LLM.
         """
         if not self.enabled:
-            return "AI Analyst is currently unavailable. Provide HF_TOKEN to enable."
+            return "AI Analyst is currently unavailable. Provide GEMINI_API_KEY (or GOOGLE_API_KEY) to enable."
 
         # Construct specific context for the LLM
         prompt = self._construct_prompt(wallet_address, risk_score, risk_level, detections, transaction_summary)
@@ -42,7 +48,7 @@ class HFSecurityAnalyst:
         try:
             return self._generate_text(prompt=prompt, max_new_tokens=500, temperature=0.7)
         except Exception as e:
-            logger.error(f"HF Inference API call failed: {e}")
+            logger.error(f"Gemini API call failed: {e}")
             return f"The AI analyst encountered an error while processing this wallet: {str(e)}"
 
     def answer_dashboard_question(
@@ -65,7 +71,7 @@ class HFSecurityAnalyst:
         try:
             return self._generate_text(prompt=prompt, max_new_tokens=380, temperature=0.45)
         except Exception as error:
-            logger.error(f"HF dashboard chat failed: {error}")
+            logger.error(f"Gemini dashboard chat failed: {error}")
             return self._fallback_dashboard_answer(
                 question=question,
                 context=context,
@@ -75,29 +81,35 @@ class HFSecurityAnalyst:
 
     def _generate_text(self, prompt: str, max_new_tokens: int, temperature: float) -> str:
         payload = {
-            "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": max_new_tokens,
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}],
+                }
+            ],
+            "generationConfig": {
+                "maxOutputTokens": max_new_tokens,
                 "temperature": temperature,
                 "top_p": 0.9,
-                "return_full_text": False,
             },
         }
 
         response = requests.post(
-            self.api_url,
-            headers=self.headers,
+            f"{self.api_url}?key={self.api_key}",
+            headers={"Content-Type": "application/json"},
             json=payload,
-            timeout=HF_REQUEST_TIMEOUT_SECONDS,
+            timeout=GEMINI_REQUEST_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
         result = response.json()
 
-        if isinstance(result, list) and len(result) > 0:
-            insight = result[0].get("generated_text", "").strip()
-            if "ASSISTANT:" in insight:
-                insight = insight.split("ASSISTANT:")[-1].strip()
-            return insight
+        candidates = result.get("candidates", []) if isinstance(result, dict) else []
+        if candidates:
+            content = candidates[0].get("content", {})
+            parts = content.get("parts", []) if isinstance(content, dict) else []
+            text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
+            if text:
+                return text
 
         return "Hiện chưa có đủ nội dung trả lời từ mô hình. Vui lòng thử lại."
 

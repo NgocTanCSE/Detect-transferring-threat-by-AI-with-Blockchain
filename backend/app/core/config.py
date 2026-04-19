@@ -78,11 +78,12 @@ RISK_THRESHOLD_LOW: int = 20
 RISK_THRESHOLD_MEDIUM: int = 50
 RISK_THRESHOLD_HIGH: int = 80
 
-# Hugging Face Inference API
+# Gemini AI Studio (Generative Language API)
+# Prefer GEMINI_API_KEY for explicitness; allow GOOGLE_API_KEY as compatibility alias.
+GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_API_BASE_URL: str = os.getenv("GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
+GEMINI_REQUEST_TIMEOUT_SECONDS: int = int(os.getenv("GEMINI_REQUEST_TIMEOUT_SECONDS", "45"))
+
+# Legacy HF settings (kept for backward compatibility with older diagnostics payloads/docs).
 HF_API_TOKEN: str = os.getenv("HF_TOKEN", "")
-HF_MODEL_ID: str = os.getenv("HF_MODEL_ID", "meta-llama/Llama-3-8B-Instruct")
-HF_INFERENCE_URL: str = os.getenv(
-    "HF_INFERENCE_URL",
-    f"https://api-inference.huggingface.co/models/{HF_MODEL_ID}",
-)
-HF_REQUEST_TIMEOUT_SECONDS: int = int(os.getenv("HF_REQUEST_TIMEOUT_SECONDS", "45"))

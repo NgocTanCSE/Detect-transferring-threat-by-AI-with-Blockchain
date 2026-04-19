@@ -196,7 +196,7 @@ class MultiAgentDetectionEngine:
         self.db_session = database_session
         self.ml_predictor = MLRiskPredictor()
         self.ai_analyst = HFSecurityAnalyst()
-        logger.info(f"Multi-Agent Detection Engine initialized (ML: {self.ml_predictor.is_available}, HF Analyst: {self.ai_analyst.enabled})")
+        logger.info(f"Multi-Agent Detection Engine initialized (ML: {self.ml_predictor.is_available}, Gemini Analyst: {self.ai_analyst.enabled})")
 
 
     def analyze_wallet(
@@ -243,9 +243,9 @@ class MultiAgentDetectionEngine:
             transactions=transactions
         )
 
-        # Step 5: Advanced AI Analyst Reasoning (using HF Inference API)
+        # Step 5: Advanced AI Analyst Reasoning (using Gemini API)
         if final_risk['total_score'] >= 20 or final_risk['detection_count'] > 0:
-            logger.info(f"Calling HF AI Analyst for {normalized_address[:10]}...")
+            logger.info(f"Calling Gemini AI Analyst for {normalized_address[:10]}...")
             ai_insight = self.ai_analyst.analyze_threat(
                 wallet_address=normalized_address,
                 risk_score=final_risk['total_score'],

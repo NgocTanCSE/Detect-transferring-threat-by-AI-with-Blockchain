@@ -690,7 +690,7 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         )
         answer = (
             "Xin lỗi, trợ lý AI gặp lỗi khi xử lý câu hỏi. "
-            "Vui lòng kiểm tra HF_TOKEN trong Space Secrets hoặc thử lại sau."
+            "Vui lòng kiểm tra GEMINI_API_KEY (hoặc GOOGLE_API_KEY) trong Space Secrets hoặc thử lại sau."
         )
 
     sources = [

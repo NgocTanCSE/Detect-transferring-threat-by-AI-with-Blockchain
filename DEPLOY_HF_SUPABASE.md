@@ -30,7 +30,8 @@ The root `Dockerfile`, `entrypoint.sh`, and `supervisord.conf` already start the
 Set backend Space Variables/Secrets:
 - `DATABASE_URL` = your Supabase URI
 - `ALCHEMY_API_KEY` = your key
-- `HF_TOKEN` = your Hugging Face token (if used by AI analyst)
+- `GEMINI_API_KEY` = your Google AI Studio API key (for AI analyst)
+- `GEMINI_MODEL` = e.g. `gemini-2.5-flash`
 - `JWT_SECRET_KEY` = long random secret
 - `AUTH_DISABLED` = `false`
 - `CORS_ALLOWED_ORIGINS` = `*` or your custom domain if you want direct browser access
