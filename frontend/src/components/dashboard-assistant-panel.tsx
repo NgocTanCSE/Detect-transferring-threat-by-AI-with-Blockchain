@@ -28,6 +28,9 @@ type AssistantContext = {
     account_status: string;
   }>;
   wallet_focus?: {
+    dashboard_role?: string;
+    dashboard_feature_index?: number;
+    dashboard_feature_label?: string;
     address: string;
     exists: boolean;
     risk_score: number;
@@ -193,7 +196,9 @@ export default function DashboardAssistantPanel({
         normalizedQuestion,
         roleKey,
         walletInputValue.trim() || walletAddress || undefined,
-        conversationHistory
+        conversationHistory,
+        currentScope,
+        context
       );
 
       setMessages((previous) => [
@@ -267,6 +272,26 @@ export default function DashboardAssistantPanel({
           <option value="tracking">Tracking</option>
         </select>
       </div>
+
+      {context.overview || context.dashboard_role ? (
+        <div className="mb-3 rounded-2xl border border-slate-800 bg-slate-900/55 p-3 text-xs text-slate-300">
+          <div className="flex flex-wrap items-center gap-2 text-slate-400">
+            <span className="uppercase tracking-[0.24em]">Loaded context</span>
+            {context.dashboard_role ? <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px]">Role: {context.dashboard_role}</span> : null}
+            {typeof context.dashboard_feature_index === "number" ? <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px]">Feature: {context.dashboard_feature_index}</span> : null}
+            {context.dashboard_feature_label ? <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px]">{context.dashboard_feature_label}</span> : null}
+          </div>
+          {context.overview ? (
+            <div className="mt-2 grid gap-2 md:grid-cols-5">
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">Wallets: {context.overview.total_wallets}</div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">Alerts: {context.overview.total_alerts}</div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">Critical: {context.overview.critical_alerts}</div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">Today: {context.overview.alerts_today}</div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">Blocked: {context.overview.total_blocked}</div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mb-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
         <p className="mb-2 text-xs uppercase tracking-[0.24em] text-slate-500">Quick prompts</p>

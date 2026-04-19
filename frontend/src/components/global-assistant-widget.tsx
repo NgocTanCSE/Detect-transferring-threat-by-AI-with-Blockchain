@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { MessageCircle, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -11,6 +11,11 @@ import { fetchDashboardStats } from "@/lib/api";
 import DashboardAssistantPanel from "@/components/dashboard-assistant-panel";
 
 type AssistantScope = "dashboard" | "wallet" | "case" | "policy" | "tracking";
+type DashboardRoleKey = "system_admin" | "ai_data_engineer" | "security_analyst" | "compliance_risk_manager";
+
+function isDashboardRoleKey(value: string | null): value is DashboardRoleKey {
+  return value === "system_admin" || value === "ai_data_engineer" || value === "security_analyst" || value === "compliance_risk_manager";
+}
 
 function resolveScope(pathname: string): AssistantScope {
   if (pathname.startsWith("/admin/tracking")) return "tracking";
@@ -28,11 +33,23 @@ function resolveRoleKey(role?: string | null): "system_admin" | "ai_data_enginee
 
 export default function GlobalAssistantWidget() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const scope = useMemo(() => resolveScope(pathname), [pathname]);
   const [currentScope, setCurrentScope] = useState<AssistantScope>(scope);
-  const roleKey = resolveRoleKey(user?.role);
+  const dashboardRoleKey = useMemo(() => {
+    const roleParam = searchParams.get("role");
+    if (isDashboardRoleKey(roleParam)) {
+      return roleParam;
+    }
+    return resolveRoleKey(user?.role);
+  }, [searchParams, user?.role]);
+  const dashboardFeatureIndex = useMemo(() => {
+    const rawFeature = searchParams.get("feature");
+    const parsedFeature = Number(rawFeature);
+    return Number.isInteger(parsedFeature) && parsedFeature >= 0 ? parsedFeature : 0;
+  }, [searchParams]);
   const roleLabel = user?.username ?? "Operator";
 
   useEffect(() => {
@@ -62,8 +79,10 @@ export default function GlobalAssistantWidget() {
         }
         : null,
       screen_scope: scope,
+      dashboard_role: dashboardRoleKey,
+      dashboard_feature_index: dashboardFeatureIndex,
     }),
-    [dashboardStats?.overview, scope, user?.username, user?.wallet_address]
+    [dashboardStats?.overview, dashboardFeatureIndex, dashboardRoleKey, scope, user?.username, user?.wallet_address]
   );
 
   return (
@@ -96,7 +115,7 @@ export default function GlobalAssistantWidget() {
           </div>
 
           <DashboardAssistantPanel
-            roleKey={roleKey}
+            roleKey={dashboardRoleKey}
             roleLabel={roleLabel}
             currentScope={currentScope}
             walletAddress={user?.wallet_address ?? null}

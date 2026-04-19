@@ -132,6 +132,7 @@ export interface AssistantChatResponse {
   answer: string;
   context: {
     role: string;
+    screen_scope?: string;
     overview: {
       total_wallets: number;
       total_alerts: number;
@@ -418,7 +419,9 @@ export async function askDashboardAssistant(
   message: string,
   role: string,
   walletAddress?: string,
-  conversationHistory?: Array<{ role: string; content: string }>
+  conversationHistory?: Array<{ role: string; content: string }>,
+  screenScope = "dashboard",
+  assistantContext?: Record<string, unknown>
 ): Promise<AssistantChatResponse> {
   try {
     const res = await fetch(`${API_BASE}/assistant/chat`, {
@@ -428,7 +431,9 @@ export async function askDashboardAssistant(
         message,
         role,
         wallet_address: walletAddress || null,
+        screen_scope: screenScope,
         conversation_history: conversationHistory || [],
+        context: assistantContext || null,
       }),
     });
 
@@ -436,7 +441,7 @@ export async function askDashboardAssistant(
       console.warn(`Assistant chat response not ok: ${res.status}`);
       return {
         answer: `Không thể lấy câu trả lời từ trợ lý (lỗi ${res.status}). Vui lòng thử lại.`,
-        context: { role, screen_scope: "dashboard", overview: {}, top_risky_wallets: [] },
+        context: { role, screen_scope: screenScope, overview: {}, top_risky_wallets: [] },
         sources: [],
         knowledge_sources: [],
         model_enabled: false,
@@ -448,7 +453,7 @@ export async function askDashboardAssistant(
     console.error("Assistant chat error:", error);
     return {
       answer: "Không thể kết nối với trợ lý. Vui lòng kiểm tra kết nối mạng và thử lại.",
-      context: { role, screen_scope: "dashboard", overview: {}, top_risky_wallets: [] },
+      context: { role, screen_scope: screenScope, overview: {}, top_risky_wallets: [] },
       sources: [],
       knowledge_sources: [],
       model_enabled: false,

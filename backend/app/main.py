@@ -685,6 +685,7 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
     wallet_address = str(payload.get("wallet_address", "")).strip() or None
     screen_scope = str(payload.get("screen_scope", "dashboard")).strip() or "dashboard"
     conversation_history = payload.get("conversation_history") or []
+    ui_context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
 
     if not message:
         log_diagnostic(
@@ -706,6 +707,14 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             wallet_address=wallet_address,
             screen_scope=screen_scope,
         )
+        if ui_context:
+            context["ui_context"] = ui_context
+            if ui_context.get("dashboard_role"):
+                context["dashboard_role"] = ui_context.get("dashboard_role")
+            if ui_context.get("dashboard_feature_index") is not None:
+                context["dashboard_feature_index"] = ui_context.get("dashboard_feature_index")
+            if ui_context.get("dashboard_feature_label"):
+                context["dashboard_feature_label"] = ui_context.get("dashboard_feature_label")
         log_diagnostic(
             DiagnosticLogType.API_CALL,
             "Assistant context built successfully",
