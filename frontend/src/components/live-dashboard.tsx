@@ -661,17 +661,26 @@ export default function LiveDashboard() {
             content: (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <div className="rounded-2xl border border-slate-700/70 bg-slate-950/60 p-4">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={flowChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                      <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 12 }} />
-                      <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} />
-                      <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} labelStyle={{ color: "#e2e8f0" }} />
-                      <Legend />
-                      <Line type="monotone" dataKey="inflow" stroke={chartPalette[0]} strokeWidth={3} dot={false} />
-                      <Line type="monotone" dataKey="outflow" stroke={chartPalette[1]} strokeWidth={3} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  {flowStats.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300} minHeight={300}>
+                      <LineChart data={flowChartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                        <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 12 }} stroke="#475569" />
+                        <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} stroke="#475569" />
+                        <Tooltip cursor={{ stroke: "#0ea5e9", strokeWidth: 1 }} contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} labelStyle={{ color: "#e2e8f0" }} />
+                        <Legend wrapperStyle={{ paddingTop: "16px" }} />
+                        <Line type="monotone" dataKey="inflow" stroke={chartPalette[0]} strokeWidth={2} dot={false} name="Inflow" isAnimationActive={true} />
+                        <Line type="monotone" dataKey="outflow" stroke={chartPalette[1]} strokeWidth={2} dot={false} name="Outflow" isAnimationActive={true} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex h-[300px] items-center justify-center text-slate-500">
+                      <div className="text-center">
+                        <p className="text-sm">No flow data available</p>
+                        <p className="text-xs text-slate-600 mt-2">Data will appear after transactions are processed</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="grid gap-3">
                   {sloMetrics ? (
@@ -1194,10 +1203,10 @@ function DiagnosticsLogsPanel({
                   {log.status_code ? (
                     <span
                       className={`inline-block rounded px-2 py-1 text-xs font-semibold ${log.status_code >= 200 && log.status_code < 300
-                          ? "bg-emerald-500/20 text-emerald-300"
-                          : log.status_code >= 400
-                            ? "bg-red-500/20 text-red-300"
-                            : "bg-slate-700/20 text-slate-300"
+                        ? "bg-emerald-500/20 text-emerald-300"
+                        : log.status_code >= 400
+                          ? "bg-red-500/20 text-red-300"
+                          : "bg-slate-700/20 text-slate-300"
                         }`}
                     >
                       {log.status_code}
