@@ -43,6 +43,7 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 # Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app/backend
 ENV PORT=7860
 ENV BACKEND_URL=http://localhost:8000
 

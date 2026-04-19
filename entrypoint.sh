@@ -5,6 +5,9 @@ set -e
 
 echo "Starting entrypoint script..."
 
+# Ensure local backend package imports (app.*) resolve first.
+export PYTHONPATH="/app/backend:${PYTHONPATH}"
+
 # If DATABASE_URL is set, attempt to bootstrap and migrate the remote Supabase database.
 if [ -n "$DATABASE_URL" ]; then
     echo "DATABASE_URL is set. Attempting database bootstrap..."
