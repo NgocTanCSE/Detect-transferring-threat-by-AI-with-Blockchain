@@ -594,7 +594,7 @@ export default function LiveDashboard() {
           fetchJson<{ count: number; items: PipelineMetricItem[] }>("/api/ops/system/pipeline-metrics?limit=12", { count: 0, items: [] }),
           fetchJson<{ total_points: number; avg_throughput_tps: number | null; avg_ingestion_latency_ms: number | null; avg_decode_latency_ms: number | null; last_block_number: number | null }>("/api/ops/system/pipeline-metrics/summary", { total_points: 0, avg_throughput_tps: null, avg_ingestion_latency_ms: null, avg_decode_latency_ms: null, last_block_number: null }),
           fetchJson<SloMetrics>("/api/ops/system/slo-metrics?days=14", { period_days: 14, endpoint_health: { total: 0, active: 0, healthy_active: 0, availability_pct: 0, error_budget_burn_pct: 0 }, latency_slo: { ingest_target_ms: 500, decode_target_ms: 200, ingest_p95_ms: 0, decode_p95_ms: 0, ingest_breaches: 0, decode_breaches: 0, sample_points: 0 } }),
-          fetchJson<{ count: number; logs: Array<{ id?: string; timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }> }>("/admin/diagnostics/logs?limit=50", { count: 0, logs: [] }),
+          fetchJson<{ count: number; logs: Array<{ id?: string; timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }> }>("/api/admin/diagnostics/logs?limit=50", { count: 0, logs: [] }),
           fetchJson<DataIntegrityReport>("/api/ops/system/data-integrity", { overall_ok: true, counts: {}, checks: [], missing_controls: [], role_readiness: {} }),
         ]);
 
