@@ -16,6 +16,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from passlib.context import CryptContext
 
 from app.core.config import DATABASE_URL
 from app.core.database import Base, SessionLocal, engine
@@ -35,6 +36,9 @@ from app.models.models import (
     User,
     Wallet,
 )
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 DEFAULT_USER_COUNT = int(os.getenv("LOCAL_DEMO_USER_COUNT", "1000"))
@@ -63,6 +67,30 @@ def _make_address(rng: random.Random, index: int) -> str:
 
 def _make_uuid(prefix: str, index: int) -> uuid.UUID:
     return uuid.uuid5(uuid.NAMESPACE_DNS, f"blockchain-ai::{prefix}::{index}")
+
+
+def _pick(sequence, index: int):
+    return sequence[index % len(sequence)]
+
+
+def _create_test_accounts(now: datetime) -> list[tuple[str, str, str, str, str]]:
+    """
+    Create test accounts with real hashed passwords.
+    Returns: [(username, email, password_plain, role, wallet_address), ...]
+    """
+    test_accounts = [
+        ("admin", "admin@local.test", "admin123", "admin", "0x1111111111111111111111111111111111111111"),
+        ("analyst", "analyst@local.test", "analyst123", "analyst", "0x2222222222222222222222222222222222222222"),
+        ("user", "user@local.test", "user123", "user", "0x3333333333333333333333333333333333333333"),
+    ]
+
+    # Hash passwords
+    hashed_accounts = []
+    for username, email, password_plain, role, wallet_address in test_accounts:
+        password_hash = pwd_context.hash(password_plain)
+        hashed_accounts.append((username, email, password_hash, role, wallet_address, password_plain))
+
+    return hashed_accounts
 
 
 def _pick(sequence, index: int):
@@ -268,6 +296,51 @@ def seed_wallets() -> None:
         _attach_seed_note(seed_rows)
         users_to_add = [seed.user for seed in seed_rows if seed.user.username not in existing_users]
         wallets_to_add = [seed.wallet for seed in seed_rows if seed.wallet.address not in existing_wallets]
+
+        # Create test accounts with real passwords
+        print("\n" + "="*70)
+        print("TEST ACCOUNTS FOR LOGIN")
+        print("="*70)
+        test_accounts = _create_test_accounts(now)
+        for username, email, password_hash, role, wallet_address, password_plain in test_accounts:
+            if username not in existing_users:
+                test_user = User(
+                    id=_make_uuid("user_test", hash(username) % 1000),
+                    username=username,
+                    email=email,
+                    password_hash=password_hash,
+                    role=role,
+                    wallet_address=wallet_address,
+                    is_active=True,
+                    warning_count=0,
+                    last_login_at=now,
+                    created_at=now,
+                    updated_at=now,
+                )
+                test_wallet = Wallet(
+                    id=_make_uuid("wallet_test", hash(username) % 1000),
+                    address=wallet_address,
+                    label=f"Test {role.title()} Wallet",
+                    entity_type="User",
+                    account_status="ACTIVE",
+                    risk_score=10.0 if role == "admin" else 25.0,
+                    risk_category=None,
+                    total_transactions=5,
+                    total_value_sent=_eth(1.0),
+                    total_value_received=_eth(5.0),
+                    first_seen_at=now,
+                    last_activity_at=now,
+                    notes=f"Test account for {role}",
+                )
+                users_to_add.append(test_user)
+                wallets_to_add.append(test_wallet)
+                print(f"✓ Username: {username}")
+                print(f"  Password: {password_plain}")
+                print(f"  Role: {role}")
+                print(f"  Wallet: {wallet_address}")
+                print()
+        print("="*70 + "\n")
+
         transactions_to_add = [tx for tx in _build_transactions(seed_rows, DEFAULT_TX_PER_USER, rng, now) if tx.tx_hash not in existing_tx_hashes]
 
         policy_rules = [
