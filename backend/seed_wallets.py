@@ -13,7 +13,8 @@ from app.models.models import Wallet, Transaction, Blacklist
 
 def seed_wallets():
     """Seed test wallets with real transactions."""
-    print(f"Using database URL: {DATABASE_URL}")
+    db_backend = "sqlite" if DATABASE_URL.startswith("sqlite") else "postgres"
+    print(f"Using database backend: {db_backend}")
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
