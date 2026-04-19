@@ -103,7 +103,7 @@ def health_check() -> Dict[str, str]:
     return {"status": "operational", "service": "Blockchain Risk Assessment API v3.0"}
 
 
-def _build_dashboard_assistant_context(database_session: Session, role: str) -> Dict[str, Any]:
+def _build_dashboard_assistant_context(database_session: Session, role: str, wallet_address: str | None = None) -> Dict[str, Any]:
     from datetime import timedelta
 
     now = datetime.utcnow()
@@ -135,7 +135,7 @@ def _build_dashboard_assistant_context(database_session: Session, role: str) -> 
         .all()
     )
 
-    return {
+    context: Dict[str, Any] = {
         "role": role,
         "generated_at": now.isoformat(),
         "overview": {
@@ -164,18 +164,55 @@ def _build_dashboard_assistant_context(database_session: Session, role: str) -> 
         ],
     }
 
+    normalized_wallet = (wallet_address or "").lower().strip()
+    if normalized_wallet:
+        wallet = database_session.query(Wallet).filter(Wallet.address == normalized_wallet).first()
+        wallet_tx_count = (
+            database_session.query(func.count(Transaction.id))
+            .filter((Transaction.from_address == normalized_wallet) | (Transaction.to_address == normalized_wallet))
+            .scalar()
+            or 0
+        )
+        wallet_alert_count = (
+            database_session.query(func.count(Alert.id))
+            .filter(Alert.wallet_address == normalized_wallet)
+            .scalar()
+            or 0
+        )
+
+        context["wallet_focus"] = {
+            "address": normalized_wallet,
+            "exists": wallet is not None,
+            "risk_score": float(wallet.risk_score or 0.0) if wallet else 0.0,
+            "account_status": wallet.account_status if wallet else None,
+            "label": wallet.label if wallet else None,
+            "transaction_count": int(wallet_tx_count),
+            "alert_count": int(wallet_alert_count),
+        }
+
+    return context
+
 
 @app.post("/assistant/chat", tags=["Assistant"])
 def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     message = str(payload.get("message", "")).strip()
     role = str(payload.get("role", "operator")).strip() or "operator"
+    wallet_address = str(payload.get("wallet_address", "")).strip() or None
 
     if not message:
         raise HTTPException(status_code=400, detail="Missing message")
 
-    context = _build_dashboard_assistant_context(database_session, role=role)
+    context = _build_dashboard_assistant_context(database_session, role=role, wallet_address=wallet_address)
     analyst = HFSecurityAnalyst()
     answer = analyst.answer_dashboard_question(question=message, context=context)
+
+    sources = [
+        "overview: wallets/alerts/blocked_transfers",
+        "flow_7d: transactions",
+        "top_risky_wallets: wallets",
+    ]
+    if wallet_address:
+        sources.append("wallet_focus: wallets/transactions/alerts")
 
     return {
         "answer": answer,
@@ -183,7 +220,9 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             "role": role,
             "overview": context.get("overview", {}),
             "top_risky_wallets": context.get("top_risky_wallets", []),
+            "wallet_focus": context.get("wallet_focus"),
         },
+        "sources": sources,
         "model_enabled": analyst.enabled,
     }
 

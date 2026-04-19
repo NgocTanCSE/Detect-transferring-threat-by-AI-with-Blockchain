@@ -4,30 +4,18 @@ Run this after database initialization.
 
 Usage: python seed_wallets.py
 """
-import os
 import uuid
 from datetime import datetime, timedelta
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-import sys
 
-# Add backend to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
-
-from app.core.database import Base
+from app.core.config import DATABASE_URL
+from app.core.database import Base, engine, SessionLocal
 from app.models.models import Wallet, Transaction, Blacklist
-
-# Get database URL from environment
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/blockchain_ai"
-)
-
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def seed_wallets():
     """Seed test wallets with real transactions."""
+    print(f"Using database URL: {DATABASE_URL}")
+    Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
 
     try:

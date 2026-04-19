@@ -145,7 +145,17 @@ export interface AssistantChatResponse {
       risk_score: number;
       account_status: string;
     }>;
+    wallet_focus?: {
+      address: string;
+      exists: boolean;
+      risk_score: number;
+      account_status: string | null;
+      label: string | null;
+      transaction_count: number;
+      alert_count: number;
+    } | null;
   };
+  sources: string[];
   model_enabled: boolean;
 }
 
@@ -346,11 +356,11 @@ export async function analyzeAddress(address: string): Promise<{
   return res.json();
 }
 
-export async function askDashboardAssistant(message: string, role: string): Promise<AssistantChatResponse> {
+export async function askDashboardAssistant(message: string, role: string, walletAddress?: string): Promise<AssistantChatResponse> {
   const res = await fetch(`${API_BASE}/assistant/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, role }),
+    body: JSON.stringify({ message, role, wallet_address: walletAddress || null }),
   });
 
   if (!res.ok) {

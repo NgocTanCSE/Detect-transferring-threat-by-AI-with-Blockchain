@@ -322,6 +322,30 @@ function formatDateTime(value: string | null | undefined): string {
 type AssistantMessage = {
   role: "user" | "assistant";
   content: string;
+  sources?: string[];
+};
+
+const ASSISTANT_QUICK_PROMPTS: Record<RoleKey, string[]> = {
+  system_admin: [
+    "Giải thích ý nghĩa Availability và Error budget burn",
+    "Flow 7 ngày hiện tại có bất thường gì không?",
+    "Nên ưu tiên xử lý chỉ số nào trước để ổn định hệ thống?",
+  ],
+  ai_data_engineer: [
+    "Model active hiện tại có đủ để vận hành chưa?",
+    "Feature flag nào nên bật/tắt để giảm false positive?",
+    "Tóm tắt rủi ro dữ liệu trong dashboard hiện tại",
+  ],
+  security_analyst: [
+    "Alerts hôm nay tăng do nguyên nhân nào?",
+    "Ngưỡng risk_score nào thì nên escalate case?",
+    "Đề xuất thứ tự xử lý 3 cảnh báo cấp bách nhất",
+  ],
+  compliance_risk_manager: [
+    "Audit completeness hiện tại có đạt yêu cầu không?",
+    "Policy nào đang tác động lớn nhất đến blocked transfers?",
+    "Nên bổ sung kiểm soát gì để giảm audit gaps?",
+  ],
 };
 
 function parseQueryInt(raw: string | null, fallback: number, min = 1): number {
@@ -405,6 +429,7 @@ export default function LiveDashboard() {
   const [auditGaps, setAuditGaps] = useState<AuditGaps | null>(null);
   const [sloMetrics, setSloMetrics] = useState<SloMetrics | null>(null);
   const [assistantInput, setAssistantInput] = useState("");
+  const [assistantWalletInput, setAssistantWalletInput] = useState("");
   const [assistantLoading, setAssistantLoading] = useState(false);
   const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([
     {
@@ -790,8 +815,8 @@ export default function LiveDashboard() {
     sloMetrics,
   ]);
 
-  async function handleAskAssistant() {
-    const question = assistantInput.trim();
+  async function handleAskAssistant(prefilledQuestion?: string) {
+    const question = (prefilledQuestion ?? assistantInput).trim();
     if (!question || assistantLoading) {
       return;
     }
@@ -801,8 +826,8 @@ export default function LiveDashboard() {
     setAssistantLoading(true);
 
     try {
-      const response = await askDashboardAssistant(question, activeRole);
-      setAssistantMessages((previous) => [...previous, { role: "assistant", content: response.answer }]);
+      const response = await askDashboardAssistant(question, activeRole, assistantWalletInput.trim() || undefined);
+      setAssistantMessages((previous) => [...previous, { role: "assistant", content: response.answer, sources: response.sources }]);
     } catch (assistantError) {
       const message = assistantError instanceof Error ? assistantError.message : "Assistant unavailable";
       setAssistantMessages((previous) => [
@@ -901,6 +926,22 @@ export default function LiveDashboard() {
             <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">Role: {role.label}</span>
           </div>
 
+          <div className="mb-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
+            <p className="mb-2 text-xs uppercase tracking-[0.24em] text-slate-500">Quick prompts</p>
+            <div className="flex flex-wrap gap-2">
+              {ASSISTANT_QUICK_PROMPTS[activeRole].map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => void handleAskAssistant(prompt)}
+                  className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 transition hover:border-cyan-500/40 hover:text-white"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="max-h-52 space-y-2 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
             {assistantMessages.map((message, index) => (
               <div
@@ -913,11 +954,26 @@ export default function LiveDashboard() {
                 ].join(" ")}
               >
                 {message.content}
+                {message.role === "assistant" && message.sources && message.sources.length ? (
+                  <p className="mt-2 border-t border-cyan-400/20 pt-2 text-[11px] text-cyan-200/80">
+                    Sources: {message.sources.join(" | ")}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>
 
-          <div className="mt-3 flex flex-col gap-2 md:flex-row">
+          <div className="mt-3 flex flex-col gap-2">
+            <input
+              type="text"
+              value={assistantWalletInput}
+              onChange={(event) => setAssistantWalletInput(event.target.value)}
+              placeholder="(Tuỳ chọn) Focus theo ví, ví dụ: 0xabc..."
+              className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-500"
+            />
+          </div>
+
+          <div className="mt-2 flex flex-col gap-2 md:flex-row">
             <input
               type="text"
               value={assistantInput}
