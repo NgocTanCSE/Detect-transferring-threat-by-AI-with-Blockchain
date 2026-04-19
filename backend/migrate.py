@@ -22,6 +22,10 @@ def _table_exists(cur, table_name: str) -> bool:
     return cur.fetchone() is not None
 
 def run_migration():
+    if not DATABASE_URL.startswith(("postgresql://", "postgres://")):
+        print("ℹ️  Non-Postgres DATABASE_URL detected; skipping migration script.")
+        return
+
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 

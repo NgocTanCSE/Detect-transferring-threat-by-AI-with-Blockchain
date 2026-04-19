@@ -91,6 +91,10 @@ def bootstrap_database() -> None:
         logger.info("DATABASE_URL is not set; skipping bootstrap")
         return
 
+    if not DATABASE_URL.startswith(("postgresql://", "postgres://")):
+        logger.info("Non-Postgres DATABASE_URL detected; skipping Supabase bootstrap")
+        return
+
     connection = psycopg2.connect(DATABASE_URL)
     connection.autocommit = False
 

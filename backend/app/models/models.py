@@ -3,11 +3,21 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, BigInteger, DECIMAL, Text, func, SmallInteger, Boolean, Integer
-from sqlalchemy.dialects.postgresql import UUID, JSONB, INET
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, BigInteger, DECIMAL, Text, func, SmallInteger, Boolean, Integer, UUID as SA_UUID, JSON
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB as PG_JSONB, INET as PG_INET
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+
+
+def UUID(*args, **kwargs):
+    """Portable UUID type with native Postgres variant."""
+    as_uuid = kwargs.get("as_uuid", False)
+    return SA_UUID(as_uuid=as_uuid).with_variant(PG_UUID(as_uuid=as_uuid), "postgresql")
+
+
+JSONB = JSON().with_variant(PG_JSONB(), "postgresql")
+INET = String(45).with_variant(PG_INET(), "postgresql")
 
 
 class User(Base):

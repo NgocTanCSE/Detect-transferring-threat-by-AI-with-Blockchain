@@ -1,20 +1,34 @@
 """Database connection and session management."""
 
 import logging
+from pathlib import Path
 from typing import Generator
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 
 from app.core.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
+_DATABASE_BACKEND = make_url(DATABASE_URL).get_backend_name()
+_IS_SQLITE = _DATABASE_BACKEND == "sqlite"
+
+if _IS_SQLITE and DATABASE_URL.startswith("sqlite:////"):
+    sqlite_file = DATABASE_URL.replace("sqlite:////", "/", 1)
+    Path(sqlite_file).parent.mkdir(parents=True, exist_ok=True)
+
+_engine_kwargs = {"pool_pre_ping": True}
+if _IS_SQLITE:
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    _engine_kwargs["pool_size"] = 10
+    _engine_kwargs["max_overflow"] = 20
+
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20
+    **_engine_kwargs,
 )
 
 SessionLocal = sessionmaker(
@@ -47,6 +61,10 @@ def ensure_schema() -> None:
     - `blacklist.verified_at` exists (TIMESTAMPTZ)
     - `blacklist.expires_at` exists (TIMESTAMPTZ)
     """
+    if _IS_SQLITE:
+        logger.info("SQLite backend detected; skipping Postgres-specific ensure_schema migrations")
+        return
+
     try:
         with engine.begin() as connection:
             # Ensure core table exists in long-lived dev volumes where create_all may have been skipped.

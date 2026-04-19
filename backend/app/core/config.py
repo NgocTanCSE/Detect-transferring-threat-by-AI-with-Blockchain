@@ -8,12 +8,26 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _default_database_url() -> str:
+    """Return environment-appropriate default database URL."""
+    # Hugging Face Spaces exposes SPACE_ID and provides persistent storage at /data.
+    if os.getenv("SPACE_ID"):
+        return "sqlite:////data/blockchain_local.db"
+    return "postgresql://user:password@db:5432/blockchain_db"
+
+
 def _normalize_database_url(raw_url: str) -> str:
     """Strip quotes and provider-specific query parameters that psycopg2 cannot parse."""
     if not raw_url:
         return raw_url
 
     cleaned_url = raw_url.strip().strip('"').strip("'")
+
+    if cleaned_url.startswith("postgres://"):
+        cleaned_url = "postgresql://" + cleaned_url[len("postgres://"):]
+
+    if not cleaned_url.startswith("postgresql://"):
+        return cleaned_url
 
     parsed = urlsplit(cleaned_url)
     if not parsed.query:
@@ -44,7 +58,7 @@ ALCHEMY_RETRY_DELAY: int = 2
 # Database Configuration
 DATABASE_URL: str = os.getenv(
     "DATABASE_URL",
-    "postgresql://user:password@db:5432/blockchain_db"
+    _default_database_url()
 )
 DATABASE_URL = _normalize_database_url(DATABASE_URL)
 
