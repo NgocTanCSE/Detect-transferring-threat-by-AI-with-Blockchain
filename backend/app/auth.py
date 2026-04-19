@@ -18,6 +18,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, validator
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.database import get_db
 from app.models.models import User, Wallet, Transaction, Alert, BlockedTransfer
@@ -667,11 +668,18 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
         JWT access token
     """
 
+    normalized_username = (form_data.username or "").strip().lower()
+    if not normalized_username or not form_data.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username/email and password are required"
+        )
+
     try:
         # Try to find user by username or email
         user = db.query(User).filter(
-            (User.username == form_data.username.lower()) |
-            (User.email == form_data.username.lower())
+            (User.username == normalized_username) |
+            (User.email == normalized_username)
         ).first()
 
         if not user or not verify_password(form_data.password, user.password_hash):
@@ -703,7 +711,15 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
         )
     except HTTPException:
         raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Database error during login for username=%s", normalized_username)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is temporarily unavailable. Please try again in a moment."
+        ) from exc
     except Exception as exc:
+        db.rollback()
         logger.exception("Unexpected error during login for username=%s", form_data.username)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

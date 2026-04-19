@@ -45,7 +45,18 @@ if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres://* || "$DATABASE_UR
 else
     echo "Using local SQLite database at /data/blockchain_local.db. Attempting seed..."
     cd /app/backend
-    python seed_wallets.py || echo "Local demo seed failed, continuing..."
+    if ! python seed_wallets.py; then
+        echo "Seed failed. Performing hard SQLite cleanup and retry once..."
+        rm -f /data/blockchain_local.db
+        rm -f /data/blockchain_local.db-wal
+        rm -f /data/blockchain_local.db-shm
+        rm -f /data/blockchain_local.db-journal
+
+        if ! python seed_wallets.py; then
+            echo "Seed failed after retry. Exiting to avoid running with broken database."
+            exit 1
+        fi
+    fi
 fi
 
 echo "Starting Supervisor..."
