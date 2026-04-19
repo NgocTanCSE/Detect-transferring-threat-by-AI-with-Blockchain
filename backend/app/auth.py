@@ -17,7 +17,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, validator
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.database import get_db
@@ -440,6 +440,58 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
+def _fetch_login_user(db: Session, normalized_username: str) -> Optional[Dict[str, object]]:
+    """Fetch user for login with a resilient path for SQLite schema drift."""
+    bind = db.get_bind()
+    dialect = bind.dialect.name if bind is not None else ""
+
+    # SQLite fallback path: query only minimal columns that may exist in legacy DBs.
+    if dialect == "sqlite":
+        columns_info = db.execute(text("PRAGMA table_info(users)")).fetchall()
+        column_names = {str(row[1]) for row in columns_info}
+
+        required_columns = {"id", "username", "email", "password_hash"}
+        if not required_columns.issubset(column_names):
+            missing = ", ".join(sorted(required_columns - column_names))
+            raise SQLAlchemyError(f"users table missing required columns: {missing}")
+
+        role_expr = "role" if "role" in column_names else "'user'"
+        is_active_expr = "is_active" if "is_active" in column_names else "1"
+
+        row = db.execute(
+            text(
+                f"""
+                SELECT id, username, email, password_hash,
+                       {role_expr} AS role,
+                       {is_active_expr} AS is_active
+                FROM users
+                WHERE lower(username) = :u OR lower(email) = :u
+                LIMIT 1
+                """
+            ),
+            {"u": normalized_username},
+        ).mappings().first()
+
+        return dict(row) if row else None
+
+    # Default ORM path for Postgres and other DBs.
+    user = db.query(User).filter(
+        (User.username == normalized_username) |
+        (User.email == normalized_username)
+    ).first()
+    if not user:
+        return None
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "password_hash": user.password_hash,
+        "role": user.role,
+        "is_active": user.is_active,
+    }
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
@@ -676,32 +728,39 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
         )
 
     try:
-        # Try to find user by username or email
-        user = db.query(User).filter(
-            (User.username == normalized_username) |
-            (User.email == normalized_username)
-        ).first()
+        user = _fetch_login_user(db, normalized_username)
 
-        if not user or not verify_password(form_data.password, user.password_hash):
+        if not user or not verify_password(form_data.password, str(user.get("password_hash") or "")):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        if not user.is_active:
+        if not bool(user.get("is_active", True)):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is disabled. Contact admin for assistance."
             )
 
         # Update last login
-        user.last_login_at = datetime.utcnow()
-        db.commit()
+        try:
+            db.execute(
+                text("UPDATE users SET last_login_at = :ts WHERE id = :user_id"),
+                {"ts": datetime.utcnow(), "user_id": str(user.get("id"))},
+            )
+            db.commit()
+        except Exception:
+            # Don't block login if legacy schema does not have last_login_at.
+            db.rollback()
 
         # Create access token
         access_token = create_access_token(
-            data={"sub": str(user.id), "username": user.username, "role": user.role}
+            data={
+                "sub": str(user.get("id")),
+                "username": str(user.get("username") or normalized_username),
+                "role": str(user.get("role") or "user"),
+            }
         )
 
         return Token(
