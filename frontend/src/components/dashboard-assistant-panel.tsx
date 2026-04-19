@@ -249,12 +249,12 @@ export default function DashboardAssistantPanel({
         </div>
       </div>
 
-      <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
+      <div className="max-h-96 space-y-2 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
         {messages.map((message, index) => (
           <div
             key={`${message.role}-${index}`}
             className={[
-              "rounded-xl px-3 py-2 text-sm leading-relaxed",
+              "rounded-xl px-3 py-3 text-sm leading-relaxed",
               message.role === "assistant"
                 ? "border border-cyan-500/20 bg-cyan-500/10 text-cyan-50"
                 : "border border-slate-700 bg-slate-800 text-slate-200",
@@ -275,13 +275,13 @@ export default function DashboardAssistantPanel({
         ))}
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-[1fr_220px]">
+      <div className="mt-3 grid grid-cols-1 gap-2">
         <input
           type="text"
           value={walletInputValue}
           onChange={(event) => setWalletInputValue(event.target.value)}
           placeholder="(Optional) Wallet focus, e.g. 0xabc..."
-          className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-500"
+          className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-sm text-slate-100 outline-none transition focus:border-cyan-500"
         />
         <div className="flex gap-2">
           <input
@@ -295,15 +295,15 @@ export default function DashboardAssistantPanel({
                 void sendQuestion();
               }
             }}
-            className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-500"
+            className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-base text-slate-100 outline-none transition focus:border-cyan-500"
           />
           <button
             type="button"
             onClick={() => void sendQuestion()}
             disabled={isLoading || !inputValue.trim()}
-            className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <SendHorizonal className="h-4 w-4" />
+            <SendHorizonal className="h-5 w-5" />
             {isLoading ? "Đang trả lời..." : "Gửi"}
           </button>
         </div>
