@@ -465,10 +465,10 @@ export default function LiveDashboard() {
 
   useEffect(() => {
     const roleParam = searchParams.get("role") as RoleKey | null;
-    if (roleParam && ROLE_DEFINITIONS.some((entry) => entry.key === roleParam) && roleParam !== activeRole) {
-      setActiveRole(roleParam);
+    if (roleParam && ROLE_DEFINITIONS.some((entry) => entry.key === roleParam)) {
+      setActiveRole((previous) => (previous === roleParam ? previous : roleParam));
     }
-  }, [activeRole, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
     const featureParamRaw = searchParams.get("feature");
