@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getCurrentUser } from "@/lib/api-auth";
 import { useAuth } from "@/lib/auth-context";
 
 function resolveFriendlyError(errorMessage: string): string {
@@ -36,8 +37,14 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      await login({ username: username.trim(), password });
-      router.push("/");
+      const auth = await login({ username: username.trim(), password });
+      const currentUser = await getCurrentUser(auth.access_token);
+
+      if (currentUser.role === "admin") {
+        router.push("/?role=system_admin&feature=0");
+      } else {
+        router.push("/user/exchange");
+      }
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : "Đăng nhập thất bại";
       setError(resolveFriendlyError(rawMessage));

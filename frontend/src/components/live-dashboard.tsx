@@ -52,6 +52,19 @@ type RoleDefinition = {
   sidebarFeatures: string[];
 };
 
+function mapUserRoleToDashboardRole(role?: string | null): RoleKey {
+  const normalized = (role ?? "").toLowerCase();
+  if (normalized === "admin") return "system_admin";
+  if (normalized === "ai_data_engineer" || normalized === "data_engineer" || normalized === "engineer") return "ai_data_engineer";
+  if (normalized === "compliance_risk_manager" || normalized === "compliance") return "compliance_risk_manager";
+  if (normalized === "security_analyst" || normalized === "analyst" || normalized === "user") return "security_analyst";
+  return "security_analyst";
+}
+
+function isAdminOnlyRole(role: RoleKey): boolean {
+  return role === "system_admin" || role === "ai_data_engineer";
+}
+
 type NodeEndpointItem = {
   id: string;
   provider_name: string;
@@ -449,6 +462,10 @@ export default function LiveDashboard() {
   const role = useMemo(() => ROLE_DEFINITIONS.find((entry) => entry.key === activeRole) ?? ROLE_DEFINITIONS[0], [activeRole]);
   const sidebarIcons = useMemo(() => ROLE_ICONS, []);
   const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace";
+  const availableRoles = useMemo(
+    () => ROLE_DEFINITIONS.filter((entry) => user?.role === "admin" || !isAdminOnlyRole(entry.key)),
+    [user?.role]
+  );
 
   // Filter navigation routes based on authentication status
   const visibleRoutes = useMemo(() => {
@@ -494,10 +511,24 @@ export default function LiveDashboard() {
 
   useEffect(() => {
     const roleParam = searchParams.get("role") as RoleKey | null;
+    const fallbackRole = mapUserRoleToDashboardRole(user?.role);
+
     if (roleParam && ROLE_DEFINITIONS.some((entry) => entry.key === roleParam)) {
-      setActiveRole((previous) => (previous === roleParam ? previous : roleParam));
+      const nextRole = user?.role === "admin" || !isAdminOnlyRole(roleParam) ? roleParam : fallbackRole;
+      if (nextRole !== activeRole) {
+        setActiveRole(nextRole);
+      }
+      if (nextRole !== roleParam) {
+        updateQuery({ role: nextRole, feature: 0 });
+      }
+      return;
     }
-  }, [searchParams]);
+
+    if (fallbackRole !== activeRole) {
+      setActiveRole(fallbackRole);
+    }
+    updateQuery({ role: fallbackRole, feature: 0 });
+  }, [activeRole, searchParams, updateQuery, user?.role]);
 
   useEffect(() => {
     if (roleSwitchingKey && activeRole === roleSwitchingKey) {
@@ -919,7 +950,7 @@ export default function LiveDashboard() {
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {ROLE_DEFINITIONS.map((entry) => {
+            {availableRoles.map((entry) => {
               const isActive = entry.key === role.key;
               const isSwitching = roleSwitchingKey === entry.key;
               const disableRoleButtons = roleSwitchingKey !== null;
