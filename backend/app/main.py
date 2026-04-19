@@ -1715,29 +1715,50 @@ def get_dashboard_statistics(
     """
     Get comprehensive statistics for admin dashboard cards.
     """
-    # Money laundering stats
-    ml_wallets = database_session.query(Wallet).filter(
-        Wallet.risk_category == 'money_laundering'
-    ).count()
-    ml_alerts = database_session.query(Alert).filter(
-        Alert.alert_type.in_(['STRUCTURING_DETECTED', 'MIXER_INTERACTION', 'LAYERING_DETECTED'])
-    ).count()
+    wallets = database_session.query(Wallet.risk_category, Wallet.risk_score).all()
+    alerts = database_session.query(Alert.alert_type, Alert.severity).all()
 
-    # Manipulation stats
-    manip_wallets = database_session.query(Wallet).filter(
-        Wallet.risk_category == 'manipulation'
-    ).count()
-    manip_alerts = database_session.query(Alert).filter(
-        Alert.alert_type.in_(['WASH_TRADING', 'PUMP_DUMP_DETECTED', 'CYCLE_DETECTED'])
-    ).count()
+    ml_wallets = 0
+    manip_wallets = 0
+    scam_wallets = 0
 
-    # Scam stats
-    scam_wallets = database_session.query(Wallet).filter(
-        Wallet.risk_category == 'scam'
-    ).count()
-    scam_alerts = database_session.query(Alert).filter(
-        Alert.alert_type.in_(['BLACKLIST_MATCH', 'HONEYPOT_DETECTED', 'SCAM_PATTERN'])
-    ).count()
+    for risk_category, risk_score in wallets:
+        category = (risk_category or "").lower()
+        score = float(risk_score or 0)
+
+        if category in {"scam", "fraud"} or score >= 85:
+            scam_wallets += 1
+        elif category in {"manipulation", "wash_trading", "market_manipulation"} or score >= 65:
+            manip_wallets += 1
+        elif category in {"money_laundering", "suspicious_activity", "layering", "structuring"} or score >= 45:
+            ml_wallets += 1
+
+    ml_alerts = 0
+    manip_alerts = 0
+    scam_alerts = 0
+
+    for alert_type, severity in alerts:
+        alert_text = (alert_type or "").upper()
+        severity_text = (severity or "").upper()
+
+        if any(keyword in alert_text for keyword in ["BLACKLIST", "SCAM", "HONEYPOT", "PHISH", "FRAUD"]):
+            scam_alerts += 1
+            continue
+
+        if any(keyword in alert_text for keyword in ["WASH", "PUMP", "DUMP", "CYCLE", "MANIP", "VELOCITY"]):
+            manip_alerts += 1
+            continue
+
+        if any(keyword in alert_text for keyword in ["STRUCTUR", "MIXER", "LAYER", "RISK"]):
+            ml_alerts += 1
+            continue
+
+        if severity_text == "CRITICAL":
+            scam_alerts += 1
+        elif severity_text == "HIGH":
+            manip_alerts += 1
+        else:
+            ml_alerts += 1
 
     # General stats
     total_wallets = database_session.query(Wallet).count()
