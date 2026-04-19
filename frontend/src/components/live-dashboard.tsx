@@ -13,6 +13,7 @@ import {
   FileCheck2,
   Gauge,
   Globe2,
+  Loader2,
   RefreshCcw,
   Search,
   Shield,
@@ -388,6 +389,7 @@ export default function LiveDashboard() {
   const searchParams = useSearchParams();
   const { isAuthenticated, user } = useAuth();
   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
+  const [roleSwitchingKey, setRoleSwitchingKey] = useState<RoleKey | null>(null);
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -469,6 +471,12 @@ export default function LiveDashboard() {
       setActiveRole((previous) => (previous === roleParam ? previous : roleParam));
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (roleSwitchingKey && activeRole === roleSwitchingKey) {
+      setRoleSwitchingKey(null);
+    }
+  }, [activeRole, roleSwitchingKey]);
 
   useEffect(() => {
     const featureParamRaw = searchParams.get("feature");
@@ -881,20 +889,26 @@ export default function LiveDashboard() {
           <div className="mt-4 flex flex-wrap gap-2">
             {ROLE_DEFINITIONS.map((entry) => {
               const isActive = entry.key === role.key;
+              const isSwitching = roleSwitchingKey === entry.key;
+              const disableRoleButtons = roleSwitchingKey !== null;
               return (
                 <button
                   key={entry.key}
                   type="button"
+                  disabled={disableRoleButtons}
                   onClick={() => {
+                    if (entry.key === activeRole || roleSwitchingKey) return;
+                    setRoleSwitchingKey(entry.key);
                     setActiveRole(entry.key);
                     setActiveFeatureIndex(0);
                     updateQuery({ role: entry.key, feature: 0 });
                   }}
                   className={[
-                    "rounded-2xl border px-4 py-2 text-sm font-medium transition",
+                    "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-80",
                     isActive ? `${entry.accentClass} shadow-[0_0_0_1px_rgba(148,163,184,0.18)]` : "border-slate-700 bg-slate-800/70 text-slate-300 hover:border-slate-500 hover:text-white",
                   ].join(" ")}
                 >
+                  {isSwitching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {entry.label}
                 </button>
               );
