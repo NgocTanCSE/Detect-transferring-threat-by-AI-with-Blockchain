@@ -510,10 +510,11 @@ export default function LiveDashboard() {
     const featureParamRaw = searchParams.get("feature");
     if (!featureParamRaw) return;
     const parsed = Number(featureParamRaw);
-    if (Number.isInteger(parsed) && parsed >= 0 && parsed < 6 && parsed !== activeFeatureIndex) {
+    const maxFeatureCount = role.sidebarFeatures.length;
+    if (Number.isInteger(parsed) && parsed >= 0 && parsed < maxFeatureCount && parsed !== activeFeatureIndex) {
       setActiveFeatureIndex(parsed);
     }
-  }, [activeFeatureIndex, searchParams]);
+  }, [activeFeatureIndex, role.sidebarFeatures.length, searchParams]);
 
   async function loadLiveData(roleKey: RoleKey, mode: "auto" | "manual" = "auto") {
     const now = Date.now();
@@ -1005,7 +1006,7 @@ export default function LiveDashboard() {
                         type="button"
                         onClick={() => {
                           setActiveFeatureIndex(index);
-                          updateQuery({ feature: index });
+                          updateQuery({ role: role.key, feature: index });
                         }}
                         className={[
                           "w-full rounded-2xl border px-3 py-3 text-left transition",
