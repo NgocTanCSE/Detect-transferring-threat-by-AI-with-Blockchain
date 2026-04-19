@@ -41,7 +41,7 @@ from app.models.models import (
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-DEFAULT_USER_COUNT = int(os.getenv("LOCAL_DEMO_USER_COUNT", "1000"))
+DEFAULT_USER_COUNT = int(os.getenv("LOCAL_DEMO_USER_COUNT", "5000"))
 DEFAULT_TX_PER_USER = int(os.getenv("LOCAL_DEMO_TX_PER_USER", "5"))
 DEFAULT_ALERTS = int(os.getenv("LOCAL_DEMO_ALERT_COUNT", "150"))
 DEFAULT_BLOCKED = int(os.getenv("LOCAL_DEMO_BLOCKED_COUNT", "60"))
@@ -179,11 +179,14 @@ def _build_seed_users(user_count: int, rng: random.Random, now: datetime) -> lis
         if risk_category is None:
             risk_category = inferred_category
 
+        # Create hashed password - same for all demo users
+        password_hash = pwd_context.hash("demo123")
+
         user = User(
             id=_make_uuid("user", index),
             username=f"demo_user_{index:05d}",
             email=f"demo_user_{index:05d}@local.test",
-            password_hash="$2b$12$demo.seed.hash.placeholder",
+            password_hash=password_hash,
             role=_role_for_index(index),
             wallet_address=address,
             is_active=True,
@@ -301,6 +304,12 @@ def seed_wallets() -> None:
         print("\n" + "="*70)
         print("TEST ACCOUNTS FOR LOGIN")
         print("="*70)
+        print(f"\n✓ DEMO USERS (ALL): demo_user_00000 to demo_user_{DEFAULT_USER_COUNT-1:05d}")
+        print(f"  Password: demo123")
+        print(f"  Count: {DEFAULT_USER_COUNT} users")
+        print(f"  Roles: 1 admin, ~{DEFAULT_USER_COUNT//17} analyst, rest are user")
+        print()
+
         test_accounts = _create_test_accounts(now)
         for username, email, password_hash, role, wallet_address, password_plain in test_accounts:
             if username not in existing_users:
