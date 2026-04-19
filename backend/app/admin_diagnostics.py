@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from enum import Enum
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +123,8 @@ def log_diagnostic(
 def get_seed_data_counts(database_session) -> Dict[str, int]:
     """Get counts of all seeded data types."""
     from app.models.models import (
-        User, Wallet, Transaction, Alert, BlockedTransfer, Case,
-        PolicyRule, NotificationEvent, FeatureConfig, ModelRegistry,
+        User, Wallet, Transaction, Alert, BlockedTransfer, TransactionCase,
+        PolicyRule, NotificationEvent, FeatureStoreConfig, ModelRegistry,
         NodeEndpoint, PipelineMetric, AuditLog
     )
 
@@ -133,10 +134,10 @@ def get_seed_data_counts(database_session) -> Dict[str, int]:
         "transactions": database_session.query(Transaction).count(),
         "alerts": database_session.query(Alert).count(),
         "blocked_transfers": database_session.query(BlockedTransfer).count(),
-        "cases": database_session.query(Case).count(),
+        "transaction_cases": database_session.query(TransactionCase).count(),
         "policy_rules": database_session.query(PolicyRule).count(),
         "notification_events": database_session.query(NotificationEvent).count(),
-        "feature_configs": database_session.query(FeatureConfig).count(),
+        "feature_store_configs": database_session.query(FeatureStoreConfig).count(),
         "model_registry": database_session.query(ModelRegistry).count(),
         "node_endpoints": database_session.query(NodeEndpoint).count(),
         "pipeline_metrics": database_session.query(PipelineMetric).count(),
@@ -148,7 +149,7 @@ def get_seed_data_counts(database_session) -> Dict[str, int]:
 def get_database_health(database_session) -> Dict[str, Any]:
     """Check database health and schema."""
     try:
-        result = database_session.execute("SELECT 1")
+        result = database_session.execute(text("SELECT 1"))
         return {
             "status": "connected",
             "error": None,
