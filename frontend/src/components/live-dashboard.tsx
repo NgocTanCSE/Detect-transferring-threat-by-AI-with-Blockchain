@@ -19,6 +19,8 @@ import {
   Shield,
   Sparkles,
   Wallet,
+  Download,
+  Archive,
 } from "lucide-react";
 import type { Alert, BlockedTransfer, DashboardStats, FlowStats } from "@/lib/api";
 import { fetchBlockedTransfers, fetchDashboardStats, fetchFlowStats, fetchRecentAlerts } from "@/lib/api";
@@ -218,6 +220,27 @@ type SloMetrics = {
     decode_breaches: number;
     sample_points: number;
   };
+};
+
+type DataIntegrityReport = {
+  overall_ok: boolean;
+  counts: Record<string, number>;
+  checks: Array<{
+    key: string;
+    ok: boolean;
+    required_min: number;
+    actual: number;
+    owner_role: string;
+  }>;
+  missing_controls: Array<{
+    key: string;
+    owner_role: string;
+    required_min: number;
+    actual: number;
+    severity: string;
+    recommended_next_step: string;
+  }>;
+  role_readiness: Record<string, boolean>;
 };
 
 const ROLE_DEFINITIONS: RoleDefinition[] = [
@@ -422,7 +445,8 @@ export default function LiveDashboard() {
   const [totalAlertCount, setTotalAlertCount] = useState<number>(0);
   const [totalBlockedCount, setTotalBlockedCount] = useState<number>(0);
   const [totalCaseCount, setTotalCaseCount] = useState<number>(0);
-  const [diagnosticsLogs, setDiagnosticsLogs] = useState<Array<{ timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }>>([]);
+  const [diagnosticsLogs, setDiagnosticsLogs] = useState<Array<{ id?: string; timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }>>([]);
+  const [dataIntegrity, setDataIntegrity] = useState<DataIntegrityReport | null>(null);
   const isFetchingRef = useRef(false);
   const lastAutoFetchAtRef = useRef(0);
 
@@ -535,12 +559,13 @@ export default function LiveDashboard() {
       setTotalBlockedCount((blockedResult.statistics?.total_matching as number) ?? (blockedResult.blocked_transfers?.length ?? 0));
 
       if (roleKey === "system_admin") {
-        const [nodeRes, pipelineRes, pipelineSummaryRes, sloRes, logsRes] = await Promise.allSettled([
+        const [nodeRes, pipelineRes, pipelineSummaryRes, sloRes, logsRes, integrityRes] = await Promise.allSettled([
           fetchJson<{ count: number; items: NodeEndpointItem[] }>("/api/ops/system/node-endpoints?only_active=true", { count: 0, items: [] }),
           fetchJson<{ count: number; items: PipelineMetricItem[] }>("/api/ops/system/pipeline-metrics?limit=12", { count: 0, items: [] }),
           fetchJson<{ total_points: number; avg_throughput_tps: number | null; avg_ingestion_latency_ms: number | null; avg_decode_latency_ms: number | null; last_block_number: number | null }>("/api/ops/system/pipeline-metrics/summary", { total_points: 0, avg_throughput_tps: null, avg_ingestion_latency_ms: null, avg_decode_latency_ms: null, last_block_number: null }),
           fetchJson<SloMetrics>("/api/ops/system/slo-metrics?days=14", { period_days: 14, endpoint_health: { total: 0, active: 0, healthy_active: 0, availability_pct: 0, error_budget_burn_pct: 0 }, latency_slo: { ingest_target_ms: 500, decode_target_ms: 200, ingest_p95_ms: 0, decode_p95_ms: 0, ingest_breaches: 0, decode_breaches: 0, sample_points: 0 } }),
-          fetchJson<{ count: number; logs: Array<{ timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }> }>("/admin/diagnostics/logs?limit=50", { count: 0, logs: [] }),
+          fetchJson<{ count: number; logs: Array<{ id?: string; timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }> }>("/admin/diagnostics/logs?limit=50", { count: 0, logs: [] }),
+          fetchJson<DataIntegrityReport>("/api/ops/system/data-integrity", { overall_ok: true, counts: {}, checks: [], missing_controls: [], role_readiness: {} }),
         ]);
 
         if (nodeRes.status === "fulfilled") setNodeEndpoints(nodeRes.value.items ?? []);
@@ -548,6 +573,7 @@ export default function LiveDashboard() {
         if (pipelineSummaryRes.status === "fulfilled") setPipelineSummary(pipelineSummaryRes.value);
         if (sloRes.status === "fulfilled") setSloMetrics(sloRes.value);
         if (logsRes.status === "fulfilled") setDiagnosticsLogs(logsRes.value.logs ?? []);
+        if (integrityRes.status === "fulfilled") setDataIntegrity(integrityRes.value);
       }
 
       if (roleKey === "ai_data_engineer") {
@@ -751,7 +777,16 @@ export default function LiveDashboard() {
         case 4:
           return { title: "Diagnostics logs", description: "Real-time system diagnostics, API monitoring, and error tracking.", content: <DiagnosticsLogsPanel logs={diagnosticsLogs} /> };
         default:
-          return { title: "SLO data panels", description: "Compliance-ready service-level metrics and breach counts.", content: <SloPanel sloMetrics={sloMetrics} /> };
+          return {
+            title: "SLO data panels",
+            description: "Compliance-ready service-level metrics and data-integrity checks.",
+            content: (
+              <div className="space-y-4">
+                <SloPanel sloMetrics={sloMetrics} />
+                <DataIntegrityPanel report={dataIntegrity} />
+              </div>
+            ),
+          };
       }
     }
 
@@ -931,7 +966,7 @@ export default function LiveDashboard() {
                 <MiniStat label="Total logs" value={formatCompact(totalLogs)} />
                 <MiniStat label="Errors" value={formatCompact(errorLogs)} />
                 <MiniStat label="Endpoints" value={formatCompact(endpointLogs)} />
-                <MiniStat label="Log types" value={formatCompact(new Set(diagnosticsLogs.map((item) => item.log_type)).size)} />
+                <MiniStat label="Missing controls" value={formatCompact(dataIntegrity?.missing_controls?.length ?? 0)} />
               </div>
             ),
           };
@@ -946,6 +981,8 @@ export default function LiveDashboard() {
                 <div className="grid grid-cols-2 gap-3">
                   <MiniStat label="Ingest breaches" value={formatCompact(sloMetrics?.latency_slo.ingest_breaches ?? 0)} />
                   <MiniStat label="Decode breaches" value={formatCompact(sloMetrics?.latency_slo.decode_breaches ?? 0)} />
+                  <MiniStat label="Overall integrity" value={dataIntegrity?.overall_ok ? "OK" : "GAP"} />
+                  <MiniStat label="Role readiness" value={formatCompact(Object.values(dataIntegrity?.role_readiness ?? {}).filter(Boolean).length)} />
                 </div>
               </div>
             ),
@@ -1247,6 +1284,7 @@ export default function LiveDashboard() {
     controlEffectiveness,
     dashboardStats,
     diagnosticsLogs,
+    dataIntegrity,
     featureConfigs,
     flowStats.length,
     modelRegistry,
@@ -1576,10 +1614,18 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
 function DiagnosticsLogsPanel({
   logs,
 }: {
-  logs: Array<{ timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }>;
+  logs: Array<{ id?: string; timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }>;
 }) {
+  const [mutableLogs, setMutableLogs] = useState(logs);
   const [searchFilter, setSearchFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [exportDate, setExportDate] = useState<string>("");
+  const [isExporting, setIsExporting] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+
+  useEffect(() => {
+    setMutableLogs(logs);
+  }, [logs]);
 
   const logTypeColors: Record<string, string> = {
     error: "bg-red-500/20 text-red-300 border-red-500/30",
@@ -1592,7 +1638,7 @@ function DiagnosticsLogsPanel({
     ai_service: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30",
   };
 
-  const filteredLogs = logs.filter((log) => {
+  const filteredLogs = mutableLogs.filter((log) => {
     const matchesSearch =
       searchFilter === "" ||
       log.message.toLowerCase().includes(searchFilter.toLowerCase()) ||
@@ -1601,20 +1647,98 @@ function DiagnosticsLogsPanel({
     return matchesSearch && matchesType;
   });
 
-  const uniqueTypes = Array.from(new Set(logs.map((log) => log.log_type))).sort();
-  const errorCount = logs.filter((log) => {
+  const uniqueTypes = Array.from(new Set(mutableLogs.map((log) => log.log_type))).sort();
+  const errorCount = mutableLogs.filter((log) => {
     const kind = (log.log_type || "").toLowerCase();
     return kind === "error" || kind === "api_error" || (log.status_code ?? 200) >= 400;
   }).length;
-  const statusCodes = Array.from(new Set(logs.map((log) => log.status_code).filter(Boolean))) as number[];
+  const statusCodes = Array.from(new Set(mutableLogs.map((log) => log.status_code).filter(Boolean))) as number[];
+
+  async function handleExport() {
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (exportDate) params.set("date", exportDate);
+      const response = await fetch(`/api/admin/diagnostics/logs/export?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to export diagnostics logs");
+      const payload = await response.json();
+      const data = payload?.data ?? payload;
+      const csv = String(data?.csv || "");
+      const filename = String(data?.filename || "diagnostics_logs.csv");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  async function handleArchiveFiltered() {
+    setIsArchiving(true);
+    try {
+      const response = await fetch("/api/admin/diagnostics/logs/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          archived: true,
+          log_type: typeFilter === "all" ? null : typeFilter,
+          search: searchFilter.trim() || null,
+          max_rows: 1000,
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to archive filtered logs");
+      const payload = await response.json();
+      const data = payload?.data ?? payload;
+      const archivedIds = new Set<string>(Array.isArray(data?.archived_ids) ? data.archived_ids : []);
+      if (archivedIds.size) {
+        setMutableLogs((prev) => prev.filter((item) => !item.id || !archivedIds.has(item.id)));
+      }
+    } finally {
+      setIsArchiving(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Total logs" value={formatCompact(logs.length)} helper="All diagnostic entries" tone="cyan" />
+        <MetricBlock label="Total logs" value={formatCompact(mutableLogs.length)} helper="All diagnostic entries" tone="cyan" />
         <MetricBlock label="Errors" value={formatCompact(errorCount)} helper="Error logs" tone={errorCount > 0 ? "rose" : "emerald"} />
-        <MetricBlock label="Endpoints" value={formatCompact(new Set(logs.map((log) => log.endpoint).filter(Boolean)).size)} helper="Unique endpoints" tone="blue" />
+        <MetricBlock label="Endpoints" value={formatCompact(new Set(mutableLogs.map((log) => log.endpoint).filter(Boolean)).size)} helper="Unique endpoints" tone="blue" />
         <MetricBlock label="Log types" value={formatCompact(uniqueTypes.length)} helper="Different log categories" tone="violet" />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="date"
+          value={exportDate}
+          onChange={(event) => setExportDate(event.target.value)}
+          className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
+        />
+        <button
+          type="button"
+          disabled={isExporting}
+          onClick={() => void handleExport()}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-cyan-500/50 hover:text-white disabled:opacity-60"
+        >
+          <Download className="h-3.5 w-3.5" />
+          {isExporting ? "Exporting..." : "Export CSV"}
+        </button>
+        <button
+          type="button"
+          disabled={isArchiving || filteredLogs.length === 0}
+          onClick={() => void handleArchiveFiltered()}
+          className="inline-flex items-center gap-2 rounded-xl border border-amber-600/40 bg-amber-600/10 px-3 py-2 text-xs font-medium text-amber-200 transition hover:border-amber-500/60 disabled:opacity-60"
+        >
+          <Archive className="h-3.5 w-3.5" />
+          {isArchiving ? "Archiving..." : `Archive filtered (${filteredLogs.length})`}
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -1693,10 +1817,28 @@ function DiagnosticsLogsPanel({
       </div>
 
       <div className="text-xs text-slate-500">
-        Showing {Math.min(50, filteredLogs.length)} of {filteredLogs.length} logs • Total in system: {logs.length}
+        Showing {Math.min(50, filteredLogs.length)} of {filteredLogs.length} logs • Total in system: {mutableLogs.length}
       </div>
     </div>
   );
+}
+
+function integrityRouteForKey(key: string, ownerRole: string): string {
+  if (ownerRole === "system_admin") {
+    if (key.includes("node_endpoints")) return "/?role=system_admin&feature=2";
+    if (key.includes("pipeline_metrics")) return "/?role=system_admin&feature=3";
+    return "/?role=system_admin&feature=4";
+  }
+  if (ownerRole === "ai_data_engineer") {
+    if (key.includes("active_models")) return "/?role=ai_data_engineer&feature=3";
+    if (key.includes("feature")) return "/?role=ai_data_engineer&feature=1";
+    return "/?role=ai_data_engineer&feature=0";
+  }
+  if (ownerRole === "security_analyst") {
+    if (key.includes("blocked")) return "/?role=security_analyst&feature=2";
+    return "/?role=security_analyst&feature=0";
+  }
+  return "/?role=compliance_risk_manager&feature=0";
 }
 
 function SloPanel({ sloMetrics }: { sloMetrics: SloMetrics | null }) {
@@ -1710,6 +1852,80 @@ function SloPanel({ sloMetrics }: { sloMetrics: SloMetrics | null }) {
       <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current window" tone="rose" />
       <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="violet" />
       <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="amber" />
+    </div>
+  );
+}
+
+function DataIntegrityPanel({ report }: { report: DataIntegrityReport | null }) {
+  if (!report) {
+    return <EmptyState message="Data integrity report is not available yet." />;
+  }
+
+  const missing = report.missing_controls ?? [];
+
+  return (
+    <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-white">Data integrity controls</p>
+          <p className="mt-1 text-xs text-slate-400">DB-first readiness for role modules and controls</p>
+        </div>
+        <span className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${report.overall_ok ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200" : "border-amber-500/40 bg-amber-500/10 text-amber-200"}`}>
+          {report.overall_ok ? "ALL OK" : `${missing.length} GAPS`}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <MetricBlock label="Checks" value={formatCompact(report.checks.length)} helper="Total controls" tone="cyan" />
+        <MetricBlock label="Missing" value={formatCompact(missing.length)} helper="Need seeding/config" tone={missing.length ? "rose" : "emerald"} />
+        <MetricBlock label="Roles ready" value={formatCompact(Object.values(report.role_readiness || {}).filter(Boolean).length)} helper="Out of 4 roles" tone="violet" />
+        <MetricBlock label="Diagnostics rows" value={formatCompact(report.counts?.diagnostic_events ?? 0)} helper="Persistent logs" tone="amber" />
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Control</th>
+              <th className="px-4 py-3 text-left font-medium">Owner role</th>
+              <th className="px-4 py-3 text-left font-medium">Actual / Required</th>
+              <th className="px-4 py-3 text-left font-medium">Severity</th>
+              <th className="px-4 py-3 text-left font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {(missing.length ? missing : report.checks.slice(0, 8).map((item) => ({
+              key: item.key,
+              owner_role: item.owner_role,
+              actual: item.actual,
+              required_min: item.required_min,
+              severity: item.ok ? "ok" : "medium",
+            }))
+            ).slice(0, 10).map((item) => (
+              <tr key={`${item.key}:${item.owner_role}`}>
+                <td className="px-4 py-3">{item.key}</td>
+                <td className="px-4 py-3">{item.owner_role}</td>
+                <td className="px-4 py-3">{item.actual} / {item.required_min}</td>
+                <td className="px-4 py-3">{String(item.severity).toUpperCase()}</td>
+                <td className="px-4 py-3">
+                  <Link
+                    href={integrityRouteForKey(item.key, item.owner_role)}
+                    prefetch={false}
+                    className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-200 hover:border-cyan-400/70"
+                  >
+                    Open owner view
+                  </Link>
+                </td>
+              </tr>
+            ))}
+            {missing.length === 0 && report.checks.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No integrity controls were returned.</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

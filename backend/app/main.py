@@ -164,6 +164,16 @@ class DiagnosticLogArchivePayload(BaseModel):
     archived: bool = True
 
 
+class DiagnosticLogBulkArchivePayload(BaseModel):
+    archived: bool = True
+    log_type: str | None = None
+    search: str | None = None
+    endpoint: str | None = None
+    min_status_code: int | None = None
+    include_archived: bool = False
+    max_rows: int = 500
+
+
 def _parse_diagnostic_uuid(raw_id: str) -> uuid.UUID:
     try:
         return uuid.UUID(raw_id)
@@ -210,6 +220,7 @@ def get_diagnostics_logs(
     rows = query.order_by(DiagnosticEvent.timestamp.desc()).limit(limit).all()
     logs = [
         {
+            "id": str(row.id),
             "timestamp": row.timestamp.isoformat() if row.timestamp else None,
             "log_type": row.log_type,
             "type": row.log_type,
@@ -271,6 +282,43 @@ def archive_diagnostics_log(log_id: str, payload: DiagnosticLogArchivePayload, d
         "archived_at": event.archived_at.isoformat() if event.archived_at else None,
     }
     return api_success(data=response, message="Diagnostic log archive status updated", legacy=response)
+
+
+@app.post("/admin/diagnostics/logs/archive", tags=["Admin Diagnostics"])
+def archive_diagnostics_logs(payload: DiagnosticLogBulkArchivePayload, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    max_rows = max(1, min(int(payload.max_rows or 500), 5000))
+    query = database_session.query(DiagnosticEvent)
+
+    if not payload.include_archived:
+        query = query.filter(DiagnosticEvent.is_archived.is_(False))
+    if payload.log_type:
+        query = query.filter(DiagnosticEvent.log_type == payload.log_type.strip().lower())
+    if payload.endpoint:
+        query = query.filter(DiagnosticEvent.endpoint.ilike(f"%{payload.endpoint.strip()}%"))
+    if payload.search:
+        search_term = f"%{payload.search.strip()}%"
+        query = query.filter((DiagnosticEvent.message.ilike(search_term)) | (DiagnosticEvent.endpoint.ilike(search_term)))
+    if payload.min_status_code is not None:
+        query = query.filter(DiagnosticEvent.status_code.isnot(None), DiagnosticEvent.status_code >= int(payload.min_status_code))
+
+    rows = query.order_by(DiagnosticEvent.timestamp.desc()).limit(max_rows).all()
+    archive_state = bool(payload.archived)
+    archive_time = datetime.now(timezone.utc) if archive_state else None
+
+    archived_ids: List[str] = []
+    for item in rows:
+        item.is_archived = archive_state
+        item.archived_at = archive_time
+        archived_ids.append(str(item.id))
+
+    database_session.commit()
+
+    response = {
+        "archived": archive_state,
+        "matched": len(rows),
+        "archived_ids": archived_ids,
+    }
+    return api_success(data=response, message="Diagnostics logs archive operation completed", legacy=response)
 
 
 @app.delete("/admin/diagnostics/logs/{log_id}", tags=["Admin Diagnostics"])
