@@ -28,6 +28,7 @@ from app.models.models import (
     AuditLog,
     Blacklist,
     BlockedTransfer,
+    DiagnosticEvent,
     FeatureStoreConfig,
     ModelRegistry,
     NodeEndpoint,
@@ -659,6 +660,49 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
                     db.rollback()
             print(f"✓ Added {count} {description}")
 
+        diagnostic_events: list[DiagnosticEvent] = []
+        log_types = ["INFO", "ERROR", "WARNING", "SUCCESS", "DEBUG"]
+        log_messages = [
+            ("INFO", "api", "/api/v1/auth/login", 200, "User login successful for session {uuid}"),
+            ("ERROR", "api", "/api/v1/wallets/risk", 500, "Timeout while contacting inference service"),
+            ("INFO", "scanner", "/blockchain/scan", 200, "Block scan completed for height {block}"),
+            ("WARNING", "backend", "/api/v1/policies", 401, "Unauthorized policy update attempt"),
+            ("SUCCESS", "scanner", "/blockchain/monitor", 201, "New suspicious transaction flagged: {tx}"),
+            ("INFO", "api", "/api/v1/nodes/health", 200, "Node endpoint check status: healthy"),
+            ("ERROR", "backend", "/db/connect", 503, "Database connection pool exhausted"),
+            ("INFO", "api", "/api/v1/alerts", 200, "Broadcasted {count} alerts to active analysts"),
+            ("DEBUG", "scanner", "/blockchain/ingest", 200, "Ingested raw block data size: {size}KB"),
+            ("SUCCESS", "backend", "/api/v1/models/promote", 200, "Model {model} promoted to production"),
+        ]
+
+        for index in range(250):
+            log_template = _pick(log_messages, index)
+            typ, source, endpoint, status_code, msg_tpl = log_template
+            
+            message = msg_tpl.format(
+                uuid=_make_uuid("session", index).hex[:8],
+                block=18000000 + index,
+                tx=f"0x{_make_uuid('tx_log', index).hex[:10]}",
+                count=rng.randint(1, 15),
+                size=rng.randint(100, 2500),
+                model=f"v{rng.randint(1, 3)}.{rng.randint(0, 9)}",
+            )
+
+            diagnostic_events.append(
+                DiagnosticEvent(
+                    id=_make_uuid("diag", index),
+                    log_type=typ,
+                    message=message,
+                    details={"source": source, "index": index, "env": "local-demo"},
+                    status_code=status_code,
+                    endpoint=endpoint,
+                    source=source,
+                    is_archived=index % 25 == 0,
+                    archived_at=now if index % 25 == 0 else None,
+                    timestamp=now - timedelta(minutes=index * 3),
+                )
+            )
+
         _robust_add(users_to_add, "users")
         _robust_add(wallets_to_add, "wallets")
         _robust_add(transactions_to_add, "transactions")
@@ -672,6 +716,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
         _robust_add(feature_configs, "feature configs")
         _robust_add(node_endpoints, "node endpoints")
         _robust_add(pipeline_metrics, "pipeline metrics")
+        _robust_add(diagnostic_events, "diagnostic events")
 
         existing_blacklist = db.query(Blacklist).filter(Blacklist.address == "0xdead1000000000000000000000000000000dead").first()
         if not existing_blacklist:
