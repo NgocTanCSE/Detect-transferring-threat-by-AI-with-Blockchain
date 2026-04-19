@@ -235,6 +235,20 @@ def _initialize_database() -> None:
         logger.warning(f"Database metadata initialization skipped or failed: {error}")
     ensure_schema()
 
+    if os.getenv("RESET_DB") == "1":
+        logger.info("RESET_DB=1 detected. Starting dataset seeding...")
+        import sys
+        import os
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if backend_dir not in sys.path:
+            sys.path.insert(0, backend_dir)
+            
+        try:
+            from seed_wallets import seed_wallets
+            seed_wallets()
+            logger.info("✅ Database successfully seeded and finalized via RESET_DB signal.")
+        except Exception as e:
+            logger.error(f"❌ Failed to seed database via RESET_DB signal: {e}")
 
 _initialize_database()
 
