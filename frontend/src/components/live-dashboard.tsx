@@ -19,7 +19,8 @@ import {
   Wallet,
 } from "lucide-react";
 import type { Alert, BlockedTransfer, DashboardStats, FlowStats } from "@/lib/api";
-import { askDashboardAssistant, fetchBlockedTransfers, fetchDashboardStats, fetchFlowStats, fetchRecentAlerts } from "@/lib/api";
+import { fetchBlockedTransfers, fetchDashboardStats, fetchFlowStats, fetchRecentAlerts } from "@/lib/api";
+import DashboardAssistantPanel from "@/components/dashboard-assistant-panel";
 import {
   Bar,
   BarChart,
@@ -428,49 +429,9 @@ export default function LiveDashboard() {
   const [auditCompleteness, setAuditCompleteness] = useState<AuditCompleteness | null>(null);
   const [auditGaps, setAuditGaps] = useState<AuditGaps | null>(null);
   const [sloMetrics, setSloMetrics] = useState<SloMetrics | null>(null);
-  const [assistantInput, setAssistantInput] = useState("");
-  const [assistantWalletInput, setAssistantWalletInput] = useState("");
-  const [assistantLoading, setAssistantLoading] = useState(false);
-  const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([
-    {
-      role: "assistant",
-      content:
-        "Mình là trợ lý vận hành. Bạn có thể hỏi: 'Risk score bao nhiêu thì nguy hiểm?', 'Vì sao alerts hôm nay tăng?', hoặc 'Nên xử lý ví có status suspended như thế nào?'.",
-    },
-  ]);
+  const [assistantScope, setAssistantScope] = useState<"dashboard" | "wallet" | "case" | "policy" | "tracking">("dashboard");
   const isFetchingRef = useRef(false);
   const lastAutoFetchAtRef = useRef(0);
-  const assistantStorageKey = useMemo(() => `dashboard:assistant-history:${activeRole}`, [activeRole]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const raw = window.sessionStorage.getItem(assistantStorageKey);
-    if (!raw) {
-      setAssistantMessages([
-        {
-          role: "assistant",
-          content:
-            "Mình là trợ lý vận hành. Bạn có thể hỏi: 'Risk score bao nhiêu thì nguy hiểm?', 'Vì sao alerts hôm nay tăng?', hoặc 'Nên xử lý ví có status suspended như thế nào?'.",
-        },
-      ]);
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as AssistantMessage[];
-      if (Array.isArray(parsed) && parsed.length) {
-        setAssistantMessages(parsed);
-      }
-    } catch {
-      // Ignore invalid persisted state.
-    }
-  }, [assistantStorageKey]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.sessionStorage.setItem(assistantStorageKey, JSON.stringify(assistantMessages.slice(-20)));
-  }, [assistantMessages, assistantStorageKey]);
 
   const role = useMemo(() => ROLE_DEFINITIONS.find((entry) => entry.key === activeRole) ?? ROLE_DEFINITIONS[0], [activeRole]);
   const sidebarIcons = useMemo(() => ROLE_ICONS, []);
@@ -846,49 +807,15 @@ export default function LiveDashboard() {
     sloMetrics,
   ]);
 
-  async function handleAskAssistant(prefilledQuestion?: string) {
-    const question = (prefilledQuestion ?? assistantInput).trim();
-    if (!question || assistantLoading) {
-      return;
-    }
-
-    setAssistantMessages((previous) => [...previous, { role: "user", content: question }]);
-    setAssistantInput("");
-    setAssistantLoading(true);
-
-    try {
-      const conversationHistory = [...assistantMessages, { role: "user", content: question }].slice(-6).map((entry) => ({
-        role: entry.role,
-        content: entry.content,
-      }));
-      const response = await askDashboardAssistant(question, activeRole, assistantWalletInput.trim() || undefined, conversationHistory);
-      setAssistantMessages((previous) => [...previous, { role: "assistant", content: response.answer, sources: response.sources }]);
-    } catch (assistantError) {
-      const message = assistantError instanceof Error ? assistantError.message : "Assistant unavailable";
-      setAssistantMessages((previous) => [
-        ...previous,
-        { role: "assistant", content: `Hiện chưa thể trả lời do lỗi kết nối trợ lý: ${message}` },
-      ]);
-    } finally {
-      setAssistantLoading(false);
-    }
-  }
-
-  function clearAssistantChat() {
-    const resetMessages: AssistantMessage[] = [
-      {
-        role: "assistant",
-        content:
-          "Mình là trợ lý vận hành. Bạn có thể hỏi: 'Risk score bao nhiêu thì nguy hiểm?', 'Vì sao alerts hôm nay tăng?', hoặc 'Nên xử lý ví có status suspended như thế nào?'.",
-      },
-    ];
-    setAssistantMessages(resetMessages);
-    setAssistantInput("");
-    setAssistantWalletInput("");
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem(assistantStorageKey, JSON.stringify(resetMessages));
-    }
-  }
+  const assistantContext = useMemo(
+    () => ({
+      overview: dashboardStats?.overview,
+      top_risky_wallets: [],
+      wallet_focus: null,
+      screen_scope: assistantScope,
+    }),
+    [assistantScope, dashboardStats?.overview]
+  );
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050816] text-slate-100">
@@ -968,106 +895,14 @@ export default function LiveDashboard() {
           <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">Live data error: {error}</div>
         ) : null}
 
-        <section className="mb-4 rounded-[24px] border border-cyan-500/20 bg-slate-950/70 p-4 shadow-[0_20px_60px_rgba(8,47,73,0.35)] backdrop-blur-xl">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">Assistant</p>
-              <h2 className="mt-1 text-lg font-semibold text-white">AI Guide for Dashboard Metrics</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">Role: {role.label}</span>
-              <button
-                type="button"
-                onClick={clearAssistantChat}
-                className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-300 transition hover:border-cyan-500/40 hover:text-white"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
-            <p className="mb-2 text-xs uppercase tracking-[0.24em] text-slate-500">Quick prompts</p>
-            <div className="flex flex-wrap gap-2">
-              {ASSISTANT_QUICK_PROMPTS[activeRole].map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  onClick={() => void handleAskAssistant(prompt)}
-                  className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 transition hover:border-cyan-500/40 hover:text-white"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="max-h-52 space-y-2 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
-            {assistantMessages.map((message, index) => (
-              <div
-                key={`${message.role}-${index}`}
-                className={[
-                  "rounded-xl px-3 py-2 text-sm leading-relaxed",
-                  message.role === "assistant"
-                    ? "border border-cyan-500/20 bg-cyan-500/10 text-cyan-50"
-                    : "border border-slate-700 bg-slate-800 text-slate-200",
-                ].join(" ")}
-              >
-                {message.content}
-                {message.role === "assistant" && message.sources && message.sources.length ? (
-                  <p className="mt-2 border-t border-cyan-400/20 pt-2 text-[11px] text-cyan-200/80">
-                    Sources: {message.sources.join(" | ")}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 flex flex-col gap-2">
-            <input
-              type="text"
-              value={assistantWalletInput}
-              onChange={(event) => setAssistantWalletInput(event.target.value)}
-              placeholder="(Tuỳ chọn) Focus theo ví, ví dụ: 0xabc..."
-              className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-500"
-            />
-          </div>
-
-          <div className="mt-2 flex flex-col gap-2 md:flex-row">
-            <input
-              type="text"
-              value={assistantInput}
-              onChange={(event) => setAssistantInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void handleAskAssistant();
-                }
-              }}
-              placeholder="Hỏi về ý nghĩa chỉ số, cảnh báo, hoặc cách xử lý rủi ro..."
-              className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-500"
-            />
-            <button
-              type="button"
-              onClick={() => void handleAskAssistant()}
-              disabled={assistantLoading || !assistantInput.trim()}
-              className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {assistantLoading ? "Đang trả lời..." : "Gửi câu hỏi"}
-            </button>
-          </div>
-
-          {assistantMessages.length > 1 ? (
-            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Knowledge sources</p>
-              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-300">
-                <span className="rounded-full border border-slate-700 px-2 py-1">README.md</span>
-                <span className="rounded-full border border-slate-700 px-2 py-1">DEPLOY_HF_SUPABASE.md</span>
-                <span className="rounded-full border border-slate-700 px-2 py-1">role-based-rearchitecture-plan.md</span>
-              </div>
-            </div>
-          ) : null}
-        </section>
+        <DashboardAssistantPanel
+          roleKey={role.key}
+          roleLabel={role.label}
+          currentScope={assistantScope}
+          walletAddress={null}
+          context={assistantContext}
+          onScopeChange={setAssistantScope}
+        />
 
         <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Role" value={role.label} hint={activeFeatureLabel} accentClass={role.accentClass} />

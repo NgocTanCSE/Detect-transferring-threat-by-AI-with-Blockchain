@@ -77,13 +77,15 @@ def retrieve_relevant_snippets(
     question: str,
     role: str,
     wallet_address: Optional[str] = None,
+    scope: Optional[str] = None,
     limit: int = 4,
 ) -> List[KnowledgeSnippet]:
     """Return the most relevant project documentation chunks for a question."""
     question_tokens = set(_tokenize(question))
     role_tokens = set(_tokenize(role))
     wallet_tokens = set(_tokenize(wallet_address or ""))
-    all_tokens = question_tokens | role_tokens | wallet_tokens
+    scope_tokens = set(_tokenize(scope or ""))
+    all_tokens = question_tokens | role_tokens | wallet_tokens | scope_tokens
 
     scored: List[KnowledgeSnippet] = []
     for snippet in _load_knowledge_base():
@@ -102,6 +104,8 @@ def retrieve_relevant_snippets(
             for keyword in ["dashboard", "alert", "flow", "wallet", "case"]:
                 if keyword in lower_text:
                     bonus += 1
+        if scope and scope.lower() in lower_text:
+            bonus += 3
 
         score = overlap + bonus
         if score > 0:

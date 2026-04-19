@@ -106,12 +106,14 @@ class HFSecurityAnalyst:
         context_json = json.dumps(context, ensure_ascii=False)
         knowledge_text = render_snippets_for_prompt(knowledge_snippets)
         history_text = json.dumps(conversation_history[-6:], ensure_ascii=False)
+        screen_scope = str(context.get("screen_scope", "dashboard"))
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
 Bạn là trợ lý vận hành cho dashboard chống gian lận blockchain.
 Chỉ trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu, chính xác theo số liệu context.
 Nếu câu hỏi vượt ngoài context thì nói rõ thiếu dữ liệu, không bịa.
 Ưu tiên dùng kiến thức dự án được cung cấp bên dưới khi giải thích thuật ngữ, luồng triển khai và cách vận hành.
+    Màn hình hiện tại của người dùng là: {screen_scope}.
 
 Format trả lời:
 1) Giải thích ý nghĩa chỉ số

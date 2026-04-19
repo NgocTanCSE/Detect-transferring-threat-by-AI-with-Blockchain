@@ -104,7 +104,12 @@ def health_check() -> Dict[str, str]:
     return {"status": "operational", "service": "Blockchain Risk Assessment API v3.0"}
 
 
-def _build_dashboard_assistant_context(database_session: Session, role: str, wallet_address: str | None = None) -> Dict[str, Any]:
+def _build_dashboard_assistant_context(
+    database_session: Session,
+    role: str,
+    wallet_address: str | None = None,
+    screen_scope: str = "dashboard",
+) -> Dict[str, Any]:
     from datetime import timedelta
 
     now = datetime.utcnow()
@@ -138,6 +143,7 @@ def _build_dashboard_assistant_context(database_session: Session, role: str, wal
 
     context: Dict[str, Any] = {
         "role": role,
+        "screen_scope": screen_scope,
         "generated_at": now.isoformat(),
         "overview": {
             "total_wallets": total_wallets,
@@ -199,13 +205,25 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
     message = str(payload.get("message", "")).strip()
     role = str(payload.get("role", "operator")).strip() or "operator"
     wallet_address = str(payload.get("wallet_address", "")).strip() or None
+    screen_scope = str(payload.get("screen_scope", "dashboard")).strip() or "dashboard"
     conversation_history = payload.get("conversation_history") or []
 
     if not message:
         raise HTTPException(status_code=400, detail="Missing message")
 
-    context = _build_dashboard_assistant_context(database_session, role=role, wallet_address=wallet_address)
-    knowledge_snippets = retrieve_relevant_snippets(message, role=role, wallet_address=wallet_address, limit=4)
+    context = _build_dashboard_assistant_context(
+        database_session,
+        role=role,
+        wallet_address=wallet_address,
+        screen_scope=screen_scope,
+    )
+    knowledge_snippets = retrieve_relevant_snippets(
+        message,
+        role=role,
+        wallet_address=wallet_address,
+        scope=screen_scope,
+        limit=4,
+    )
     analyst = HFSecurityAnalyst()
     answer = analyst.answer_dashboard_question(
         question=message,
@@ -226,6 +244,7 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         "answer": answer,
         "context": {
             "role": role,
+            "screen_scope": screen_scope,
             "overview": context.get("overview", {}),
             "top_risky_wallets": context.get("top_risky_wallets", []),
             "wallet_focus": context.get("wallet_focus"),
