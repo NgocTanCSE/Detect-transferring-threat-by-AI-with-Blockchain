@@ -98,7 +98,7 @@ INSERT INTO
         notes
     )
 VALUES (
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
         '0x1111111111111111111111111111111111111111',
         'CeFi Treasury A',
         'Exchange',
