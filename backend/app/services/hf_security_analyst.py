@@ -3,7 +3,7 @@ import logging
 import requests
 from typing import Dict, List, Any, Optional
 
-from app.core.config import HF_API_TOKEN, HF_INFERENCE_URL
+from app.core.config import HF_API_TOKEN, HF_INFERENCE_URL, HF_REQUEST_TIMEOUT_SECONDS
 from app.services.assistant_knowledge_base import KnowledgeSnippet, render_snippets_for_prompt
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,12 @@ class HFSecurityAnalyst:
             },
         }
 
-        response = requests.post(self.api_url, headers=self.headers, json=payload, timeout=20)
+        response = requests.post(
+            self.api_url,
+            headers=self.headers,
+            json=payload,
+            timeout=HF_REQUEST_TIMEOUT_SECONDS,
+        )
         response.raise_for_status()
         result = response.json()
 

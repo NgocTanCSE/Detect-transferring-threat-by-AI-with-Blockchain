@@ -80,5 +80,9 @@ RISK_THRESHOLD_HIGH: int = 80
 
 # Hugging Face Inference API
 HF_API_TOKEN: str = os.getenv("HF_TOKEN", "")
-HF_MODEL_ID: str = "meta-llama/Llama-3-8B-Instruct"
-HF_INFERENCE_URL: str = f"https://api-inference.huggingface.co/models/{HF_MODEL_ID}"
+HF_MODEL_ID: str = os.getenv("HF_MODEL_ID", "meta-llama/Llama-3-8B-Instruct")
+HF_INFERENCE_URL: str = os.getenv(
+    "HF_INFERENCE_URL",
+    f"https://api-inference.huggingface.co/models/{HF_MODEL_ID}",
+)
+HF_REQUEST_TIMEOUT_SECONDS: int = int(os.getenv("HF_REQUEST_TIMEOUT_SECONDS", "45"))
