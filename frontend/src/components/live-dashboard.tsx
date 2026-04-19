@@ -66,10 +66,6 @@ function isUserAdminRole(role?: string | null): boolean {
   return normalized === "admin" || normalized === "system_admin";
 }
 
-function isAdminOnlyRole(role: RoleKey): boolean {
-  return role === "system_admin" || role === "ai_data_engineer";
-}
-
 type NodeEndpointItem = {
   id: string;
   provider_name: string;
@@ -467,10 +463,7 @@ export default function LiveDashboard() {
   const role = useMemo(() => ROLE_DEFINITIONS.find((entry) => entry.key === activeRole) ?? ROLE_DEFINITIONS[0], [activeRole]);
   const sidebarIcons = useMemo(() => ROLE_ICONS, []);
   const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace";
-  const availableRoles = useMemo(
-    () => ROLE_DEFINITIONS.filter((entry) => isUserAdminRole(user?.role) || !isAdminOnlyRole(entry.key)),
-    [user?.role]
-  );
+  const availableRoles = useMemo(() => ROLE_DEFINITIONS, []);
 
   // Filter navigation routes based on authentication status
   const visibleRoutes = useMemo(() => {
@@ -517,10 +510,9 @@ export default function LiveDashboard() {
   useEffect(() => {
     const roleParam = searchParams.get("role") as RoleKey | null;
     const fallbackRole = mapUserRoleToDashboardRole(user?.role);
-    const isAdmin = isUserAdminRole(user?.role);
 
     if (roleParam && ROLE_DEFINITIONS.some((entry) => entry.key === roleParam)) {
-      const nextRole = isAdmin || !isAdminOnlyRole(roleParam) ? roleParam : fallbackRole;
+      const nextRole = roleParam;
       if (nextRole !== activeRole) {
         setActiveRole(nextRole);
       }
