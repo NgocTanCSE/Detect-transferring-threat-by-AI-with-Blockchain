@@ -45,7 +45,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/backend
 ENV PORT=7860
-ENV BACKEND_URL=http://localhost:8000
+ENV BACKEND_URL=http://127.0.0.1:8000
 
 # Create log directory for supervisor
 RUN mkdir -p /var/log/supervisor && chmod -R 777 /var/log/supervisor
