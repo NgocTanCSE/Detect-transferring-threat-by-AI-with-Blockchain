@@ -222,6 +222,31 @@ def update_policy_rule(rule_id: str, payload: PolicyRuleUpdate, db: Session = De
     return {"message": "Policy rule updated", "id": str(item.id)}
 
 
+@router.delete("/compliance/policy-rules/{rule_id}")
+def delete_policy_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    rule_uuid = _parse_uuid(rule_id, "rule_id")
+    item = db.query(PolicyRule).filter(PolicyRule.id == rule_uuid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Policy rule not found")
+
+    rule_name = item.rule_name
+
+    _audit(
+        db,
+        action="POLICY_RULE_DELETE",
+        entity_type="policy_rule",
+        details={
+            "rule_id": str(item.id),
+            "rule_name": rule_name,
+        },
+    )
+
+    db.delete(item)
+    db.commit()
+
+    return {"message": "Policy rule deleted", "id": str(rule_uuid), "rule_name": rule_name}
+
+
 @router.post("/compliance/policy-evaluate")
 def evaluate_policy(payload: PolicyEvaluateRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
     active_rules = (

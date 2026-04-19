@@ -357,6 +357,13 @@ function formatDateTime(value: string | null | undefined): string {
   return new Date(value).toLocaleString();
 }
 
+function unwrapPayload<T>(payload: unknown): T {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+}
+
 function countBy<T>(items: T[], resolver: (item: T) => string): Record<string, number> {
   return items.reduce<Record<string, number>>((accumulator, item) => {
     const key = resolver(item);
@@ -1071,32 +1078,175 @@ function NodeGrid({ nodes }: { nodes: NodeEndpointItem[] }) {
 }
 
 function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
-  if (!nodes.length) {
-    return <EmptyState message="No node records to display." />;
+  const [mutableNodes, setMutableNodes] = useState(nodes);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setMutableNodes(nodes);
+  }, [nodes]);
+
+  async function reloadNodes() {
+    const response = await fetch("/api/ops/system/node-endpoints?only_active=true");
+    if (!response.ok) throw new Error("Failed to reload node endpoints");
+    const payload = await response.json();
+    const data = unwrapPayload<{ items: NodeEndpointItem[] }>(payload);
+    setMutableNodes(data.items || []);
+  }
+
+  async function handleCreateNode() {
+    const providerName = window.prompt("Provider name", "Manual Node");
+    if (!providerName || !providerName.trim()) return;
+    const chain = window.prompt("Chain", "ethereum");
+    if (!chain || !chain.trim()) return;
+    const endpointUrl = window.prompt("Endpoint URL", "https://example-node.local/rpc");
+    if (!endpointUrl || !endpointUrl.trim()) return;
+    const protocol = (window.prompt("Protocol (http/websocket)", "http") || "http").toLowerCase();
+    if (!["http", "websocket"].includes(protocol)) {
+      window.alert("Protocol phải là http hoặc websocket");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/ops/system/node-endpoints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider_name: providerName.trim(),
+          chain: chain.trim(),
+          endpoint_url: endpointUrl.trim(),
+          protocol,
+          priority: 100,
+          is_active: true,
+        }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to create node endpoint");
+      }
+      await reloadNodes();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create node endpoint";
+      window.alert(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleUpdateHealth(node: NodeEndpointItem, healthStatus: "healthy" | "degraded" | "down" | "unknown") {
+    setIsSubmitting(true);
+    try {
+      const lastError = healthStatus === "down" ? (window.prompt("Last error (optional)") ?? "") : "";
+      const response = await fetch(`/api/ops/system/node-endpoints/${encodeURIComponent(node.id)}/health`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          health_status: healthStatus,
+          last_error: lastError || null,
+        }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to update node health");
+      }
+
+      setMutableNodes((previous) =>
+        previous.map((item) =>
+          item.id === node.id
+            ? {
+              ...item,
+              health_status: healthStatus,
+              last_error: healthStatus === "down" ? (lastError || item.last_error) : null,
+              last_checked_at: new Date().toISOString(),
+            }
+            : item
+        )
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update node health";
+      window.alert(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (!mutableNodes.length) {
+    return (
+      <div className="space-y-3">
+        <button
+          type="button"
+          disabled={isSubmitting}
+          onClick={() => void handleCreateNode()}
+          className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+        >
+          Add node endpoint
+        </button>
+        <EmptyState message="No node records to display." />
+      </div>
+    );
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-700">
-      <table className="min-w-full divide-y divide-slate-800 text-sm">
-        <thead className="bg-slate-900/80 text-slate-400">
-          <tr>
-            <th className="px-4 py-3 text-left font-medium">Provider</th>
-            <th className="px-4 py-3 text-left font-medium">Chain</th>
-            <th className="px-4 py-3 text-left font-medium">Health</th>
-            <th className="px-4 py-3 text-left font-medium">Priority</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-          {nodes.map((node) => (
-            <tr key={node.id}>
-              <td className="px-4 py-3">{node.provider_name}</td>
-              <td className="px-4 py-3">{node.chain}</td>
-              <td className="px-4 py-3">{node.health_status}</td>
-              <td className="px-4 py-3">{node.priority}</td>
+    <div className="space-y-3">
+      <button
+        type="button"
+        disabled={isSubmitting}
+        onClick={() => void handleCreateNode()}
+        className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+      >
+        Add node endpoint
+      </button>
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Provider</th>
+              <th className="px-4 py-3 text-left font-medium">Chain</th>
+              <th className="px-4 py-3 text-left font-medium">Health</th>
+              <th className="px-4 py-3 text-left font-medium">Priority</th>
+              <th className="px-4 py-3 text-left font-medium">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {mutableNodes.map((node) => (
+              <tr key={node.id}>
+                <td className="px-4 py-3">{node.provider_name}</td>
+                <td className="px-4 py-3">{node.chain}</td>
+                <td className="px-4 py-3">{node.health_status}</td>
+                <td className="px-4 py-3">{node.priority}</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => void handleUpdateHealth(node, "healthy")}
+                      className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-200 disabled:opacity-60"
+                    >
+                      Healthy
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => void handleUpdateHealth(node, "degraded")}
+                      className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200 disabled:opacity-60"
+                    >
+                      Degraded
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => void handleUpdateHealth(node, "down")}
+                      className="rounded-md border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 disabled:opacity-60"
+                    >
+                      Down
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1596,20 +1746,126 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
 }
 
 function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryItem[]; activeModels: ModelRegistryItem[] }) {
-  if (!models.length && !activeModels.length) {
-    return <EmptyState message="Model registry is empty." />;
+  const [mutableModels, setMutableModels] = useState(models);
+  const [mutableActiveModels, setMutableActiveModels] = useState(activeModels);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setMutableModels(models);
+  }, [models]);
+
+  useEffect(() => {
+    setMutableActiveModels(activeModels);
+  }, [activeModels]);
+
+  const activeNames = new Set(mutableActiveModels.map((item) => `${item.model_name}:${item.version}`));
+
+  async function reloadModels() {
+    const [allResponse, activeResponse] = await Promise.all([
+      fetch("/api/ops/ai/model-registry"),
+      fetch("/api/ops/ai/model-registry/active"),
+    ]);
+    if (!allResponse.ok || !activeResponse.ok) throw new Error("Failed to reload model registry");
+
+    const [allPayload, activePayload] = await Promise.all([allResponse.json(), activeResponse.json()]);
+    const allData = unwrapPayload<{ items: ModelRegistryItem[] }>(allPayload);
+    const activeData = unwrapPayload<{ items: ModelRegistryItem[] }>(activePayload);
+    setMutableModels(allData.items || []);
+    setMutableActiveModels(activeData.items || []);
   }
 
-  const activeNames = new Set(activeModels.map((item) => `${item.model_name}:${item.version}`));
+  async function handleRegisterModel() {
+    const modelName = window.prompt("Model name", "risk_detector");
+    if (!modelName || !modelName.trim()) return;
+    const version = window.prompt("Version", "v1.0.0");
+    if (!version || !version.trim()) return;
+    const artifactUri = window.prompt("Artifact URI", "s3://ml-artifacts/risk_detector/v1.0.0");
+    if (!artifactUri || !artifactUri.trim()) return;
+    const framework = (window.prompt("Framework (pkl/onnx/pt)", "pkl") || "pkl").toLowerCase();
+    if (!["pkl", "onnx", "pt"].includes(framework)) {
+      window.alert("Framework phải là pkl, onnx hoặc pt");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/ops/ai/model-registry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model_name: modelName.trim(),
+          version: version.trim(),
+          artifact_uri: artifactUri.trim(),
+          framework,
+          is_active: false,
+        }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to register model");
+      }
+      await reloadModels();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to register model";
+      window.alert(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleActivateModel(model: ModelRegistryItem) {
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/ops/ai/model-registry/${encodeURIComponent(model.id)}/activate`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to activate model");
+      }
+      await reloadModels();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to activate model";
+      window.alert(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (!mutableModels.length && !mutableActiveModels.length) {
+    return (
+      <div className="space-y-3">
+        <button
+          type="button"
+          disabled={isSubmitting}
+          onClick={() => void handleRegisterModel()}
+          className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+        >
+          Register model
+        </button>
+        <EmptyState message="Model registry is empty." />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricBlock label="Registry entries" value={formatCompact(models.length)} helper="Current records" tone="violet" />
-        <MetricBlock label="Active models" value={formatCompact(activeModels.length)} helper="Serving now" tone="emerald" />
-        <MetricBlock label="Frameworks" value={formatCompact(new Set(models.map((item) => item.framework)).size)} helper="Unique runtimes" tone="cyan" />
-        <MetricBlock label="Artifacts" value={formatCompact(models.length)} helper="Tracked versions" tone="amber" />
+        <MetricBlock label="Registry entries" value={formatCompact(mutableModels.length)} helper="Current records" tone="violet" />
+        <MetricBlock label="Active models" value={formatCompact(mutableActiveModels.length)} helper="Serving now" tone="emerald" />
+        <MetricBlock label="Frameworks" value={formatCompact(new Set(mutableModels.map((item) => item.framework)).size)} helper="Unique runtimes" tone="cyan" />
+        <MetricBlock label="Artifacts" value={formatCompact(mutableModels.length)} helper="Tracked versions" tone="amber" />
       </div>
+      <button
+        type="button"
+        disabled={isSubmitting}
+        onClick={() => void handleRegisterModel()}
+        className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+      >
+        Register model
+      </button>
       <div className="overflow-hidden rounded-2xl border border-slate-700">
         <table className="min-w-full divide-y divide-slate-800 text-sm">
           <thead className="bg-slate-900/80 text-slate-400">
@@ -1618,17 +1874,31 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
               <th className="px-4 py-3 text-left font-medium">Version</th>
               <th className="px-4 py-3 text-left font-medium">Framework</th>
               <th className="px-4 py-3 text-left font-medium">Active</th>
+              <th className="px-4 py-3 text-left font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {models.slice(0, 8).map((model) => (
-              <tr key={model.id}>
-                <td className="px-4 py-3">{model.model_name}</td>
-                <td className="px-4 py-3">{model.version}</td>
-                <td className="px-4 py-3">{model.framework}</td>
-                <td className="px-4 py-3">{model.is_active || activeNames.has(`${model.model_name}:${model.version}`) ? "Yes" : "No"}</td>
-              </tr>
-            ))}
+            {mutableModels.slice(0, 12).map((model) => {
+              const isActive = model.is_active || activeNames.has(`${model.model_name}:${model.version}`);
+              return (
+                <tr key={model.id}>
+                  <td className="px-4 py-3">{model.model_name}</td>
+                  <td className="px-4 py-3">{model.version}</td>
+                  <td className="px-4 py-3">{model.framework}</td>
+                  <td className="px-4 py-3">{isActive ? "Yes" : "No"}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      disabled={isSubmitting || isActive}
+                      onClick={() => void handleActivateModel(model)}
+                      className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-200 disabled:opacity-60"
+                    >
+                      {isActive ? "Active" : "Activate"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1637,32 +1907,134 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
 }
 
 function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
-  if (!features.length) {
-    return <EmptyState message="Feature store is empty." />;
+  const [mutableFeatures, setMutableFeatures] = useState(features);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setMutableFeatures(features);
+  }, [features]);
+
+  async function handleCreateFeature() {
+    const featureKey = window.prompt("Feature key (unique), ví dụ: suspicious_velocity_flag");
+    if (!featureKey || !featureKey.trim()) return;
+    const expression = window.prompt("Expression (optional)") ?? "";
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/ops/ai/feature-store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          feature_key: featureKey.trim(),
+          enabled: true,
+          expression: expression.trim() || null,
+        }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to create feature");
+      }
+
+      const listResponse = await fetch("/api/ops/ai/feature-store");
+      if (!listResponse.ok) throw new Error("Failed to reload features");
+      const payload = await listResponse.json();
+      const data = unwrapPayload<{ items: FeatureConfigItem[] }>(payload);
+      setMutableFeatures(data.items || []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create feature";
+      window.alert(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleToggleFeature(feature: FeatureConfigItem) {
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/ops/ai/feature-store/${encodeURIComponent(feature.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !feature.enabled }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to update feature");
+      }
+
+      setMutableFeatures((previous) =>
+        previous.map((item) =>
+          item.id === feature.id
+            ? { ...item, enabled: !item.enabled, updated_at: new Date().toISOString() }
+            : item
+        )
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update feature";
+      window.alert(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (!mutableFeatures.length) {
+    return (
+      <div className="space-y-3">
+        <button
+          type="button"
+          disabled={isSubmitting}
+          onClick={() => void handleCreateFeature()}
+          className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+        >
+          Add feature
+        </button>
+        <EmptyState message="Feature store is empty." />
+      </div>
+    );
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-700">
-      <table className="min-w-full divide-y divide-slate-800 text-sm">
-        <thead className="bg-slate-900/80 text-slate-400">
-          <tr>
-            <th className="px-4 py-3 text-left font-medium">Feature</th>
-            <th className="px-4 py-3 text-left font-medium">Enabled</th>
-            <th className="px-4 py-3 text-left font-medium">Expression</th>
-            <th className="px-4 py-3 text-left font-medium">Updated</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-          {features.slice(0, 8).map((feature) => (
-            <tr key={feature.id}>
-              <td className="px-4 py-3">{feature.feature_key}</td>
-              <td className="px-4 py-3">{feature.enabled ? "Yes" : "No"}</td>
-              <td className="px-4 py-3">{feature.expression ?? "-"}</td>
-              <td className="px-4 py-3">{formatDateTime(feature.updated_at)}</td>
+    <div className="space-y-3">
+      <button
+        type="button"
+        disabled={isSubmitting}
+        onClick={() => void handleCreateFeature()}
+        className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+      >
+        Add feature
+      </button>
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Feature</th>
+              <th className="px-4 py-3 text-left font-medium">Enabled</th>
+              <th className="px-4 py-3 text-left font-medium">Expression</th>
+              <th className="px-4 py-3 text-left font-medium">Updated</th>
+              <th className="px-4 py-3 text-left font-medium">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {mutableFeatures.slice(0, 12).map((feature) => (
+              <tr key={feature.id}>
+                <td className="px-4 py-3">{feature.feature_key}</td>
+                <td className="px-4 py-3">{feature.enabled ? "Yes" : "No"}</td>
+                <td className="px-4 py-3">{feature.expression ?? "-"}</td>
+                <td className="px-4 py-3">{formatDateTime(feature.updated_at)}</td>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => void handleToggleFeature(feature)}
+                    className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-200 transition hover:border-amber-400/60 disabled:opacity-60"
+                  >
+                    {feature.enabled ? "Disable" : "Enable"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -2026,6 +2398,8 @@ function CaseQueuePanel({
   caseSummary: CaseSummary | null;
   contextQuery: string;
 }) {
+  const [mutableCases, setMutableCases] = useState(cases);
+  const [actingTxHash, setActingTxHash] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"risk" | "status" | "tx">("risk");
@@ -2034,8 +2408,12 @@ function CaseQueuePanel({
   const [pageSize, setPageSize] = useState(8);
   const pageSizeOptions = [8, 20, 50];
 
+  useEffect(() => {
+    setMutableCases(cases);
+  }, [cases]);
+
   const filteredCases = useMemo(() => {
-    return cases.filter((item) => {
+    return mutableCases.filter((item) => {
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
       const keyword = searchTerm.trim().toLowerCase();
       const matchesKeyword =
@@ -2046,7 +2424,7 @@ function CaseQueuePanel({
         (item.flag_reason || "").toLowerCase().includes(keyword);
       return matchesStatus && matchesKeyword;
     });
-  }, [cases, searchTerm, statusFilter]);
+  }, [mutableCases, searchTerm, statusFilter]);
 
   const sortedCases = useMemo(() => {
     const sorted = [...filteredCases].sort((left, right) => {
@@ -2075,6 +2453,38 @@ function CaseQueuePanel({
     }
     setSortBy(column);
     setSortDir(column === "risk" ? "desc" : "asc");
+  }
+
+  async function handleCaseAction(txHash: string, action: "CONFIRM_FRAUD" | "DISMISS" | "ESCALATE") {
+    setActingTxHash(txHash);
+    try {
+      const response = await fetch(`/api/cases/${encodeURIComponent(txHash)}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to apply case action");
+      }
+
+      const payload = await response.json();
+      const newStatus = (payload?.new_status || payload?.data?.new_status || "").toString();
+      if (!newStatus) return;
+
+      setMutableCases((previous) =>
+        previous.map((item) =>
+          item.tx_hash === txHash
+            ? { ...item, status: newStatus, updated_at: new Date().toISOString() }
+            : item
+        )
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to apply case action";
+      window.alert(message);
+    } finally {
+      setActingTxHash(null);
+    }
   }
 
   return (
@@ -2123,6 +2533,7 @@ function CaseQueuePanel({
               <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("risk")} className="hover:text-white">Risk</button></th>
               <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("status")} className="hover:text-white">Status</button></th>
               <th className="px-4 py-3 text-left font-medium">Flag</th>
+              <th className="px-4 py-3 text-left font-medium">Actions</th>
               <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
@@ -2134,6 +2545,34 @@ function CaseQueuePanel({
                 <td className="px-4 py-3">{item.status}</td>
                 <td className="px-4 py-3">{item.flag_reason ?? (item.is_flagged ? "Flagged" : "-")}</td>
                 <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      disabled={actingTxHash === item.tx_hash}
+                      onClick={() => void handleCaseAction(item.tx_hash, "CONFIRM_FRAUD")}
+                      className="rounded-md border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 disabled:opacity-60"
+                    >
+                      Fraud
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actingTxHash === item.tx_hash}
+                      onClick={() => void handleCaseAction(item.tx_hash, "DISMISS")}
+                      className="rounded-md border border-slate-500/40 bg-slate-500/10 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-60"
+                    >
+                      Dismiss
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actingTxHash === item.tx_hash}
+                      onClick={() => void handleCaseAction(item.tx_hash, "ESCALATE")}
+                      className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-200 disabled:opacity-60"
+                    >
+                      Escalate
+                    </button>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
                   <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
                     Case
                     <ExternalLink className="h-3.5 w-3.5" />
@@ -2143,7 +2582,7 @@ function CaseQueuePanel({
             ))}
             {pagedCases.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No cases match current filters.</td>
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">No cases match current filters.</td>
               </tr>
             ) : null}
           </tbody>
@@ -2392,6 +2831,8 @@ function PolicyRulesPanel({
   reportingSummary: ReportingSummary | null;
   contextQuery: string;
 }) {
+  const [mutablePolicies, setMutablePolicies] = useState(policies);
+  const [isMutating, setIsMutating] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"rule" | "priority" | "threshold" | "active">("priority");
@@ -2400,8 +2841,12 @@ function PolicyRulesPanel({
   const [pageSize, setPageSize] = useState(8);
   const pageSizeOptions = [8, 20, 50];
 
+  useEffect(() => {
+    setMutablePolicies(policies);
+  }, [policies]);
+
   const filteredPolicies = useMemo(() => {
-    return policies.filter((policy) => {
+    return mutablePolicies.filter((policy) => {
       const matchesActive = activeFilter === "all" || (activeFilter === "active" ? policy.is_active : !policy.is_active);
       const keyword = searchTerm.trim().toLowerCase();
       const matchesKeyword =
@@ -2410,7 +2855,7 @@ function PolicyRulesPanel({
         (policy.description || "").toLowerCase().includes(keyword);
       return matchesActive && matchesKeyword;
     });
-  }, [activeFilter, policies, searchTerm]);
+  }, [activeFilter, mutablePolicies, searchTerm]);
 
   const sortedPolicies = useMemo(() => {
     const sorted = [...filteredPolicies].sort((left, right) => {
@@ -2442,8 +2887,113 @@ function PolicyRulesPanel({
     setSortDir(column === "rule" ? "asc" : "desc");
   }
 
-  if (!policies.length) {
-    return <EmptyState message="No policy rules are stored in the backend yet." />;
+  async function reloadPolicies() {
+    const response = await fetch("/api/ops/compliance/policy-rules");
+    if (!response.ok) throw new Error("Failed to reload policies");
+    const payload = await response.json();
+    const data = unwrapPayload<{ items: PolicyRuleItem[] }>(payload);
+    setMutablePolicies(data.items || []);
+  }
+
+  async function handleCreatePolicy() {
+    const ruleName = window.prompt("Rule name, ví dụ: Block High Velocity Wallet");
+    if (!ruleName || !ruleName.trim()) return;
+    const minRiskRaw = window.prompt("Min risk score (0-100)", "80");
+    if (!minRiskRaw) return;
+    const minRisk = Number(minRiskRaw);
+    if (!Number.isFinite(minRisk) || minRisk < 0 || minRisk > 100) {
+      window.alert("Min risk score phải nằm trong khoảng 0-100");
+      return;
+    }
+
+    const priorityRaw = window.prompt("Priority (số nhỏ = ưu tiên cao)", "100");
+    if (!priorityRaw) return;
+    const priority = Number(priorityRaw);
+    if (!Number.isInteger(priority)) {
+      window.alert("Priority phải là số nguyên");
+      return;
+    }
+
+    const description = window.prompt("Description (optional)") ?? "";
+
+    setIsMutating(true);
+    try {
+      const response = await fetch("/api/ops/compliance/policy-rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rule_name: ruleName.trim(),
+          description: description.trim() || null,
+          min_risk_score: minRisk,
+          priority,
+          is_active: true,
+          block_blacklisted: true,
+          block_suspended: true,
+          notify_on_block: true,
+        }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to create policy");
+      }
+      await reloadPolicies();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create policy";
+      window.alert(message);
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  async function handleTogglePolicy(policy: PolicyRuleItem) {
+    setIsMutating(true);
+    try {
+      const response = await fetch(`/api/ops/compliance/policy-rules/${encodeURIComponent(policy.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: !policy.is_active }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to update policy");
+      }
+
+      setMutablePolicies((previous) =>
+        previous.map((item) =>
+          item.id === policy.id
+            ? { ...item, is_active: !item.is_active, updated_at: new Date().toISOString() }
+            : item
+        )
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update policy";
+      window.alert(message);
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  async function handleDeletePolicy(policy: PolicyRuleItem) {
+    const confirmed = window.confirm(`Xóa policy \"${policy.rule_name}\"?`);
+    if (!confirmed) return;
+
+    setIsMutating(true);
+    try {
+      const response = await fetch(`/api/ops/compliance/policy-rules/${encodeURIComponent(policy.id)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to delete policy");
+      }
+
+      setMutablePolicies((previous) => previous.filter((item) => item.id !== policy.id));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete policy";
+      window.alert(message);
+    } finally {
+      setIsMutating(false);
+    }
   }
 
   return (
@@ -2456,6 +3006,14 @@ function PolicyRulesPanel({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={isMutating}
+          onClick={() => void handleCreatePolicy()}
+          className="h-10 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+        >
+          Add policy
+        </button>
         <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <input
@@ -2490,6 +3048,7 @@ function PolicyRulesPanel({
               <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("threshold")} className="hover:text-white">Threshold</button></th>
               <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("priority")} className="hover:text-white">Priority</button></th>
               <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("active")} className="hover:text-white">Active</button></th>
+              <th className="px-4 py-3 text-left font-medium">Actions</th>
               <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
@@ -2501,6 +3060,26 @@ function PolicyRulesPanel({
                 <td className="px-4 py-3">{policy.priority}</td>
                 <td className="px-4 py-3">{policy.is_active ? "Yes" : "No"}</td>
                 <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      disabled={isMutating}
+                      onClick={() => void handleTogglePolicy(policy)}
+                      className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200 disabled:opacity-60"
+                    >
+                      {policy.is_active ? "Disable" : "Enable"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isMutating}
+                      onClick={() => void handleDeletePolicy(policy)}
+                      className="rounded-md border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 disabled:opacity-60"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
                   <Link href={`/insights/policy/${encodeURIComponent(policy.id)}${contextQuery}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
                     Policy
                     <ExternalLink className="h-3.5 w-3.5" />
@@ -2510,7 +3089,7 @@ function PolicyRulesPanel({
             ))}
             {pagedPolicies.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No policies match current filters.</td>
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">No policies match current filters.</td>
               </tr>
             ) : null}
           </tbody>
