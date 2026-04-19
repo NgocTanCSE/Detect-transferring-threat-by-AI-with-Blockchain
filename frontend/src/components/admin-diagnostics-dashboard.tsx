@@ -3,6 +3,8 @@
  * Real-time system health, seed data status, API endpoint statistics, and error logs
  */
 
+"use client";
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -292,10 +294,10 @@ export default function AdminDiagnosticsDashboard() {
                     <div
                       key={idx}
                       className={`p-2 rounded border ${log.type === "error" || log.type === "api_error"
-                          ? "bg-red-900/20 border-red-700/50 text-red-300"
-                          : log.type === "warning"
-                            ? "bg-yellow-900/20 border-yellow-700/50 text-yellow-300"
-                            : "bg-cyan-900/20 border-cyan-700/50 text-cyan-300"
+                        ? "bg-red-900/20 border-red-700/50 text-red-300"
+                        : log.type === "warning"
+                          ? "bg-yellow-900/20 border-yellow-700/50 text-yellow-300"
+                          : "bg-cyan-900/20 border-cyan-700/50 text-cyan-300"
                         }`}
                     >
                       <div className="flex justify-between">
