@@ -43,7 +43,7 @@ from app.models.models import (
 
 
 DEFAULT_USER_COUNT = int(os.getenv("LOCAL_DEMO_USER_COUNT", "1000"))
-DEFAULT_TX_PER_USER = int(os.getenv("LOCAL_DEMO_TX_PER_USER", "5"))
+DEFAULT_TX_PER_USER = int(os.getenv("LOCAL_DEMO_TX_PER_USER", "12")) # Higher volume for Analyst logic
 DEFAULT_ALERTS = int(os.getenv("LOCAL_DEMO_ALERT_COUNT", "150"))
 DEFAULT_BLOCKED = int(os.getenv("LOCAL_DEMO_BLOCKED_COUNT", "60"))
 DEFAULT_CASES = int(os.getenv("LOCAL_DEMO_CASE_COUNT", "100"))
@@ -280,6 +280,20 @@ def _build_transactions(seed_rows: list[SeedUser], tx_per_user: int, rng: random
             tx_hash = f"0x{uuid.uuid5(uuid.NAMESPACE_DNS, f'tx::{source}::{tx_index}').hex}{uuid.uuid5(uuid.NAMESPACE_DNS, f'tx::{index}::{tx_index}').hex[:32]}"
             risk_score = round(min(0.99, max(0.03, seed.wallet.risk_score / 100)), 2)
             value = _eth(rng.uniform(0.05, 6.0))
+            
+            # More varied case status distribution for the Analyst dashboard
+            case_status_opts = ["PENDING", "VERIFIED", "FRAUD", "IGNORED"]
+            status_seed = (index + tx_index) % 4
+            case_status = case_status_opts[status_seed]
+            
+            # Demonstrate assigned cases (Analyst ID from DB audit)
+            ANALYST_ID_STR = "7e46beb1-7c03-5ecf-8f8c-a5fb363f73d2"
+            assigned_to = None
+            if index % 7 == 0:
+                assigned_to = ANALYST_ID_STR
+            elif index % 13 == 0:
+                assigned_to = seed.user.id
+
             transactions.append(
                 Transaction(
                     id=_make_uuid("tx", index * tx_per_user + tx_index),
@@ -294,10 +308,10 @@ def _build_transactions(seed_rows: list[SeedUser], tx_per_user: int, rng: random
                     input_data="0x",
                     status=1 if seed.wallet.risk_score < 88 else 0,
                     normalized_risk_score=risk_score,
-                    case_status="PENDING" if seed.wallet.risk_score < 65 else "ESCALATED",
-                    assigned_to=seed.user.id if index % 11 == 0 else None,
-                    is_flagged=seed.wallet.risk_score >= 65,
-                    flag_reason=seed.wallet.risk_category,
+                    case_status=case_status,
+                    assigned_to=assigned_to,
+                    is_flagged=seed.wallet.risk_score >= 65 or (index + tx_index) % 10 == 0,
+                    flag_reason=seed.wallet.risk_category if seed.wallet.risk_score >= 65 else "Suspicious Velocity",
                 )
             )
 
@@ -413,50 +427,34 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
         transactions_to_add = [tx for tx in _build_transactions(seed_rows, DEFAULT_TX_PER_USER, rng, now) if tx.tx_hash not in existing_tx_hashes]
 
-        policy_rules = [
-            PolicyRule(
-                id=_make_uuid("policy", 1),
-                rule_name="Block High Risk Transfers",
-                description="Block transfers above the configured risk threshold.",
-                min_risk_score=80.0,
-                block_blacklisted=True,
-                block_suspended=True,
-                notify_on_block=True,
-                priority=10,
-                is_active=True,
-                created_by=users_to_add[0].id if users_to_add else None,
-                created_at=now - timedelta(days=10),
-                updated_at=now,
-            ),
-            PolicyRule(
-                id=_make_uuid("policy", 2),
-                rule_name="Monitor Suspicious Velocity",
-                description="Escalate wallets that receive too many transfers in a short window.",
-                min_risk_score=60.0,
-                block_blacklisted=False,
-                block_suspended=True,
-                notify_on_block=True,
-                priority=20,
-                is_active=True,
-                created_by=users_to_add[0].id if users_to_add else None,
-                created_at=now - timedelta(days=9),
-                updated_at=now,
-            ),
-            PolicyRule(
-                id=_make_uuid("policy", 3),
-                rule_name="Require Manual Review for New Wallets",
-                description="Keep freshly created wallets in review until they accumulate enough history.",
-                min_risk_score=45.0,
-                block_blacklisted=False,
-                block_suspended=False,
-                notify_on_block=True,
-                priority=30,
-                is_active=True,
-                created_by=users_to_add[0].id if users_to_add else None,
-                created_at=now - timedelta(days=8),
-                updated_at=now,
-            ),
+        policy_rule_templates = [
+            "Block High Risk Transfers", "Monitor Suspicious Velocity", "Require Manual Review for New Wallets",
+            "Flag Contract Interactions", "Block Known Mixer Addresses", "Suspend Inactive Wallets",
+            "Audit Large Value Transfers", "Review Fast Hop Transactions", "Escalate Blacklist Affinity",
+            "Quarantine New Tokens", "Monitor Stablecoin Volume", "Check Geographic Consistency"
         ]
+        
+        policy_rules = []
+        for index in range(120):
+            rule_base = _pick(policy_rule_templates, index)
+            rule_name = f"{rule_base} ({index})" if index >= len(policy_rule_templates) else rule_base
+            policy_rules.append(
+                PolicyRule(
+                    id=_make_uuid("policy", index),
+                    rule_name=rule_name,
+                    description=f"Auto-generated policy rule for: {rule_name}",
+                    min_risk_score=float(25.0 + (index % 70)),
+                    block_blacklisted=(index % 2 == 0),
+                    block_suspended=(index % 3 == 0),
+                    notify_on_block=(index % 4 != 0),
+                    priority=(index % 5) * 10,
+                    is_active=(index % 6 != 0),
+                    created_by=users_to_add[0].id if users_to_add else None,
+                    created_at=now - timedelta(days=index % 30),
+                    updated_at=now,
+                )
+            )
+
         policy_rules = [rule for rule in policy_rules if rule.rule_name not in existing_policy_rules]
 
         model_registry_base_names = [
@@ -506,24 +504,32 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
         pipeline_metrics: list[PipelineMetric] = []
 
         risky_wallets = [seed for seed in seed_rows if seed.wallet.risk_score >= 60]
-        for index, seed in enumerate(risky_wallets[:DEFAULT_ALERTS]):
+        alert_types = [
+            "Risk Spike", "Flash Loan Detected", "Mixer Interaction", 
+            "Layer 2 Bridge Anomaly", "High-Frequency Wash Trade", 
+            "Wallet Drainer Pattern", "Sanctioned Entity Proximity"
+        ]
+        severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+        
+        for index in range(1200):
+            seed = _pick(seed_rows, index)
             alerts.append(
                 Alert(
                     id=_make_uuid("alert", index),
                     wallet_address=seed.wallet.address,
-                    alert_type="Risk Spike",
-                    severity="CRITICAL" if seed.wallet.risk_score >= 85 else "HIGH",
-                    message=f"Wallet {seed.wallet.label} exceeded the local risk threshold.",
+                    alert_type=_pick(alert_types, index),
+                    severity=_pick(severities, index // 2), # Weight towards higher severities
+                    message=f"Suspicious activity detected on {seed.wallet.label}: {_pick(alert_types, index)}",
                     risk_score=seed.wallet.risk_score,
-                    meta={"label": seed.wallet.label, "source": "seed"},
-                    detected_at=now - timedelta(hours=index % 72),
-                    acknowledged=index % 4 == 0,
-                    acknowledged_at=now - timedelta(hours=index % 12) if index % 4 == 0 else None,
+                    meta={"label": seed.wallet.label, "source": "ai_engine"},
+                    detected_at=now - timedelta(days=index // 50, hours=index % 24),
+                    acknowledged=index % 5 == 0,
+                    acknowledged_at=now - timedelta(hours=index % 12) if index % 5 == 0 else None,
                     acknowledged_by=users_to_add[0].username if users_to_add else None,
                 )
             )
 
-            alerts = [alert for alert in alerts if alert.id not in existing_alert_ids]
+        alerts = [alert for alert in alerts if alert.id not in existing_alert_ids]
 
         for index, seed in enumerate(risky_wallets[:DEFAULT_BLOCKED]):
             sender_user = seed.user
@@ -544,55 +550,67 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
             blocked_transfers = [blocked for blocked in blocked_transfers if blocked.id not in existing_blocked_ids]
 
-        for index, tx in enumerate(transactions_to_add[:DEFAULT_CASES]):
-            assigned_user = users_to_add[index % len(users_to_add)].id if users_to_add else None
+        # Use the specific analyst UUID to show 'Assigned to me' features
+        ANALYST_ID_STR = "7e46beb1-7c03-5ecf-8f8c-a5fb363f73d2"
+        case_states = ["PENDING", "VERIFIED", "FRAUD", "IGNORED"]
+        case_actions = ["ASSIGN", "CONFIRM_FRAUD", "DISMISS", "ESCALATE"]
+
+        for index in range(650):
+            tx = _pick(transactions_to_add, index)
+            # Assign 40% to the specific analyst user
+            assigned_user = ANALYST_ID_STR if (index % 10 < 4) else (users_to_add[index % len(users_to_add)].id if users_to_add else None)
+            
             transaction_cases.append(
                 TransactionCase(
                     id=_make_uuid("case", index),
                     tx_hash=tx.tx_hash,
                     analyst_id=assigned_user,
-                    action=_pick(["ASSIGN", "CONFIRM_FRAUD", "DISMISS", "ESCALATE"], index),
-                    state=_pick(["PENDING", "VERIFIED", "FRAUD", "IGNORED"], index),
-                    note=f"Seeded case for transaction {tx.tx_hash[:12]}.",
-                    created_at=now - timedelta(days=index % 18),
+                    action=_pick(case_actions, index),
+                    state=_pick(case_states, index % 4),
+                    note=f"Seeded security review for {tx.tx_hash[:12]}. State set to {_pick(case_states, index % 4)}.",
+                    created_at=now - timedelta(days=index // 30, minutes=index % 60),
                     updated_at=now,
                 )
             )
 
-            transaction_cases = [case for case in transaction_cases if case.id not in existing_case_ids]
+        transaction_cases = [case for case in transaction_cases if case.id not in existing_case_ids]
 
-        for index, seed in enumerate(seed_rows[:50]):
+        for index in range(1500):
+            seed = _pick(seed_rows, index)
+            action_type = _pick(["CREATE", "UPDATE", "BLOCK", "REVIEW", "EXPORT", "ESCALATE", "VERIFY"], index)
+            entity_type = _pick(["wallet", "transaction", "policy", "user", "alert"], index)
             audit_logs.append(
                 AuditLog(
                     id=_make_uuid("audit", index),
-                    action_type=_pick(["CREATE", "UPDATE", "BLOCK", "REVIEW", "EXPORT"], index),
-                    entity_type="wallet",
-                    entity_id=seed.wallet.id,
+                    action_type=action_type,
+                    entity_type=entity_type,
+                    entity_id=seed.wallet.id if entity_type == "wallet" else f"entity_{index}",
                     user_identifier=seed.user.username,
                     ip_address=f"10.0.{index % 16}.{(index % 200) + 1}",
-                    details={"wallet": seed.wallet.address, "risk_score": seed.wallet.risk_score},
-                    timestamp=now - timedelta(hours=index * 2),
+                    details={"action": action_type, "target": entity_type, "risk": seed.wallet.risk_score},
+                    timestamp=now - timedelta(hours=index % 720, minutes=index % 60),
                 )
             )
 
-            audit_logs = [audit for audit in audit_logs if audit.id not in existing_audit_ids]
+        audit_logs = [audit for audit in audit_logs if audit.id not in existing_audit_ids]
 
-        for index, seed in enumerate(seed_rows[:60]):
+        for index in range(450):
+            seed = _pick(seed_rows, index)
             notifications.append(
                 NotificationEvent(
                     id=_make_uuid("notification", index),
                     channel=_pick(["slack", "email", "webhook", "telegram"], index),
-                    recipient=f"ops-{index:02d}@local.test",
+                    recipient=f"security-ops-{index:03d}@local.test",
                     severity=_pick(["LOW", "MEDIUM", "HIGH", "CRITICAL"], index),
-                    message=f"Notification for {seed.wallet.label} ({seed.wallet.address[:10]}...).",
+                    message=f"Security event on {seed.wallet.label}: High-risk transfer from {seed.wallet.address[:10]}...",
                     status=_pick(["queued", "sent", "failed"], index),
-                    meta={"wallet": seed.wallet.address, "source": "seed"},
-                    created_at=now - timedelta(minutes=index * 12),
-                    sent_at=now - timedelta(minutes=index * 12 - 2) if index % 3 == 0 else None,
+                    meta={"wallet": seed.wallet.address, "source": "security_engine"},
+                    created_at=now - timedelta(days=index // 20, minutes=index % 60),
+                    sent_at=now - timedelta(minutes=index % 60) if index % 3 != 0 else None,
                 )
             )
 
-            notifications = [notification for notification in notifications if notification.id not in existing_notification_ids]
+        notifications = [notification for notification in notifications if notification.id not in existing_notification_ids]
 
         feature_keys_templates = [
             "avg_tx_val_{d}d", "unique_receivers_{h}h", "hop_count_to_exchange",

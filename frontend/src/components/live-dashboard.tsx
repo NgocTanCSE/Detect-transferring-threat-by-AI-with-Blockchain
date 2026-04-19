@@ -2683,32 +2683,61 @@ function CaseActionPanel({ caseSummary }: { caseSummary: CaseSummary | null }) {
 }
 
 function NotificationTable({ notifications }: { notifications: NotificationItem[] }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
+  const pageSizeOptions = [8, 20, 50];
+
+  const totalPages = Math.max(1, Math.ceil(notifications.length / pageSize));
+  const pagedNotifications = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return notifications.slice(startIndex, startIndex + pageSize);
+  }, [notifications, page, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   if (!notifications.length) {
     return <EmptyState message="No notification events have been recorded yet." />;
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-700">
-      <table className="min-w-full divide-y divide-slate-800 text-sm">
-        <thead className="bg-slate-900/80 text-slate-400">
-          <tr>
-            <th className="px-4 py-3 text-left font-medium">Channel</th>
-            <th className="px-4 py-3 text-left font-medium">Recipient</th>
-            <th className="px-4 py-3 text-left font-medium">Severity</th>
-            <th className="px-4 py-3 text-left font-medium">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-          {notifications.slice(0, 8).map((notification) => (
-            <tr key={notification.id}>
-              <td className="px-4 py-3">{notification.channel}</td>
-              <td className="px-4 py-3">{notification.recipient}</td>
-              <td className="px-4 py-3"><SeverityPill severity={notification.severity} /></td>
-              <td className="px-4 py-3">{notification.status}</td>
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Channel</th>
+              <th className="px-4 py-3 text-left font-medium">Recipient</th>
+              <th className="px-4 py-3 text-left font-medium">Severity</th>
+              <th className="px-4 py-3 text-left font-medium">Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {pagedNotifications.map((notification) => (
+              <tr key={notification.id}>
+                <td className="px-4 py-3">{notification.channel}</td>
+                <td className="px-4 py-3">{notification.recipient}</td>
+                <td className="px-4 py-3"><SeverityPill severity={notification.severity} /></td>
+                <td className="px-4 py-3">{notification.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <TablePager
+        page={page}
+        totalPages={totalPages}
+        onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
+        onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+        itemCount={notifications.length}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+      />
     </div>
   );
 }
@@ -2742,6 +2771,20 @@ function AlertChartPanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSum
 }
 
 function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]; caseSummary: CaseSummary | null; contextQuery: string }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const pageSizeOptions = [10, 20, 50];
+
+  const totalPages = Math.max(1, Math.ceil(cases.length / pageSize));
+  const pagedCases = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return cases.slice(startIndex, startIndex + pageSize);
+  }, [cases, page, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
@@ -2763,7 +2806,7 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {cases.slice(0, 10).map((item) => (
+            {pagedCases.map((item) => (
               <tr key={item.tx_hash}>
                 <td className="px-4 py-3 font-mono text-xs">{formatAddress(item.tx_hash)}</td>
                 <td className="px-4 py-3">{item.risk_score != null ? formatPercent(item.risk_score * 100) : "-"}</td>
@@ -2777,14 +2820,46 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
                 </td>
               </tr>
             ))}
+            {pagedCases.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No cases available.</td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
+      <TablePager
+        page={page}
+        totalPages={totalPages}
+        onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
+        onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+        itemCount={cases.length}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+      />
     </div>
   );
 }
 
 function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleItem[]; reportingSummary: ReportingSummary | null }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const pageSizeOptions = [10, 20, 50];
+
+  const totalPages = Math.max(1, Math.ceil(policies.length / pageSize));
+  const pagedPolicies = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return policies.slice(startIndex, startIndex + pageSize);
+  }, [policies, page, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   if (!policies.length) {
     return <EmptyState message="No policy data available." />;
   }
@@ -2809,7 +2884,7 @@ function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleI
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {policies.slice(0, 10).map((item) => (
+            {pagedPolicies.map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.rule_name}</td>
                 <td className="px-4 py-3">{item.min_risk_score}</td>
@@ -2820,6 +2895,19 @@ function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleI
           </tbody>
         </table>
       </div>
+      <TablePager
+        page={page}
+        totalPages={totalPages}
+        onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
+        onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+        itemCount={policies.length}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+      />
     </div>
   );
 }
@@ -2827,6 +2915,23 @@ function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleI
 function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: AuditCompleteness | null; auditGaps: AuditGaps | null }) {
   const checks = auditCompleteness?.checks ?? [];
   const missingActions = auditGaps?.missing_actions ?? [];
+
+  const [checksPage, setChecksPage] = useState(1);
+  const [missingPage, setMissingPage] = useState(1);
+  const pageSize = 5;
+
+  const checksTotalPages = Math.max(1, Math.ceil(checks.length / pageSize));
+  const missingTotalPages = Math.max(1, Math.ceil(missingActions.length / pageSize));
+
+  const pagedChecks = useMemo(() => {
+    const startIndex = (checksPage - 1) * pageSize;
+    return checks.slice(startIndex, startIndex + pageSize);
+  }, [checks, checksPage]);
+
+  const pagedMissing = useMemo(() => {
+    const startIndex = (missingPage - 1) * pageSize;
+    return missingActions.slice(startIndex, startIndex + pageSize);
+  }, [missingActions, missingPage]);
 
   return (
     <div className="space-y-4">
@@ -2838,27 +2943,51 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+        <div className="flex flex-col rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
           <p className="text-sm font-semibold text-white">Audit checks</p>
-          <div className="mt-3 space-y-2 text-sm text-slate-300">
-            {checks.length ? checks.slice(0, 8).map((item, idx) => (
+          <div className="mt-3 flex-grow space-y-2 text-sm text-slate-300">
+            {pagedChecks.length ? pagedChecks.map((item, idx) => (
               <div key={`${item.action_type}:${idx}`} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2">
                 <span>{item.action_type}</span>
                 <span>{item.count} · {item.present ? "PRESENT" : "MISSING"}</span>
               </div>
             )) : <p className="text-slate-500">No audit checks found.</p>}
           </div>
+          <div className="mt-4 border-t border-slate-800 pt-3">
+            <TablePager
+              page={checksPage}
+              totalPages={checksTotalPages}
+              onPrev={() => setChecksPage((prev) => Math.max(1, prev - 1))}
+              onNext={() => setChecksPage((prev) => Math.min(checksTotalPages, prev + 1))}
+              itemCount={checks.length}
+              pageSize={pageSize}
+              pageSizeOptions={[5]}
+              onPageSizeChange={() => {}}
+            />
+          </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+        <div className="flex flex-col rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
           <p className="text-sm font-semibold text-white">Missing actions</p>
-          <div className="mt-3 space-y-2 text-sm text-slate-300">
-            {missingActions.length ? missingActions.slice(0, 8).map((item, idx) => (
+          <div className="mt-3 flex-grow space-y-2 text-sm text-slate-300">
+            {pagedMissing.length ? pagedMissing.map((item, idx) => (
               <div key={`${item.action_type}:${idx}`} className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-200">
                 <p className="font-medium">{item.action_type}</p>
                 <p className="text-xs text-rose-300/80 mt-1">Owner: {item.owner_role} · {item.reason}</p>
               </div>
             )) : <p className="text-slate-500">No missing actions.</p>}
+          </div>
+          <div className="mt-4 border-t border-slate-800 pt-3">
+            <TablePager
+              page={missingPage}
+              totalPages={missingTotalPages}
+              onPrev={() => setMissingPage((prev) => Math.max(1, prev - 1))}
+              onNext={() => setMissingPage((prev) => Math.min(missingTotalPages, prev + 1))}
+              itemCount={missingActions.length}
+              pageSize={pageSize}
+              pageSizeOptions={[5]}
+              onPageSizeChange={() => {}}
+            />
           </div>
         </div>
       </div>
