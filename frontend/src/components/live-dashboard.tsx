@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
 import {
   AlertTriangle,
   Brain,
@@ -1078,6 +1079,7 @@ function NodeGrid({ nodes }: { nodes: NodeEndpointItem[] }) {
 }
 
 function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
+  const { notify } = useToast();
   const [mutableNodes, setMutableNodes] = useState(nodes);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -1102,7 +1104,7 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
     if (!endpointUrl || !endpointUrl.trim()) return;
     const protocol = (window.prompt("Protocol (http/websocket)", "http") || "http").toLowerCase();
     if (!["http", "websocket"].includes(protocol)) {
-      window.alert("Protocol phải là http hoặc websocket");
+      notify("Protocol phải là http hoặc websocket", "error");
       return;
     }
 
@@ -1125,9 +1127,10 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
         throw new Error(message || "Failed to create node endpoint");
       }
       await reloadNodes();
+      notify("Node endpoint created", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create node endpoint";
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -1162,9 +1165,10 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
             : item
         )
       );
+      notify(`Node ${node.provider_name} health -> ${healthStatus.toUpperCase()}`, "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to update node health";
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -1746,6 +1750,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
 }
 
 function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryItem[]; activeModels: ModelRegistryItem[] }) {
+  const { notify } = useToast();
   const [mutableModels, setMutableModels] = useState(models);
   const [mutableActiveModels, setMutableActiveModels] = useState(activeModels);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1783,7 +1788,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
     if (!artifactUri || !artifactUri.trim()) return;
     const framework = (window.prompt("Framework (pkl/onnx/pt)", "pkl") || "pkl").toLowerCase();
     if (!["pkl", "onnx", "pt"].includes(framework)) {
-      window.alert("Framework phải là pkl, onnx hoặc pt");
+      notify("Framework phải là pkl, onnx hoặc pt", "error");
       return;
     }
 
@@ -1805,9 +1810,10 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
         throw new Error(message || "Failed to register model");
       }
       await reloadModels();
+      notify("Model registered", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to register model";
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -1826,9 +1832,10 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
         throw new Error(message || "Failed to activate model");
       }
       await reloadModels();
+      notify(`Model ${model.model_name} ${model.version} activated`, "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to activate model";
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -1907,6 +1914,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
 }
 
 function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
+  const { notify } = useToast();
   const [mutableFeatures, setMutableFeatures] = useState(features);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -1940,9 +1948,10 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
       const payload = await listResponse.json();
       const data = unwrapPayload<{ items: FeatureConfigItem[] }>(payload);
       setMutableFeatures(data.items || []);
+      notify("Feature created", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create feature";
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -1968,9 +1977,10 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
             : item
         )
       );
+      notify(`Feature ${feature.feature_key} ${feature.enabled ? "disabled" : "enabled"}`, "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to update feature";
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -2398,6 +2408,7 @@ function CaseQueuePanel({
   caseSummary: CaseSummary | null;
   contextQuery: string;
 }) {
+  const { notify } = useToast();
   const [mutableCases, setMutableCases] = useState(cases);
   const [actingTxHash, setActingTxHash] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -2479,9 +2490,10 @@ function CaseQueuePanel({
             : item
         )
       );
+      notify(`Case ${txHash.slice(0, 10)}... -> ${newStatus}`, "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to apply case action";
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setActingTxHash(null);
     }
@@ -2831,6 +2843,7 @@ function PolicyRulesPanel({
   reportingSummary: ReportingSummary | null;
   contextQuery: string;
 }) {
+  const { notify } = useToast();
   const [mutablePolicies, setMutablePolicies] = useState(policies);
   const [isMutating, setIsMutating] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -2902,7 +2915,7 @@ function PolicyRulesPanel({
     if (!minRiskRaw) return;
     const minRisk = Number(minRiskRaw);
     if (!Number.isFinite(minRisk) || minRisk < 0 || minRisk > 100) {
-      window.alert("Min risk score phải nằm trong khoảng 0-100");
+      notify("Min risk score phải nằm trong khoảng 0-100", "error");
       return;
     }
 
@@ -2910,7 +2923,7 @@ function PolicyRulesPanel({
     if (!priorityRaw) return;
     const priority = Number(priorityRaw);
     if (!Number.isInteger(priority)) {
-      window.alert("Priority phải là số nguyên");
+      notify("Priority phải là số nguyên", "error");
       return;
     }
 
@@ -2937,9 +2950,10 @@ function PolicyRulesPanel({
         throw new Error(message || "Failed to create policy");
       }
       await reloadPolicies();
+      notify("Policy created", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create policy";
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setIsMutating(false);
     }
@@ -2965,9 +2979,10 @@ function PolicyRulesPanel({
             : item
         )
       );
+      notify(`Policy ${policy.rule_name} ${policy.is_active ? "disabled" : "enabled"}`, "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to update policy";
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setIsMutating(false);
     }
@@ -2988,9 +3003,10 @@ function PolicyRulesPanel({
       }
 
       setMutablePolicies((previous) => previous.filter((item) => item.id !== policy.id));
+      notify(`Policy ${policy.rule_name} deleted`, "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to delete policy";
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setIsMutating(false);
     }
