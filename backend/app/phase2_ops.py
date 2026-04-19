@@ -1,7 +1,9 @@
 """Phase 2 operational APIs: system admin and AI/data engineer modules."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
+from io import StringIO
+import csv
 from typing import Any, Dict, List, Optional
 import uuid
 
@@ -103,6 +105,11 @@ class ModelRegistryCreate(BaseModel):
 
 class ModelActivateRequest(BaseModel):
     promoted_by: Optional[str] = None
+
+
+class DataIntegrityAutoFixRequest(BaseModel):
+    keys: Optional[List[str]] = None
+    dry_run: bool = False
 
 
 @router.get("/system/node-endpoints")
@@ -515,9 +522,8 @@ def get_active_models(db: Session = Depends(get_db)) -> Dict[str, Any]:
     return api_success(data=response, message="Active models fetched", meta={"count": len(records)}, legacy=response)
 
 
-@router.get("/system/data-integrity")
-def get_system_data_integrity(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Report DB-backed readiness and missing controls/models for all role panels."""
+def _build_data_integrity_report(db: Session) -> Dict[str, Any]:
+    """Build DB-backed readiness report and missing controls list."""
     counts = {
         "wallets": int(db.query(func.count(Transaction.from_address.distinct())).scalar() or 0),
         "transactions": int(db.query(func.count(Transaction.id)).scalar() or 0),
@@ -576,4 +582,274 @@ def get_system_data_integrity(db: Session = Depends(get_db)) -> Dict[str, Any]:
         "missing_controls": missing,
         "role_readiness": role_readiness,
     }
-    return api_success(data=response, message="Data integrity report generated", meta={"missing_count": len(missing)}, legacy=response)
+    return response
+
+
+@router.get("/system/data-integrity")
+def get_system_data_integrity(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Report DB-backed readiness and missing controls/models for all role panels."""
+    response = _build_data_integrity_report(db)
+    return api_success(data=response, message="Data integrity report generated", meta={"missing_count": len(response.get("missing_controls", []))}, legacy=response)
+
+
+@router.get("/system/data-integrity/export")
+def export_system_data_integrity(
+    format: str = Query(default="csv", pattern="^(csv|json)$"),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    report = _build_data_integrity_report(db)
+    now = datetime.now(timezone.utc)
+
+    if format == "json":
+        response = {
+            "generated_at": now.isoformat(),
+            "filename": f"data_integrity_{now.strftime('%Y%m%d_%H%M%S')}.json",
+            "report": report,
+        }
+        return api_success(data=response, message="Data integrity JSON export generated", legacy=response)
+
+    csv_buffer = StringIO()
+    writer = csv.DictWriter(
+        csv_buffer,
+        fieldnames=["key", "owner_role", "ok", "actual", "required_min", "severity", "recommended_next_step"],
+    )
+    writer.writeheader()
+    for item in report.get("checks", []):
+        missing = next((entry for entry in report.get("missing_controls", []) if entry.get("key") == item.get("key")), None)
+        writer.writerow(
+            {
+                "key": item.get("key"),
+                "owner_role": item.get("owner_role"),
+                "ok": item.get("ok"),
+                "actual": item.get("actual"),
+                "required_min": item.get("required_min"),
+                "severity": missing.get("severity") if missing else "ok",
+                "recommended_next_step": missing.get("recommended_next_step") if missing else "",
+            }
+        )
+
+    response = {
+        "generated_at": now.isoformat(),
+        "filename": f"data_integrity_{now.strftime('%Y%m%d_%H%M%S')}.csv",
+        "csv": csv_buffer.getvalue(),
+        "missing_count": len(report.get("missing_controls", [])),
+    }
+    return api_success(data=response, message="Data integrity CSV export generated", legacy=response)
+
+
+@router.post("/system/data-integrity/auto-fix")
+def auto_fix_system_data_integrity(payload: DataIntegrityAutoFixRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Create minimum DB records for missing controls so role panels have required baseline data."""
+    report = _build_data_integrity_report(db)
+    target_keys = set(payload.keys or [item["key"] for item in report.get("missing_controls", [])])
+
+    actions: List[Dict[str, Any]] = []
+
+    def record(action_key: str, created: bool, details: Dict[str, Any]) -> None:
+        actions.append({"key": action_key, "created": created, "details": details})
+
+    if "system.node_endpoints" in target_keys:
+        exists = db.query(NodeEndpoint.id).first() is not None
+        if not exists:
+            db.add(
+                NodeEndpoint(
+                    provider_name="AutoSeed Node",
+                    chain="ethereum",
+                    endpoint_url="https://example-node.local/rpc",
+                    protocol="http",
+                    priority=100,
+                    is_active=True,
+                    health_status="unknown",
+                )
+            )
+        record("system.node_endpoints", not exists, {"already_present": exists})
+
+    if "system.pipeline_metrics" in target_keys:
+        exists = db.query(PipelineMetric.id).first() is not None
+        if not exists:
+            db.add(
+                PipelineMetric(
+                    chain="ethereum",
+                    block_number=0,
+                    throughput_tps=Decimal("0.00"),
+                    ingestion_latency_ms=0,
+                    decode_latency_ms=0,
+                )
+            )
+        record("system.pipeline_metrics", not exists, {"already_present": exists})
+
+    if "system.diagnostic_events" in target_keys:
+        exists = db.query(DiagnosticEvent.id).first() is not None
+        if not exists:
+            db.add(
+                DiagnosticEvent(
+                    log_type="info",
+                    message="Auto-seed diagnostics baseline",
+                    details={"source": "auto_fix"},
+                    status_code=200,
+                    endpoint="/ops/system/data-integrity/auto-fix",
+                    source="backend",
+                )
+            )
+        record("system.diagnostic_events", not exists, {"already_present": exists})
+
+    if "ai.feature_configs" in target_keys:
+        exists = db.query(FeatureStoreConfig.id).first() is not None
+        if not exists:
+            db.add(
+                FeatureStoreConfig(
+                    feature_key="tx_velocity_24h",
+                    enabled=True,
+                    expression="tx_count_24h",
+                )
+            )
+        record("ai.feature_configs", not exists, {"already_present": exists})
+
+    if "ai.model_registry" in target_keys:
+        exists = db.query(ModelRegistry.id).first() is not None
+        if not exists:
+            db.add(
+                ModelRegistry(
+                    model_name="risk-scorer",
+                    version="v1-autoseed",
+                    artifact_uri="local://models/risk-scorer-v1",
+                    framework="pkl",
+                    is_active=False,
+                )
+            )
+        record("ai.model_registry", not exists, {"already_present": exists})
+
+    if "ai.active_models" in target_keys:
+        active_model = db.query(ModelRegistry).filter(ModelRegistry.is_active.is_(True)).first()
+        created = False
+        if not active_model:
+            first_model = db.query(ModelRegistry).order_by(ModelRegistry.created_at.asc()).first()
+            if first_model:
+                first_model.is_active = True
+                first_model.promoted_at = datetime.utcnow()
+            else:
+                db.add(
+                    ModelRegistry(
+                        model_name="risk-scorer",
+                        version="v1-autoseed-active",
+                        artifact_uri="local://models/risk-scorer-v1-active",
+                        framework="pkl",
+                        is_active=True,
+                        promoted_at=datetime.utcnow(),
+                    )
+                )
+                created = True
+        record("ai.active_models", created or active_model is None, {"already_present": active_model is not None})
+
+    if "security.alerts" in target_keys:
+        exists = db.query(Alert.id).first() is not None
+        if not exists:
+            db.add(
+                Alert(
+                    wallet_address="0x0000000000000000000000000000000000000001",
+                    alert_type="AUTO_SEED_ALERT",
+                    severity="HIGH",
+                    message="Auto-seed alert for integrity baseline",
+                    risk_score=75.0,
+                )
+            )
+        record("security.alerts", not exists, {"already_present": exists})
+
+    if "security.transactions" in target_keys:
+        exists = db.query(Transaction.id).first() is not None
+        if not exists:
+            tx_hash = "0x" + uuid.uuid4().hex + uuid.uuid4().hex
+            db.add(
+                Transaction(
+                    tx_hash=tx_hash,
+                    from_address="0x0000000000000000000000000000000000000001",
+                    to_address="0x0000000000000000000000000000000000000002",
+                    value=Decimal("1000000000000000000"),
+                    block_number=1,
+                    status=1,
+                    case_status="PENDING",
+                )
+            )
+        record("security.transactions", not exists, {"already_present": exists})
+
+    if "security.blocked_transfers" in target_keys:
+        exists = db.query(BlockedTransfer.id).first() is not None
+        if not exists:
+            db.add(
+                BlockedTransfer(
+                    sender_address="0x0000000000000000000000000000000000000001",
+                    receiver_address="0x0000000000000000000000000000000000000002",
+                    amount=Decimal("1000000000000000000"),
+                    risk_score=82.0,
+                    block_reason="AUTO_SEED_BLOCK",
+                    user_warning_count=1,
+                )
+            )
+        record("security.blocked_transfers", not exists, {"already_present": exists})
+
+    if "compliance.policy_rules" in target_keys:
+        exists = db.query(PolicyRule.id).first() is not None
+        if not exists:
+            db.add(
+                PolicyRule(
+                    rule_name="AutoSeed High Risk Block",
+                    description="Auto-seed policy baseline",
+                    min_risk_score=80.0,
+                    block_blacklisted=True,
+                    block_suspended=True,
+                    notify_on_block=True,
+                    priority=100,
+                    is_active=True,
+                )
+            )
+        record("compliance.policy_rules", not exists, {"already_present": exists})
+
+    if "compliance.active_policy_rules" in target_keys:
+        active_rule = db.query(PolicyRule).filter(PolicyRule.is_active.is_(True)).first()
+        created = False
+        if not active_rule:
+            first_rule = db.query(PolicyRule).order_by(PolicyRule.created_at.asc()).first()
+            if first_rule:
+                first_rule.is_active = True
+            else:
+                db.add(
+                    PolicyRule(
+                        rule_name="AutoSeed Active Policy",
+                        description="Auto-seed active policy baseline",
+                        min_risk_score=75.0,
+                        block_blacklisted=True,
+                        block_suspended=True,
+                        notify_on_block=True,
+                        priority=90,
+                        is_active=True,
+                    )
+                )
+                created = True
+        record("compliance.active_policy_rules", created or active_rule is None, {"already_present": active_rule is not None})
+
+    if "compliance.audit_logs" in target_keys:
+        exists = db.query(AuditLog.id).first() is not None
+        if not exists:
+            db.add(
+                AuditLog(
+                    action_type="AUTO_SEED_AUDIT",
+                    entity_type="system",
+                    user_identifier="auto_fix",
+                    details={"source": "data_integrity_auto_fix"},
+                )
+            )
+        record("compliance.audit_logs", not exists, {"already_present": exists})
+
+    if payload.dry_run:
+        db.rollback()
+    else:
+        db.commit()
+
+    updated_report = _build_data_integrity_report(db)
+    response = {
+        "dry_run": payload.dry_run,
+        "requested_keys": sorted(list(target_keys)),
+        "actions": actions,
+        "after": updated_report,
+    }
+    return api_success(data=response, message="Data integrity auto-fix completed", meta={"actions": len(actions)}, legacy=response)

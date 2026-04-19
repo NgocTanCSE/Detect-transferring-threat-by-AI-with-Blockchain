@@ -783,7 +783,7 @@ export default function LiveDashboard() {
             content: (
               <div className="space-y-4">
                 <SloPanel sloMetrics={sloMetrics} />
-                <DataIntegrityPanel report={dataIntegrity} />
+                <DataIntegrityPanel report={dataIntegrity} onRefresh={() => void loadLiveData(activeRole, "manual")} />
               </div>
             ),
           };
@@ -1619,13 +1619,36 @@ function DiagnosticsLogsPanel({
   const [mutableLogs, setMutableLogs] = useState(logs);
   const [searchFilter, setSearchFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [includeArchived, setIncludeArchived] = useState(false);
   const [exportDate, setExportDate] = useState<string>("");
   const [isExporting, setIsExporting] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isReloading, setIsReloading] = useState(false);
 
   useEffect(() => {
     setMutableLogs(logs);
   }, [logs]);
+
+  async function reloadLogs(archived: boolean) {
+    setIsReloading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("limit", "200");
+      if (archived) params.set("include_archived", "true");
+      const response = await fetch(`/api/admin/diagnostics/logs?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to reload diagnostics logs");
+      const payload = await response.json();
+      const data = payload?.data ?? payload;
+      setMutableLogs(Array.isArray(data?.logs) ? data.logs : []);
+    } finally {
+      setIsReloading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!includeArchived) return;
+    void reloadLogs(true);
+  }, [includeArchived]);
 
   const logTypeColors: Record<string, string> = {
     error: "bg-red-500/20 text-red-300 border-red-500/30",
@@ -1680,25 +1703,30 @@ function DiagnosticsLogsPanel({
     }
   }
 
-  async function handleArchiveFiltered() {
+  async function handleArchiveFiltered(archived: boolean) {
     setIsArchiving(true);
     try {
       const response = await fetch("/api/admin/diagnostics/logs/archive", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          archived: true,
+          archived,
           log_type: typeFilter === "all" ? null : typeFilter,
           search: searchFilter.trim() || null,
+          include_archived: true,
           max_rows: 1000,
         }),
       });
-      if (!response.ok) throw new Error("Failed to archive filtered logs");
+      if (!response.ok) throw new Error("Failed to update archive for filtered logs");
       const payload = await response.json();
       const data = payload?.data ?? payload;
       const archivedIds = new Set<string>(Array.isArray(data?.archived_ids) ? data.archived_ids : []);
       if (archivedIds.size) {
-        setMutableLogs((prev) => prev.filter((item) => !item.id || !archivedIds.has(item.id)));
+        if (archived) {
+          setMutableLogs((prev) => prev.filter((item) => !item.id || !archivedIds.has(item.id)));
+        } else {
+          await reloadLogs(includeArchived);
+        }
       }
     } finally {
       setIsArchiving(false);
@@ -1733,12 +1761,35 @@ function DiagnosticsLogsPanel({
         <button
           type="button"
           disabled={isArchiving || filteredLogs.length === 0}
-          onClick={() => void handleArchiveFiltered()}
+          onClick={() => void handleArchiveFiltered(true)}
           className="inline-flex items-center gap-2 rounded-xl border border-amber-600/40 bg-amber-600/10 px-3 py-2 text-xs font-medium text-amber-200 transition hover:border-amber-500/60 disabled:opacity-60"
         >
           <Archive className="h-3.5 w-3.5" />
           {isArchiving ? "Archiving..." : `Archive filtered (${filteredLogs.length})`}
         </button>
+        <button
+          type="button"
+          disabled={isArchiving || filteredLogs.length === 0}
+          onClick={() => void handleArchiveFiltered(false)}
+          className="inline-flex items-center gap-2 rounded-xl border border-emerald-600/40 bg-emerald-600/10 px-3 py-2 text-xs font-medium text-emerald-200 transition hover:border-emerald-500/60 disabled:opacity-60"
+        >
+          <Archive className="h-3.5 w-3.5" />
+          {isArchiving ? "Updating..." : "Unarchive filtered"}
+        </button>
+        <label className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(event) => {
+              const checked = event.target.checked;
+              setIncludeArchived(checked);
+              if (!checked) setMutableLogs(logs);
+            }}
+            className="h-3.5 w-3.5"
+          />
+          Include archived
+        </label>
+        {isReloading ? <span className="text-xs text-slate-500">Reloading logs...</span> : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -1856,12 +1907,69 @@ function SloPanel({ sloMetrics }: { sloMetrics: SloMetrics | null }) {
   );
 }
 
-function DataIntegrityPanel({ report }: { report: DataIntegrityReport | null }) {
+function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport | null; onRefresh?: () => void }) {
+  const [isFixing, setIsFixing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
   if (!report) {
     return <EmptyState message="Data integrity report is not available yet." />;
   }
 
   const missing = report.missing_controls ?? [];
+
+  async function handleAutoFix() {
+    setIsFixing(true);
+    try {
+      const response = await fetch("/api/ops/system/data-integrity/auto-fix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dry_run: false }),
+      });
+      if (!response.ok) throw new Error("Failed to auto-fix integrity controls");
+      if (onRefresh) onRefresh();
+    } finally {
+      setIsFixing(false);
+    }
+  }
+
+  async function handleExportIntegrity(format: "csv" | "json") {
+    setIsExporting(true);
+    try {
+      const response = await fetch(`/api/ops/system/data-integrity/export?format=${format}`);
+      if (!response.ok) throw new Error("Failed to export integrity report");
+      const payload = await response.json();
+      const data = payload?.data ?? payload;
+
+      if (format === "csv") {
+        const csvText = String(data?.csv || "");
+        const fileName = String(data?.filename || "data_integrity.csv");
+        const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      const jsonText = JSON.stringify(data?.report ?? {}, null, 2);
+      const fileName = String(data?.filename || "data_integrity.json");
+      const blob = new Blob([jsonText], { type: "application/json;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   return (
     <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
@@ -1880,6 +1988,36 @@ function DataIntegrityPanel({ report }: { report: DataIntegrityReport | null }) 
         <MetricBlock label="Missing" value={formatCompact(missing.length)} helper="Need seeding/config" tone={missing.length ? "rose" : "emerald"} />
         <MetricBlock label="Roles ready" value={formatCompact(Object.values(report.role_readiness || {}).filter(Boolean).length)} helper="Out of 4 roles" tone="violet" />
         <MetricBlock label="Diagnostics rows" value={formatCompact(report.counts?.diagnostic_events ?? 0)} helper="Persistent logs" tone="amber" />
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void handleAutoFix()}
+          disabled={isFixing || missing.length === 0}
+          className="inline-flex items-center gap-2 rounded-xl border border-emerald-600/40 bg-emerald-600/10 px-3 py-2 text-xs font-medium text-emerald-200 transition hover:border-emerald-500/60 disabled:opacity-60"
+        >
+          <RefreshCcw className="h-3.5 w-3.5" />
+          {isFixing ? "Auto-fixing..." : `Auto-fix missing (${missing.length})`}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleExportIntegrity("csv")}
+          disabled={isExporting}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-cyan-500/50 hover:text-white disabled:opacity-60"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export integrity CSV
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleExportIntegrity("json")}
+          disabled={isExporting}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-cyan-500/50 hover:text-white disabled:opacity-60"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export integrity JSON
+        </button>
       </div>
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-700">
