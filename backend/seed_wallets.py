@@ -433,7 +433,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
             funding_transactions.append(
                 Transaction(
-                    id=_make_uuid("tx_fund", hash(username) % 1000),
+                    id=uuid.uuid4(),
                     tx_hash=f"0xfund{uuid.uuid4().hex[:58]}"[:66],
                     from_address="0x0000000000000000000000000000000000000000",
                     to_address=wallet_address,
@@ -706,6 +706,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             chains = ["ethereum", "polygon", "arbitrum", "optimism", "base", "bsc"]
             pipeline_metrics.append(
                 PipelineMetric(
+                    id=index + 10000,
                     chain=_pick(chains, index),
                     block_number=18_000_000 + index * 11,
                     throughput_tps=Decimal(str(round(42.5 + (index % 12) * 3.1, 2))),
@@ -725,7 +726,8 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
                     db.add(item)
                     db.commit()
                     count += 1
-                except Exception:
+                except Exception as e:
+                    print(f"Failed to add item: {e}")
                     db.rollback()
             print(f"✓ Added {count} {description}")
 
