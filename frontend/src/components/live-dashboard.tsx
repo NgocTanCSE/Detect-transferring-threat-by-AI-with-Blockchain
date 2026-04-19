@@ -633,6 +633,39 @@ export default function LiveDashboard() {
     void loadLiveData(activeRole, "auto");
   }, [activeRole]);
 
+  // Refresh when switching sidebar function so each view is up to date without manual click.
+  useEffect(() => {
+    void loadLiveData(activeRole, "manual");
+  }, [activeRole, activeFeatureIndex]);
+
+  // Keep live data fresh while user stays on the page.
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void loadLiveData(activeRole, "auto");
+    }, 20000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [activeRole]);
+
+  // Refresh after returning to tab/window to avoid stale values.
+  useEffect(() => {
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === "visible") {
+        void loadLiveData(activeRole, "manual");
+      }
+    };
+
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+
+    return () => {
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+    };
+  }, [activeRole]);
+
   const flowChartData = useMemo(
     () =>
       flowStats.map((entry) => ({
