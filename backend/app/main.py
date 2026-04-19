@@ -225,32 +225,58 @@ def _build_dashboard_assistant_context(
 
     now = datetime.utcnow()
     seven_days_ago = now - timedelta(days=7)
-    one_day_ago = now - timedelta(days=1)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
+    # Build overview first (these metrics should stay available even if other queries fail).
     total_wallets = database_session.query(Wallet).count()
     total_alerts = database_session.query(Alert).count()
     critical_alerts = database_session.query(Alert).filter(Alert.severity == "CRITICAL").count()
-    alerts_today = database_session.query(Alert).filter(Alert.detected_at >= one_day_ago).count()
+    alerts_today = database_session.query(Alert).filter(Alert.detected_at >= today_start).count()
     total_blocked = database_session.query(BlockedTransfer).count()
 
-    flow_rows = (
-        database_session.query(
-            func.date(Transaction.timestamp).label("date"),
-            func.sum(Transaction.value).label("gross_value"),
-            func.count(Transaction.id).label("tx_count"),
+    flow_7d: List[Dict[str, Any]] = []
+    try:
+        flow_rows = (
+            database_session.query(
+                func.date(Transaction.timestamp).label("date"),
+                func.sum(Transaction.value).label("gross_value"),
+                func.count(Transaction.id).label("tx_count"),
+            )
+            .filter(Transaction.timestamp >= seven_days_ago)
+            .group_by(func.date(Transaction.timestamp))
+            .order_by(func.date(Transaction.timestamp))
+            .all()
         )
-        .filter(Transaction.timestamp >= seven_days_ago)
-        .group_by(func.date(Transaction.timestamp))
-        .order_by(func.date(Transaction.timestamp))
-        .all()
-    )
+        flow_7d = [
+            {
+                "date": str(item.date) if item.date else None,
+                "gross_value_eth": _eth_from_wei(int(item.gross_value or 0)),
+                "tx_count": int(item.tx_count or 0),
+            }
+            for item in flow_rows
+        ]
+    except Exception as flow_error:
+        logger.warning(f"Assistant flow_7d query failed: {flow_error}")
 
-    top_risky_wallets = (
-        database_session.query(Wallet)
-        .order_by(Wallet.risk_score.desc())
-        .limit(5)
-        .all()
-    )
+    top_risky_wallets_payload: List[Dict[str, Any]] = []
+    try:
+        top_risky_wallets = (
+            database_session.query(Wallet)
+            .order_by(Wallet.risk_score.desc())
+            .limit(5)
+            .all()
+        )
+        top_risky_wallets_payload = [
+            {
+                "address": wallet.address,
+                "label": wallet.label,
+                "risk_score": float(wallet.risk_score or 0),
+                "account_status": wallet.account_status,
+            }
+            for wallet in top_risky_wallets
+        ]
+    except Exception as risky_error:
+        logger.warning(f"Assistant top_risky_wallets query failed: {risky_error}")
 
     context: Dict[str, Any] = {
         "role": role,
@@ -263,50 +289,47 @@ def _build_dashboard_assistant_context(
             "alerts_today": alerts_today,
             "total_blocked": total_blocked,
         },
-        "flow_7d": [
-            {
-                "date": str(item.date) if item.date else None,
-                "gross_value_eth": _eth_from_wei(int(item.gross_value or 0)),
-                "tx_count": int(item.tx_count or 0),
-            }
-            for item in flow_rows
-        ],
-        "top_risky_wallets": [
-            {
-                "address": wallet.address,
-                "label": wallet.label,
-                "risk_score": float(wallet.risk_score or 0),
-                "account_status": wallet.account_status,
-            }
-            for wallet in top_risky_wallets
-        ],
+        "flow_7d": flow_7d,
+        "top_risky_wallets": top_risky_wallets_payload,
     }
 
     normalized_wallet = (wallet_address or "").lower().strip()
     if normalized_wallet:
-        wallet = database_session.query(Wallet).filter(Wallet.address == normalized_wallet).first()
-        wallet_tx_count = (
-            database_session.query(func.count(Transaction.id))
-            .filter((Transaction.from_address == normalized_wallet) | (Transaction.to_address == normalized_wallet))
-            .scalar()
-            or 0
-        )
-        wallet_alert_count = (
-            database_session.query(func.count(Alert.id))
-            .filter(Alert.wallet_address == normalized_wallet)
-            .scalar()
-            or 0
-        )
+        try:
+            wallet = database_session.query(Wallet).filter(Wallet.address == normalized_wallet).first()
+            wallet_tx_count = (
+                database_session.query(func.count(Transaction.id))
+                .filter((Transaction.from_address == normalized_wallet) | (Transaction.to_address == normalized_wallet))
+                .scalar()
+                or 0
+            )
+            wallet_alert_count = (
+                database_session.query(func.count(Alert.id))
+                .filter(Alert.wallet_address == normalized_wallet)
+                .scalar()
+                or 0
+            )
 
-        context["wallet_focus"] = {
-            "address": normalized_wallet,
-            "exists": wallet is not None,
-            "risk_score": float(wallet.risk_score or 0.0) if wallet else 0.0,
-            "account_status": wallet.account_status if wallet else None,
-            "label": wallet.label if wallet else None,
-            "transaction_count": int(wallet_tx_count),
-            "alert_count": int(wallet_alert_count),
-        }
+            context["wallet_focus"] = {
+                "address": normalized_wallet,
+                "exists": wallet is not None,
+                "risk_score": float(wallet.risk_score or 0.0) if wallet else 0.0,
+                "account_status": wallet.account_status if wallet else None,
+                "label": wallet.label if wallet else None,
+                "transaction_count": int(wallet_tx_count),
+                "alert_count": int(wallet_alert_count),
+            }
+        except Exception as wallet_focus_error:
+            logger.warning(f"Assistant wallet_focus query failed: {wallet_focus_error}")
+            context["wallet_focus"] = {
+                "address": normalized_wallet,
+                "exists": False,
+                "risk_score": 0.0,
+                "account_status": None,
+                "label": None,
+                "transaction_count": 0,
+                "alert_count": 0,
+            }
 
     return context
 
@@ -342,7 +365,13 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         log_diagnostic(
             DiagnosticLogType.API_CALL,
             "Assistant context built successfully",
-            details={"role": role, "wallet_address": wallet_address, "scope": screen_scope},
+            details={
+                "role": role,
+                "wallet_address": wallet_address,
+                "scope": screen_scope,
+                "overview": context.get("overview", {}),
+                "flow_points": len(context.get("flow_7d", [])),
+            },
             status_code=200,
             endpoint="/assistant/chat"
         )
