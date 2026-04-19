@@ -357,18 +357,6 @@ function formatDateTime(value: string | null | undefined): string {
   return new Date(value).toLocaleString();
 }
 
-function parseQueryInt(raw: string | null, fallback: number, min = 1): number {
-  if (!raw) return fallback;
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed < min) return fallback;
-  return parsed;
-}
-
-function parseQueryEnum<T extends string>(raw: string | null, allowed: readonly T[], fallback: T): T {
-  if (!raw) return fallback;
-  return allowed.includes(raw as T) ? (raw as T) : fallback;
-}
-
 function countBy<T>(items: T[], resolver: (item: T) => string): Record<string, number> {
   return items.reduce<Record<string, number>>((accumulator, item) => {
     const key = resolver(item);
@@ -723,42 +711,6 @@ export default function LiveDashboard() {
     return `?${query.toString()}`;
   }, [activeFeatureIndex, role.key]);
 
-  const alertUrlState = useMemo(
-    () => ({
-      search: searchParams.get("aq") ?? "",
-      severity: parseQueryEnum(searchParams.get("asev"), ["all", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const, "all"),
-      sortBy: parseQueryEnum(searchParams.get("asort"), ["time", "severity", "wallet", "type"] as const, "time"),
-      sortDir: parseQueryEnum(searchParams.get("adir"), ["asc", "desc"] as const, "desc"),
-      page: parseQueryInt(searchParams.get("apage"), 1),
-      pageSize: parseQueryInt(searchParams.get("asize"), 8),
-    }),
-    [searchParams]
-  );
-
-  const caseUrlState = useMemo(
-    () => ({
-      search: searchParams.get("cq") ?? "",
-      status: parseQueryEnum(searchParams.get("cstatus"), ["all", "PENDING", "VERIFIED", "FRAUD", "IGNORED"] as const, "all"),
-      sortBy: parseQueryEnum(searchParams.get("csort"), ["risk", "status", "tx"] as const, "risk"),
-      sortDir: parseQueryEnum(searchParams.get("cdir"), ["asc", "desc"] as const, "desc"),
-      page: parseQueryInt(searchParams.get("cpage"), 1),
-      pageSize: parseQueryInt(searchParams.get("csize"), 8),
-    }),
-    [searchParams]
-  );
-
-  const policyUrlState = useMemo(
-    () => ({
-      search: searchParams.get("pq") ?? "",
-      activeFilter: parseQueryEnum(searchParams.get("pactive"), ["all", "active", "inactive"] as const, "all"),
-      sortBy: parseQueryEnum(searchParams.get("psort"), ["rule", "priority", "threshold", "active"] as const, "priority"),
-      sortDir: parseQueryEnum(searchParams.get("pdir"), ["asc", "desc"] as const, "asc"),
-      page: parseQueryInt(searchParams.get("ppage"), 1),
-      pageSize: parseQueryInt(searchParams.get("psize"), 8),
-    }),
-    [searchParams]
-  );
-
   const selectedPanel = useMemo(() => {
     if (role.key === "system_admin") {
       switch (activeFeatureIndex) {
@@ -848,13 +800,13 @@ export default function LiveDashboard() {
           return {
             title: "Alert queue",
             description: "Recent alerts and severity distribution from the backend.",
-            content: <AlertQueuePanel alerts={recentAlerts} totalCount={totalAlertCount} alertsSummary={alertsSummary} contextQuery={contextQuery} urlState={alertUrlState} onUrlStateChange={updateQuery} />,
+            content: <AlertQueuePanel alerts={recentAlerts} totalCount={totalAlertCount} alertsSummary={alertsSummary} contextQuery={contextQuery} />,
           };
         case 1:
           return {
             title: "Case queue",
             description: "High-risk cases that need analyst attention.",
-            content: <CaseQueuePanel cases={caseItems} totalCount={totalCaseCount} caseSummary={caseSummary} contextQuery={contextQuery} urlState={caseUrlState} onUrlStateChange={updateQuery} />,
+            content: <CaseQueuePanel cases={caseItems} totalCount={totalCaseCount} caseSummary={caseSummary} contextQuery={contextQuery} />,
           };
         case 2:
           return { title: "Case actions", description: "Live case workflow state from the analyst queue.", content: <CaseActionPanel caseSummary={caseSummary} /> };
@@ -876,7 +828,7 @@ export default function LiveDashboard() {
         return {
           title: "Policy state",
           description: "Live policy rules and their enforcement posture.",
-          content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} contextQuery={contextQuery} urlState={policyUrlState} onUrlStateChange={updateQuery} />,
+          content: <PolicyRulesPanel policies={policyRules} reportingSummary={reportingSummary} contextQuery={contextQuery} />,
         };
       case 1:
         return { title: "Audit state", description: "Evidence coverage and missing audit actions.", content: <AuditPanel auditCompleteness={auditCompleteness} auditGaps={auditGaps} /> };
@@ -914,10 +866,6 @@ export default function LiveDashboard() {
     reportingSummary,
     role.key,
     contextQuery,
-    alertUrlState,
-    caseUrlState,
-    policyUrlState,
-    updateQuery,
     sloMetrics,
   ]);
 
@@ -1883,34 +1831,21 @@ function AlertQueuePanel({
   totalCount,
   alertsSummary,
   contextQuery,
-  urlState,
-  onUrlStateChange,
 }: {
   alerts: Alert[];
   totalCount: number;
   alertsSummary: AlertsSummary | null;
   contextQuery: string;
-  urlState: { search: string; severity: string; sortBy: "time" | "severity" | "wallet" | "type"; sortDir: "asc" | "desc"; page: number; pageSize: number };
-  onUrlStateChange: (patch: Record<string, string | number | null | undefined>) => void;
 }) {
-  const [searchTerm, setSearchTerm] = useState(urlState.search);
-  const [severityFilter, setSeverityFilter] = useState<string>(urlState.severity);
-  const [sortBy, setSortBy] = useState<"time" | "severity" | "wallet" | "type">(urlState.sortBy);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">(urlState.sortDir);
-  const [page, setPage] = useState(urlState.page);
-  const [pageSize, setPageSize] = useState(urlState.pageSize);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"time" | "severity" | "wallet" | "type">("time");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
 
   const pageSizeOptions = [8, 20, 50];
   const severityRank: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-
-  useEffect(() => {
-    if (searchTerm !== urlState.search) setSearchTerm(urlState.search);
-    if (severityFilter !== urlState.severity) setSeverityFilter(urlState.severity);
-    if (sortBy !== urlState.sortBy) setSortBy(urlState.sortBy);
-    if (sortDir !== urlState.sortDir) setSortDir(urlState.sortDir);
-    if (page !== urlState.page) setPage(urlState.page);
-    if (pageSize !== urlState.pageSize) setPageSize(urlState.pageSize);
-  }, [urlState, searchTerm, severityFilter, sortBy, sortDir, page, pageSize]);
 
   const filteredAlerts = useMemo(() => {
     return alerts.filter((alert) => {
@@ -1945,17 +1880,6 @@ function AlertQueuePanel({
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
-
-  useEffect(() => {
-    onUrlStateChange({
-      aq: searchTerm || null,
-      asev: severityFilter === "all" ? null : severityFilter,
-      asort: sortBy === "time" ? null : sortBy,
-      adir: sortDir === "desc" ? null : sortDir,
-      apage: page === 1 ? null : page,
-      asize: pageSize === 8 ? null : pageSize,
-    });
-  }, [onUrlStateChange, page, pageSize, searchTerm, severityFilter, sortBy, sortDir]);
 
   function onSort(column: "time" | "severity" | "wallet" | "type") {
     if (sortBy === column) {
@@ -2096,32 +2020,19 @@ function CaseQueuePanel({
   totalCount,
   caseSummary,
   contextQuery,
-  urlState,
-  onUrlStateChange,
 }: {
   cases: CaseItem[];
   totalCount: number;
   caseSummary: CaseSummary | null;
   contextQuery: string;
-  urlState: { search: string; status: string; sortBy: "risk" | "status" | "tx"; sortDir: "asc" | "desc"; page: number; pageSize: number };
-  onUrlStateChange: (patch: Record<string, string | number | null | undefined>) => void;
 }) {
-  const [searchTerm, setSearchTerm] = useState(urlState.search);
-  const [statusFilter, setStatusFilter] = useState(urlState.status);
-  const [sortBy, setSortBy] = useState<"risk" | "status" | "tx">(urlState.sortBy);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">(urlState.sortDir);
-  const [page, setPage] = useState(urlState.page);
-  const [pageSize, setPageSize] = useState(urlState.pageSize);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"risk" | "status" | "tx">("risk");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
   const pageSizeOptions = [8, 20, 50];
-
-  useEffect(() => {
-    if (searchTerm !== urlState.search) setSearchTerm(urlState.search);
-    if (statusFilter !== urlState.status) setStatusFilter(urlState.status);
-    if (sortBy !== urlState.sortBy) setSortBy(urlState.sortBy);
-    if (sortDir !== urlState.sortDir) setSortDir(urlState.sortDir);
-    if (page !== urlState.page) setPage(urlState.page);
-    if (pageSize !== urlState.pageSize) setPageSize(urlState.pageSize);
-  }, [urlState, searchTerm, statusFilter, sortBy, sortDir, page, pageSize]);
 
   const filteredCases = useMemo(() => {
     return cases.filter((item) => {
@@ -2156,17 +2067,6 @@ function CaseQueuePanel({
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
-
-  useEffect(() => {
-    onUrlStateChange({
-      cq: searchTerm || null,
-      cstatus: statusFilter === "all" ? null : statusFilter,
-      csort: sortBy === "risk" ? null : sortBy,
-      cdir: sortDir === "desc" ? null : sortDir,
-      cpage: page === 1 ? null : page,
-      csize: pageSize === 8 ? null : pageSize,
-    });
-  }, [onUrlStateChange, page, pageSize, searchTerm, sortBy, sortDir, statusFilter]);
 
   function onSort(column: "risk" | "status" | "tx") {
     if (sortBy === column) {
@@ -2487,31 +2387,18 @@ function PolicyRulesPanel({
   policies,
   reportingSummary,
   contextQuery,
-  urlState,
-  onUrlStateChange,
 }: {
   policies: PolicyRuleItem[];
   reportingSummary: ReportingSummary | null;
   contextQuery: string;
-  urlState: { search: string; activeFilter: string; sortBy: "rule" | "priority" | "threshold" | "active"; sortDir: "asc" | "desc"; page: number; pageSize: number };
-  onUrlStateChange: (patch: Record<string, string | number | null | undefined>) => void;
 }) {
-  const [searchTerm, setSearchTerm] = useState(urlState.search);
-  const [activeFilter, setActiveFilter] = useState(urlState.activeFilter);
-  const [sortBy, setSortBy] = useState<"rule" | "priority" | "threshold" | "active">(urlState.sortBy);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">(urlState.sortDir);
-  const [page, setPage] = useState(urlState.page);
-  const [pageSize, setPageSize] = useState(urlState.pageSize);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"rule" | "priority" | "threshold" | "active">("priority");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
   const pageSizeOptions = [8, 20, 50];
-
-  useEffect(() => {
-    if (searchTerm !== urlState.search) setSearchTerm(urlState.search);
-    if (activeFilter !== urlState.activeFilter) setActiveFilter(urlState.activeFilter);
-    if (sortBy !== urlState.sortBy) setSortBy(urlState.sortBy);
-    if (sortDir !== urlState.sortDir) setSortDir(urlState.sortDir);
-    if (page !== urlState.page) setPage(urlState.page);
-    if (pageSize !== urlState.pageSize) setPageSize(urlState.pageSize);
-  }, [urlState, searchTerm, activeFilter, sortBy, sortDir, page, pageSize]);
 
   const filteredPolicies = useMemo(() => {
     return policies.filter((policy) => {
@@ -2545,17 +2432,6 @@ function PolicyRulesPanel({
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
-
-  useEffect(() => {
-    onUrlStateChange({
-      pq: searchTerm || null,
-      pactive: activeFilter === "all" ? null : activeFilter,
-      psort: sortBy === "priority" ? null : sortBy,
-      pdir: sortDir === "asc" ? null : sortDir,
-      ppage: page === 1 ? null : page,
-      psize: pageSize === 8 ? null : pageSize,
-    });
-  }, [activeFilter, onUrlStateChange, page, pageSize, searchTerm, sortBy, sortDir]);
 
   function onSort(column: "rule" | "priority" | "threshold" | "active") {
     if (sortBy === column) {
