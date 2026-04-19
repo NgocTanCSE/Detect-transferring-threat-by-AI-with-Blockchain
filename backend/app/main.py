@@ -202,22 +202,43 @@ def _build_dashboard_assistant_context(
 
 @app.post("/assistant/chat", tags=["Assistant"])
 def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    message = str(payload.get("message", "")).strip()
+    role = str(payload.get("role", "operator")).strip() or "operator"
+    wallet_address = str(payload.get("wallet_address", "")).strip() or None
+    screen_scope = str(payload.get("screen_scope", "dashboard")).strip() or "dashboard"
+    conversation_history = payload.get("conversation_history") or []
+
+    if not message:
+        raise HTTPException(status_code=400, detail="Missing message")
+
+    context = {}
+    knowledge_snippets = []
+    analyst = HFSecurityAnalyst()
+    
     try:
-        message = str(payload.get("message", "")).strip()
-        role = str(payload.get("role", "operator")).strip() or "operator"
-        wallet_address = str(payload.get("wallet_address", "")).strip() or None
-        screen_scope = str(payload.get("screen_scope", "dashboard")).strip() or "dashboard"
-        conversation_history = payload.get("conversation_history") or []
-
-        if not message:
-            raise HTTPException(status_code=400, detail="Missing message")
-
         context = _build_dashboard_assistant_context(
             database_session,
             role=role,
             wallet_address=wallet_address,
             screen_scope=screen_scope,
         )
+    except Exception as e:
+        logger.warning(f"Failed to build assistant context: {e}")
+        context = {
+            "role": role,
+            "screen_scope": screen_scope,
+            "overview": {
+                "total_wallets": 0,
+                "total_alerts": 0,
+                "critical_alerts": 0,
+                "alerts_today": 0,
+                "total_blocked": 0,
+            },
+            "flow_7d": [],
+            "top_risky_wallets": [],
+        }
+
+    try:
         knowledge_snippets = retrieve_relevant_snippets(
             message,
             role=role,
@@ -225,43 +246,48 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             scope=screen_scope,
             limit=4,
         )
-        analyst = HFSecurityAnalyst()
+    except Exception as e:
+        logger.warning(f"Failed to retrieve knowledge snippets: {e}")
+        knowledge_snippets = []
+
+    try:
         answer = analyst.answer_dashboard_question(
             question=message,
             context=context,
             knowledge_snippets=knowledge_snippets,
             conversation_history=conversation_history,
         )
-
-        sources = [
-            "overview: wallets/alerts/blocked_transfers",
-            "flow_7d: transactions",
-            "top_risky_wallets: wallets",
-        ]
-        if wallet_address:
-            sources.append("wallet_focus: wallets/transactions/alerts")
-
-        return {
-            "answer": answer,
-            "context": {
-                "role": role,
-                "screen_scope": screen_scope,
-                "overview": context.get("overview", {}),
-                "top_risky_wallets": context.get("top_risky_wallets", []),
-                "wallet_focus": context.get("wallet_focus"),
-            },
-            "sources": sources,
-            "knowledge_sources": [
-                {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}
-                for snippet in knowledge_snippets
-            ],
-            "model_enabled": analyst.enabled,
-        }
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.exception(f"Assistant chat endpoint failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to process assistant request: {str(e)}")
+        logger.exception(f"Assistant answer generation failed: {e}")
+        answer = (
+            "Xin lỗi, trợ lý AI gặp lỗi khi xử lý câu hỏi. "
+            "Vui lòng kiểm tra HF_TOKEN trong Space Secrets hoặc thử lại sau."
+        )
+
+    sources = [
+        "overview: wallets/alerts/blocked_transfers",
+        "flow_7d: transactions",
+        "top_risky_wallets: wallets",
+    ]
+    if wallet_address:
+        sources.append("wallet_focus: wallets/transactions/alerts")
+
+    return {
+        "answer": answer,
+        "context": {
+            "role": role,
+            "screen_scope": screen_scope,
+            "overview": context.get("overview", {}),
+            "top_risky_wallets": context.get("top_risky_wallets", []),
+            "wallet_focus": context.get("wallet_focus"),
+        },
+        "sources": sources,
+        "knowledge_sources": [
+            {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}
+            for snippet in knowledge_snippets
+        ],
+        "model_enabled": analyst.enabled,
+    }
 
 
 @app.get("/diagnostics/alchemy/{wallet_address}", tags=["Diagnostics"])

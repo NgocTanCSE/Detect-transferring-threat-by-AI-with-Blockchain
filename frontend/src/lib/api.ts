@@ -383,20 +383,38 @@ export async function askDashboardAssistant(
   walletAddress?: string,
   conversationHistory?: Array<{ role: string; content: string }>
 ): Promise<AssistantChatResponse> {
-  const res = await fetch(`${API_BASE}/assistant/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message,
-      role,
-      wallet_address: walletAddress || null,
-      conversation_history: conversationHistory || [],
-    }),
-  });
+  try {
+    const res = await fetch(`${API_BASE}/assistant/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        role,
+        wallet_address: walletAddress || null,
+        conversation_history: conversationHistory || [],
+      }),
+    });
 
-  if (!res.ok) {
-    throw new Error("Failed to get assistant response");
+    if (!res.ok) {
+      console.warn(`Assistant chat response not ok: ${res.status}`);
+      return {
+        answer: `Không thể lấy câu trả lời từ trợ lý (lỗi ${res.status}). Vui lòng thử lại.`,
+        context: { role, screen_scope: "dashboard", overview: {}, top_risky_wallets: [] },
+        sources: [],
+        knowledge_sources: [],
+        model_enabled: false,
+      };
+    }
+
+    return res.json();
+  } catch (error) {
+    console.error("Assistant chat error:", error);
+    return {
+      answer: "Không thể kết nối với trợ lý. Vui lòng kiểm tra kết nối mạng và thử lại.",
+      context: { role, screen_scope: "dashboard", overview: {}, top_risky_wallets: [] },
+      sources: [],
+      knowledge_sources: [],
+      model_enabled: false,
+    };
   }
-
-  return res.json();
 }
