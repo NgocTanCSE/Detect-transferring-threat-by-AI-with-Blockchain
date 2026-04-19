@@ -39,6 +39,41 @@ type AssistantContext = {
   screen_scope?: string;
 };
 
+function dedupeStrings(values: string[] | undefined): string[] {
+  if (!values?.length) return [];
+  const seen = new Set<string>();
+  const output: string[] = [];
+  values.forEach((value) => {
+    const key = value.trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    output.push(key);
+  });
+  return output;
+}
+
+function dedupeKnowledgeSources(
+  values: Array<{ source: string; heading: string; score: number }> | undefined
+): Array<{ source: string; heading: string; score: number }> {
+  if (!values?.length) return [];
+  const seen = new Set<string>();
+  const output: Array<{ source: string; heading: string; score: number }> = [];
+  values.forEach((item) => {
+    const key = `${item.source.trim()}::${item.heading.trim()}`;
+    if (!item.source?.trim() || seen.has(key)) return;
+    seen.add(key);
+    output.push(item);
+  });
+  return output;
+}
+
+function normalizeAssistantText(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 type DashboardAssistantPanelProps = {
   roleKey: string;
   roleLabel: string;
@@ -165,9 +200,9 @@ export default function DashboardAssistantPanel({
         ...previous,
         {
           role: "assistant",
-          content: response.answer,
-          sources: response.sources,
-          knowledgeSources: response.knowledge_sources,
+          content: normalizeAssistantText(response.answer),
+          sources: dedupeStrings(response.sources),
+          knowledgeSources: dedupeKnowledgeSources(response.knowledge_sources),
         },
       ]);
     } catch (error) {
@@ -254,7 +289,7 @@ export default function DashboardAssistantPanel({
           <div
             key={`${message.role}-${index}`}
             className={[
-              "rounded-xl px-3 py-3 text-sm leading-relaxed",
+              "rounded-xl px-3 py-3 text-sm leading-relaxed whitespace-pre-wrap",
               message.role === "assistant"
                 ? "border border-cyan-500/20 bg-cyan-500/10 text-cyan-50"
                 : "border border-slate-700 bg-slate-800 text-slate-200",
@@ -268,7 +303,7 @@ export default function DashboardAssistantPanel({
             ) : null}
             {message.role === "assistant" && message.knowledgeSources && message.knowledgeSources.length ? (
               <p className="mt-2 text-[11px] text-slate-400">
-                Docs: {message.knowledgeSources.map((item) => item.source).join(" | ")}
+                Docs: {dedupeStrings(message.knowledgeSources.map((item) => item.source)).join(" | ")}
               </p>
             ) : null}
           </div>
