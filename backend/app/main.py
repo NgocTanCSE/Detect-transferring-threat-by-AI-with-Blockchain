@@ -16,6 +16,7 @@ from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment
 from blockchain_client import fetch_wallet_history
 from app.core.config import ALCHEMY_API_KEY, ALCHEMY_RPC_URL
 from app.services.ai_engine import MultiAgentDetectionEngine
+from app.services.hf_security_analyst import HFSecurityAnalyst
 
 
 def _get_or_create_wallet(database_session: Session, address: str) -> Wallet:
@@ -100,6 +101,91 @@ app.include_router(phase4_reporting_router)
 def health_check() -> Dict[str, str]:
     """API health check endpoint."""
     return {"status": "operational", "service": "Blockchain Risk Assessment API v3.0"}
+
+
+def _build_dashboard_assistant_context(database_session: Session, role: str) -> Dict[str, Any]:
+    from datetime import timedelta
+
+    now = datetime.utcnow()
+    seven_days_ago = now - timedelta(days=7)
+    one_day_ago = now - timedelta(days=1)
+
+    total_wallets = database_session.query(Wallet).count()
+    total_alerts = database_session.query(Alert).count()
+    critical_alerts = database_session.query(Alert).filter(Alert.severity == "CRITICAL").count()
+    alerts_today = database_session.query(Alert).filter(Alert.detected_at >= one_day_ago).count()
+    total_blocked = database_session.query(BlockedTransfer).count()
+
+    flow_rows = (
+        database_session.query(
+            func.date(Transaction.timestamp).label("date"),
+            func.sum(Transaction.value).label("gross_value"),
+            func.count(Transaction.id).label("tx_count"),
+        )
+        .filter(Transaction.timestamp >= seven_days_ago)
+        .group_by(func.date(Transaction.timestamp))
+        .order_by(func.date(Transaction.timestamp))
+        .all()
+    )
+
+    top_risky_wallets = (
+        database_session.query(Wallet)
+        .order_by(Wallet.risk_score.desc())
+        .limit(5)
+        .all()
+    )
+
+    return {
+        "role": role,
+        "generated_at": now.isoformat(),
+        "overview": {
+            "total_wallets": total_wallets,
+            "total_alerts": total_alerts,
+            "critical_alerts": critical_alerts,
+            "alerts_today": alerts_today,
+            "total_blocked": total_blocked,
+        },
+        "flow_7d": [
+            {
+                "date": str(item.date) if item.date else None,
+                "gross_value_eth": _eth_from_wei(int(item.gross_value or 0)),
+                "tx_count": int(item.tx_count or 0),
+            }
+            for item in flow_rows
+        ],
+        "top_risky_wallets": [
+            {
+                "address": wallet.address,
+                "label": wallet.label,
+                "risk_score": float(wallet.risk_score or 0),
+                "account_status": wallet.account_status,
+            }
+            for wallet in top_risky_wallets
+        ],
+    }
+
+
+@app.post("/assistant/chat", tags=["Assistant"])
+def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    message = str(payload.get("message", "")).strip()
+    role = str(payload.get("role", "operator")).strip() or "operator"
+
+    if not message:
+        raise HTTPException(status_code=400, detail="Missing message")
+
+    context = _build_dashboard_assistant_context(database_session, role=role)
+    analyst = HFSecurityAnalyst()
+    answer = analyst.answer_dashboard_question(question=message, context=context)
+
+    return {
+        "answer": answer,
+        "context": {
+            "role": role,
+            "overview": context.get("overview", {}),
+            "top_risky_wallets": context.get("top_risky_wallets", []),
+        },
+        "model_enabled": analyst.enabled,
+    }
 
 
 @app.get("/diagnostics/alchemy/{wallet_address}", tags=["Diagnostics"])

@@ -128,6 +128,27 @@ export interface FlowStats {
   outflow: number;
 }
 
+export interface AssistantChatResponse {
+  answer: string;
+  context: {
+    role: string;
+    overview: {
+      total_wallets: number;
+      total_alerts: number;
+      critical_alerts: number;
+      alerts_today: number;
+      total_blocked: number;
+    };
+    top_risky_wallets: Array<{
+      address: string;
+      label: string | null;
+      risk_score: number;
+      account_status: string;
+    }>;
+  };
+  model_enabled: boolean;
+}
+
 // API Functions
 export async function fetchDashboardStats(): Promise<DashboardStats> {
   const res = await fetch(`${API_BASE}/statistics/dashboard`);
@@ -322,5 +343,19 @@ export async function analyzeAddress(address: string): Promise<{
 }> {
   const res = await fetch(`${API_BASE}/analyze/${address}`);
   if (!res.ok) throw new Error("Failed to analyze address");
+  return res.json();
+}
+
+export async function askDashboardAssistant(message: string, role: string): Promise<AssistantChatResponse> {
+  const res = await fetch(`${API_BASE}/assistant/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, role }),
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to get assistant response");
+  }
+
   return res.json();
 }
