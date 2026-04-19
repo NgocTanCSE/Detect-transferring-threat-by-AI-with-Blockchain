@@ -225,7 +225,7 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
     shortLabel: "SYS",
     accentClass: "border-cyan-500/40 bg-cyan-500/15 text-cyan-100",
     highlightClass: "from-cyan-500/20 via-sky-500/10 to-transparent",
-    sidebarFeatures: ["Health", "Availability", "Node Ops", "Pipeline Ops", "Node Data", "SLO Data"],
+    sidebarFeatures: ["Health", "Availability", "Node Ops", "Pipeline Ops", "Diagnostics Logs", "SLO Data"],
   },
   {
     key: "ai_data_engineer",
@@ -410,6 +410,7 @@ export default function LiveDashboard() {
   const [totalAlertCount, setTotalAlertCount] = useState<number>(0);
   const [totalBlockedCount, setTotalBlockedCount] = useState<number>(0);
   const [totalCaseCount, setTotalCaseCount] = useState<number>(0);
+  const [diagnosticsLogs, setDiagnosticsLogs] = useState<Array<{ timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }>>([]);
   const isFetchingRef = useRef(false);
   const lastAutoFetchAtRef = useRef(0);
 
@@ -487,17 +488,19 @@ export default function LiveDashboard() {
       setTotalBlockedCount((blockedResult.statistics?.total_matching as number) ?? (blockedResult.blocked_transfers?.length ?? 0));
 
       if (roleKey === "system_admin") {
-        const [nodeRes, pipelineRes, pipelineSummaryRes, sloRes] = await Promise.allSettled([
+        const [nodeRes, pipelineRes, pipelineSummaryRes, sloRes, logsRes] = await Promise.allSettled([
           fetchJson<{ count: number; items: NodeEndpointItem[] }>("/api/ops/system/node-endpoints?only_active=true", { count: 0, items: [] }),
           fetchJson<{ count: number; items: PipelineMetricItem[] }>("/api/ops/system/pipeline-metrics?limit=12", { count: 0, items: [] }),
           fetchJson<{ total_points: number; avg_throughput_tps: number | null; avg_ingestion_latency_ms: number | null; avg_decode_latency_ms: number | null; last_block_number: number | null }>("/api/ops/system/pipeline-metrics/summary", { total_points: 0, avg_throughput_tps: null, avg_ingestion_latency_ms: null, avg_decode_latency_ms: null, last_block_number: null }),
           fetchJson<SloMetrics>("/api/ops/system/slo-metrics?days=14", { period_days: 14, endpoint_health: { total: 0, active: 0, healthy_active: 0, availability_pct: 0, error_budget_burn_pct: 0 }, latency_slo: { ingest_target_ms: 500, decode_target_ms: 200, ingest_p95_ms: 0, decode_p95_ms: 0, ingest_breaches: 0, decode_breaches: 0, sample_points: 0 } }),
+          fetchJson<{ count: number; logs: Array<{ timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }> }>("/admin/diagnostics/logs?limit=50", { count: 0, logs: [] }),
         ]);
 
         if (nodeRes.status === "fulfilled") setNodeEndpoints(nodeRes.value.items ?? []);
         if (pipelineRes.status === "fulfilled") setPipelineMetrics(pipelineRes.value.items ?? []);
         if (pipelineSummaryRes.status === "fulfilled") setPipelineSummary(pipelineSummaryRes.value);
         if (sloRes.status === "fulfilled") setSloMetrics(sloRes.value);
+        if (logsRes.status === "fulfilled") setDiagnosticsLogs(logsRes.value.logs ?? []);
       }
 
       if (roleKey === "ai_data_engineer") {
@@ -690,7 +693,7 @@ export default function LiveDashboard() {
         case 3:
           return { title: "Pipeline operations", description: "Throughput and decode latency from the ingest pipeline.", content: <PipelineTable metrics={pipelineMetrics} summary={pipelineSummary} /> };
         case 4:
-          return { title: "Node data panels", description: "Audit data and endpoint freshness for the selected role.", content: <NodeGrid nodes={nodeEndpoints} /> };
+          return { title: "Diagnostics logs", description: "Real-time system diagnostics, API monitoring, and error tracking.", content: <DiagnosticsLogsPanel logs={diagnosticsLogs} /> };
         default:
           return { title: "SLO data panels", description: "Compliance-ready service-level metrics and breach counts.", content: <SloPanel sloMetrics={sloMetrics} /> };
       }
@@ -1097,6 +1100,128 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+function DiagnosticsLogsPanel({
+  logs,
+}: {
+  logs: Array<{ timestamp: string; log_type: string; message: string; status_code?: number; endpoint?: string; details?: Record<string, unknown> }>;
+}) {
+  const [searchFilter, setSearchFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+
+  const logTypeColors: Record<string, string> = {
+    ERROR: "bg-red-500/20 text-red-300 border-red-500/30",
+    WARNING: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    INFO: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    SUCCESS: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    DATABASE: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+    API: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+    SEED_DATA: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  };
+
+  const filteredLogs = logs.filter((log) => {
+    const matchesSearch =
+      searchFilter === "" ||
+      log.message.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      (log.endpoint || "").toLowerCase().includes(searchFilter.toLowerCase());
+    const matchesType = typeFilter === "all" || log.log_type === typeFilter;
+    return matchesSearch && matchesType;
+  });
+
+  const uniqueTypes = Array.from(new Set(logs.map((log) => log.log_type))).sort();
+  const errorCount = logs.filter((log) => log.log_type === "ERROR").length;
+  const statusCodes = Array.from(new Set(logs.map((log) => log.status_code).filter(Boolean))) as number[];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricBlock label="Total logs" value={formatCompact(logs.length)} helper="All diagnostic entries" tone="cyan" />
+        <MetricBlock label="Errors" value={formatCompact(errorCount)} helper="Error logs" tone={errorCount > 0 ? "rose" : "emerald"} />
+        <MetricBlock label="Endpoints" value={formatCompact(new Set(logs.map((log) => log.endpoint).filter(Boolean)).size)} helper="Unique endpoints" tone="blue" />
+        <MetricBlock label="Log types" value={formatCompact(uniqueTypes.length)} helper="Different log categories" tone="violet" />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            value={searchFilter}
+            onChange={(event) => setSearchFilter(event.target.value)}
+            placeholder="Search message or endpoint..."
+            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
+          />
+        </div>
+        <select
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value)}
+          className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
+        >
+          <option value="all">All types</option>
+          {uniqueTypes.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="overflow-auto rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400 sticky top-0">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Timestamp</th>
+              <th className="px-4 py-3 text-left font-medium">Type</th>
+              <th className="px-4 py-3 text-left font-medium">Message</th>
+              <th className="px-4 py-3 text-left font-medium">Status</th>
+              <th className="px-4 py-3 text-left font-medium">Endpoint</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {filteredLogs.slice(0, 50).map((log, idx) => (
+              <tr key={idx} className="hover:bg-slate-900/30">
+                <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-400">{new Date(log.timestamp).toLocaleTimeString()}</td>
+                <td className="px-4 py-3">
+                  <span className={`inline-block rounded-lg border px-2 py-1 text-xs font-medium ${logTypeColors[log.log_type] || "bg-slate-700/50 text-slate-300"}`}>
+                    {log.log_type}
+                  </span>
+                </td>
+                <td className="px-4 py-3 max-w-sm truncate text-slate-300">{log.message}</td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {log.status_code ? (
+                    <span
+                      className={`inline-block rounded px-2 py-1 text-xs font-semibold ${log.status_code >= 200 && log.status_code < 300
+                          ? "bg-emerald-500/20 text-emerald-300"
+                          : log.status_code >= 400
+                            ? "bg-red-500/20 text-red-300"
+                            : "bg-slate-700/20 text-slate-300"
+                        }`}
+                    >
+                      {log.status_code}
+                    </span>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+                <td className="px-4 py-3 max-w-xs truncate text-xs text-slate-400">{log.endpoint || "-"}</td>
+              </tr>
+            ))}
+            {filteredLogs.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                  No logs match current filters.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="text-xs text-slate-500">
+        Showing {Math.min(50, filteredLogs.length)} of {filteredLogs.length} logs • Total in system: {logs.length}
       </div>
     </div>
   );
