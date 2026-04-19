@@ -274,6 +274,7 @@ const QUICK_ROUTES = [
   { label: "User Exchange", href: "/user/exchange" },
   { label: "User History", href: "/user/history" },
   { label: "Admin Dashboard", href: "/admin/dashboard" },
+  { label: "Admin Logs", href: "/?role=system_admin&feature=4" },
   { label: "Admin Tracking", href: "/admin/tracking" },
   { label: "Admin History", href: "/admin/history" },
 ];
