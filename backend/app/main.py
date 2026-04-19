@@ -1670,42 +1670,56 @@ def get_blocked_transfers(
     """
     Get history of all blocked transfers for audit purposes.
     """
-    blocked = database_session.query(BlockedTransfer).order_by(
-        BlockedTransfer.blocked_at.desc()
-    ).limit(limit).all()
+    limit = max(1, min(int(limit or 100), 500))
 
-    # Statistics
-    total_blocked = database_session.query(BlockedTransfer).count()
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    blocked_today = database_session.query(BlockedTransfer).filter(
-        BlockedTransfer.blocked_at >= today_start
-    ).count()
+    try:
+        blocked = database_session.query(BlockedTransfer).order_by(
+            BlockedTransfer.blocked_at.desc()
+        ).limit(limit).all()
 
-    total_value_blocked = database_session.query(
-        func.sum(BlockedTransfer.amount)
-    ).scalar() or 0
+        total_blocked = database_session.query(BlockedTransfer).count()
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        blocked_today = database_session.query(BlockedTransfer).filter(
+            BlockedTransfer.blocked_at >= today_start
+        ).count()
 
-    return {
-        "blocked_transfers": [
-            {
-                "id": str(b.id),
-                "sender_address": b.sender_address,
-                "receiver_address": b.receiver_address,
-                "amount_eth": _eth_from_wei(int(b.amount or 0)),
-                "risk_score": float(b.risk_score or 0),
-                "block_reason": b.block_reason,
-                "user_warning_count": b.user_warning_count,
-                "blocked_at": b.blocked_at.isoformat() if b.blocked_at else None
-            }
-            for b in blocked
-        ],
-        "statistics": {
-            "total_blocked": total_blocked,
-            "blocked_today": blocked_today,
-            "total_value_blocked_eth": _eth_from_wei(int(total_value_blocked))
-        },
-        "count": len(blocked)
-    }
+        total_value_blocked = database_session.query(
+            func.sum(BlockedTransfer.amount)
+        ).scalar() or 0
+
+        return {
+            "blocked_transfers": [
+                {
+                    "id": str(b.id),
+                    "sender_address": b.sender_address,
+                    "receiver_address": b.receiver_address,
+                    "amount_eth": _eth_from_wei(int(b.amount or 0)),
+                    "risk_score": float(b.risk_score or 0),
+                    "block_reason": b.block_reason,
+                    "user_warning_count": b.user_warning_count,
+                    "blocked_at": b.blocked_at.isoformat() if b.blocked_at else None
+                }
+                for b in blocked
+            ],
+            "statistics": {
+                "total_blocked": total_blocked,
+                "blocked_today": blocked_today,
+                "total_value_blocked_eth": _eth_from_wei(int(total_value_blocked))
+            },
+            "count": len(blocked)
+        }
+    except Exception as blocked_error:
+        logger.exception(f"Failed to fetch blocked transfers: {blocked_error}")
+        return {
+            "blocked_transfers": [],
+            "statistics": {
+                "total_blocked": 0,
+                "blocked_today": 0,
+                "total_value_blocked_eth": 0,
+            },
+            "count": 0,
+            "error": "blocked_transfers_unavailable",
+        }
 
 
 @app.get("/statistics/dashboard", tags=["Admin - Dashboard"])

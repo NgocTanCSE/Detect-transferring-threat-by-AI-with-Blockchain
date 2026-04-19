@@ -269,10 +269,16 @@ export async function fetchLatestAlerts(): Promise<Alert[]> {
 }
 
 export async function fetchBlockedTransfers(): Promise<BlockedTransfer[]> {
-  const res = await fetch(`${API_BASE}/blocked-transfers`);
-  if (!res.ok) throw new Error("Failed to fetch blocked transfers");
-  const data = await res.json();
-  return data.blocked_transfers || [];
+  try {
+    const res = await fetch(`${API_BASE}/blocked-transfers`);
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data.blocked_transfers || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchFlowStats(): Promise<FlowStats[]> {
