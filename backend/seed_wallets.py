@@ -459,41 +459,41 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
         ]
         policy_rules = [rule for rule in policy_rules if rule.rule_name not in existing_policy_rules]
 
-        model_registry = [
-            ModelRegistry(
-                id=_make_uuid("model", 1),
-                model_name="risk_detector",
-                version="v1.4.0",
-                artifact_uri="s3://local-demo/models/risk_detector/v1.4.0.pkl",
-                framework="pkl",
-                is_active=True,
-                promoted_by=users_to_add[0].id if users_to_add else None,
-                promoted_at=now - timedelta(days=2),
-                created_at=now - timedelta(days=20),
-            ),
-            ModelRegistry(
-                id=_make_uuid("model", 2),
-                model_name="transaction_graph_model",
-                version="v2.1.0",
-                artifact_uri="s3://local-demo/models/transaction_graph_model/v2.1.0.onnx",
-                framework="onnx",
-                is_active=False,
-                promoted_by=users_to_add[1].id if len(users_to_add) > 1 else None,
-                promoted_at=now - timedelta(days=5),
-                created_at=now - timedelta(days=35),
-            ),
-            ModelRegistry(
-                id=_make_uuid("model", 3),
-                model_name="wallet_clustering_model",
-                version="v0.9.1",
-                artifact_uri="s3://local-demo/models/wallet_clustering_model/v0.9.1.pt",
-                framework="pt",
-                is_active=False,
-                promoted_by=users_to_add[1].id if len(users_to_add) > 1 else None,
-                promoted_at=now - timedelta(days=9),
-                created_at=now - timedelta(days=50),
-            ),
+        model_registry_base_names = [
+            "risk_detector", "fraud_classifier", "wallet_scorer", 
+            "anomaly_analyzer", "tx_velocity_model", "contract_risk_engine",
+            "hop_distance_analyzer", "pattern_matcher"
         ]
+        frameworks = ["pkl", "onnx", "pt", "tf", "sklearn"]
+        
+        model_registry: list[ModelRegistry] = []
+        for index in range(55):
+            name = _pick(model_registry_base_names, index)
+            # Use unique versions by incorporating index more aggressively
+            v_seq = index // len(model_registry_base_names)
+            version = f"v{v_seq + 1}.{(index % 3) + 1}.0"
+            framework = _pick(frameworks, index)
+            is_active = (index % 12 == 0)
+            
+            promoted_at = None
+            promoted_by = None
+            if index % 3 == 0:
+                promoted_at = now - timedelta(days=rng.randint(1, 30))
+                promoted_by = _pick(["admin", "ai_engineer_bot", "ml_ops_pipeline"], index)
+
+            model_registry.append(
+                ModelRegistry(
+                    id=_make_uuid("model", index),
+                    model_name=name,
+                    version=version,
+                    artifact_uri=f"s3://production-models/{name}/{version}.{framework}",
+                    framework=framework,
+                    is_active=is_active,
+                    promoted_by=promoted_by,
+                    promoted_at=promoted_at,
+                    created_at=now - timedelta(days=60 - index),
+                )
+            )
         model_registry = [model for model in model_registry if (model.model_name, model.version) not in existing_models]
 
         alerts: list[Alert] = []
@@ -594,20 +594,43 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
             notifications = [notification for notification in notifications if notification.id not in existing_notification_ids]
 
-        for index in range(12):
+        feature_keys_templates = [
+            "avg_tx_val_{d}d", "unique_receivers_{h}h", "hop_count_to_exchange",
+            "contract_interaction_ratio", "tx_velocity_spike", "gas_usage_percentile",
+            "blacklist_affinity_score", "new_account_flag", "stablecoin_volume_sum",
+            "mixer_interaction_event", "large_transfer_count"
+        ]
+        
+        for index in range(110):
+            base_key = _pick(feature_keys_templates, index)
+            # Ensure uniqueness by appending index if template doesn't have placeholders
+            d_val = (index % 30) + 1
+            if "{d}" in base_key or "{h}" in base_key:
+                feature_key = base_key.replace("{d}", str(d_val)).replace("{h}", str(d_val * 2))
+            else:
+                feature_key = f"{base_key}_{index:03d}"
+            
+            expressions = [
+                f"SUM(value) / {d_val}",
+                f"COUNT(DISTINCT counterparty) > {index % 10}",
+                f"risk_score * {1.1 + (index/100)}",
+                f"CASE WHEN gas > 50000 THEN 1 ELSE 0 END",
+                f"LAG(timestamp) OVER (PARTITION BY wallet ORDER BY timestamp)"
+            ]
+
             feature_configs.append(
                 FeatureStoreConfig(
                     id=_make_uuid("feature", index),
-                    feature_key=f"feature_{index:02d}",
-                    enabled=index % 4 != 0,
-                    expression=f"risk_score >= {40 + index}",
+                    feature_key=feature_key,
+                    enabled=index % 5 != 0,
+                    expression=_pick(expressions, index),
                     owner_user_id=users_to_add[index % len(users_to_add)].id if users_to_add else None,
-                    created_at=now - timedelta(days=20 - index),
+                    created_at=now - timedelta(days=40 - (index % 30)),
                     updated_at=now,
                 )
             )
 
-            feature_configs = [feature for feature in feature_configs if feature.id not in existing_feature_ids]
+        feature_configs = [feature for feature in feature_configs if feature.id not in existing_feature_ids]
 
         for index in range(120):
             status = _pick(["healthy", "healthy", "healthy", "degraded", "down", "healthy"], index)

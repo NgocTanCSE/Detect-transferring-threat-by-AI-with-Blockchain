@@ -1917,7 +1917,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {mutableModels.slice(0, 12).map((model) => {
+            {mutableModels.slice(0, 50).map((model) => {
               const isActive = model.is_active || activeNames.has(`${model.model_name}:${model.version}`);
               return (
                 <tr key={model.id}>
@@ -2056,7 +2056,7 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {mutableFeatures.slice(0, 12).map((feature) => (
+            {mutableFeatures.slice(0, 50).map((feature) => (
               <tr key={feature.id}>
                 <td className="px-4 py-3">{feature.feature_key}</td>
                 <td className="px-4 py-3">{feature.enabled ? "Yes" : "No"}</td>
@@ -2140,7 +2140,7 @@ function ModelOperationsPanel({ models, activeModels }: { models: ModelRegistryI
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {models.slice(0, 10).map((item) => {
+            {models.slice(0, 50).map((item) => {
               const key = `${item.model_name}:${item.version}`;
               const isServing = item.is_active || activeKey.has(key);
               return (
@@ -2185,7 +2185,7 @@ function FeatureDataPanel({ features }: { features: FeatureConfigItem[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {features.slice(0, 10).map((item) => (
+            {features.slice(0, 50).map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.feature_key}</td>
                 <td className="px-4 py-3">{item.expression ?? "-"}</td>
@@ -2225,7 +2225,7 @@ function RegistryDataPanel({ models }: { models: ModelRegistryItem[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
-            {models.slice(0, 10).map((item) => (
+            {models.slice(0, 50).map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.model_name}</td>
                 <td className="px-4 py-3">{item.version}</td>
