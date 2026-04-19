@@ -1826,6 +1826,7 @@ def get_money_flow_statistics(
 ) -> Dict[str, Any]:
     """
     Get money flow statistics (in/out) for charts.
+    Shows daily aggregate flows for specified wallet or network-wide.
     """
     from datetime import timedelta
 
@@ -1836,6 +1837,7 @@ def get_money_flow_statistics(
 
     try:
         if normalized_wallet:
+            # Wallet-specific flow (inflow to wallet, outflow from wallet)
             query = database_session.query(
                 func.date(Transaction.timestamp).label('date'),
                 func.sum(
@@ -1855,10 +1857,21 @@ def get_money_flow_statistics(
                 (Transaction.from_address == normalized_wallet) | (Transaction.to_address == normalized_wallet)
             )
         else:
+            # Network-wide flow (distinct inflows and outflows by direction)
             query = database_session.query(
                 func.date(Transaction.timestamp).label('date'),
-                func.sum(Transaction.value).label('inflow'),
-                func.sum(Transaction.value).label('outflow')
+                func.sum(
+                    case(
+                        (Transaction.to_address != '', Transaction.value),
+                        else_=0
+                    )
+                ).label('inflow'),
+                func.sum(
+                    case(
+                        (Transaction.from_address != '', Transaction.value),
+                        else_=0
+                    )
+                ).label('outflow')
             ).filter(
                 Transaction.timestamp >= start_date
             )
