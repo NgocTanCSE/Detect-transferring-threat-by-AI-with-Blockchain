@@ -476,6 +476,9 @@ export default function LiveDashboard() {
   const updateQuery = useCallback(
     (patch: Record<string, string | number | null | undefined>) => {
       const nextParams = new URLSearchParams(searchParams.toString());
+      // Keep role/feature pinned to current UI state unless explicitly overridden.
+      nextParams.set("role", activeRole);
+      nextParams.set("feature", String(activeFeatureIndex));
       for (const [key, value] of Object.entries(patch)) {
         if (value === null || value === undefined || value === "") {
           nextParams.delete(key);
@@ -486,7 +489,7 @@ export default function LiveDashboard() {
       const query = nextParams.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     },
-    [pathname, router, searchParams]
+    [activeFeatureIndex, activeRole, pathname, router, searchParams]
   );
 
   useEffect(() => {
