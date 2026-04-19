@@ -19,6 +19,11 @@ function resolveFriendlyError(errorMessage: string): string {
   return errorMessage;
 }
 
+function isAdminRole(role?: string | null): boolean {
+  const normalized = (role ?? "").toLowerCase();
+  return normalized === "admin" || normalized === "system_admin";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
@@ -40,7 +45,7 @@ export default function LoginPage() {
       const auth = await login({ username: username.trim(), password });
       const currentUser = await getCurrentUser(auth.access_token);
 
-      if (currentUser.role === "admin") {
+      if (isAdminRole(currentUser.role)) {
         router.push("/?role=system_admin&feature=0");
       } else {
         router.push("/user/exchange");

@@ -54,11 +54,16 @@ type RoleDefinition = {
 
 function mapUserRoleToDashboardRole(role?: string | null): RoleKey {
   const normalized = (role ?? "").toLowerCase();
-  if (normalized === "admin") return "system_admin";
+  if (normalized === "admin" || normalized === "system_admin") return "system_admin";
   if (normalized === "ai_data_engineer" || normalized === "data_engineer" || normalized === "engineer") return "ai_data_engineer";
   if (normalized === "compliance_risk_manager" || normalized === "compliance") return "compliance_risk_manager";
   if (normalized === "security_analyst" || normalized === "analyst" || normalized === "user") return "security_analyst";
   return "security_analyst";
+}
+
+function isUserAdminRole(role?: string | null): boolean {
+  const normalized = (role ?? "").toLowerCase();
+  return normalized === "admin" || normalized === "system_admin";
 }
 
 function isAdminOnlyRole(role: RoleKey): boolean {
@@ -463,13 +468,13 @@ export default function LiveDashboard() {
   const sidebarIcons = useMemo(() => ROLE_ICONS, []);
   const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace";
   const availableRoles = useMemo(
-    () => ROLE_DEFINITIONS.filter((entry) => user?.role === "admin" || !isAdminOnlyRole(entry.key)),
+    () => ROLE_DEFINITIONS.filter((entry) => isUserAdminRole(user?.role) || !isAdminOnlyRole(entry.key)),
     [user?.role]
   );
 
   // Filter navigation routes based on authentication status
   const visibleRoutes = useMemo(() => {
-    const isAdmin = user?.role === "admin";
+    const isAdmin = isUserAdminRole(user?.role);
     return QUICK_ROUTES.filter(route => {
       // Hide login/register if already authenticated
       if (['/login', '/register'].includes(route.href)) {
@@ -512,9 +517,10 @@ export default function LiveDashboard() {
   useEffect(() => {
     const roleParam = searchParams.get("role") as RoleKey | null;
     const fallbackRole = mapUserRoleToDashboardRole(user?.role);
+    const isAdmin = isUserAdminRole(user?.role);
 
     if (roleParam && ROLE_DEFINITIONS.some((entry) => entry.key === roleParam)) {
-      const nextRole = user?.role === "admin" || !isAdminOnlyRole(roleParam) ? roleParam : fallbackRole;
+      const nextRole = isAdmin || !isAdminOnlyRole(roleParam) ? roleParam : fallbackRole;
       if (nextRole !== activeRole) {
         setActiveRole(nextRole);
       }
