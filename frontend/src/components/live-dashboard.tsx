@@ -440,6 +440,37 @@ export default function LiveDashboard() {
   ]);
   const isFetchingRef = useRef(false);
   const lastAutoFetchAtRef = useRef(0);
+  const assistantStorageKey = useMemo(() => `dashboard:assistant-history:${activeRole}`, [activeRole]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const raw = window.sessionStorage.getItem(assistantStorageKey);
+    if (!raw) {
+      setAssistantMessages([
+        {
+          role: "assistant",
+          content:
+            "Mình là trợ lý vận hành. Bạn có thể hỏi: 'Risk score bao nhiêu thì nguy hiểm?', 'Vì sao alerts hôm nay tăng?', hoặc 'Nên xử lý ví có status suspended như thế nào?'.",
+        },
+      ]);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as AssistantMessage[];
+      if (Array.isArray(parsed) && parsed.length) {
+        setAssistantMessages(parsed);
+      }
+    } catch {
+      // Ignore invalid persisted state.
+    }
+  }, [assistantStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(assistantStorageKey, JSON.stringify(assistantMessages.slice(-20)));
+  }, [assistantMessages, assistantStorageKey]);
 
   const role = useMemo(() => ROLE_DEFINITIONS.find((entry) => entry.key === activeRole) ?? ROLE_DEFINITIONS[0], [activeRole]);
   const sidebarIcons = useMemo(() => ROLE_ICONS, []);
@@ -826,7 +857,11 @@ export default function LiveDashboard() {
     setAssistantLoading(true);
 
     try {
-      const response = await askDashboardAssistant(question, activeRole, assistantWalletInput.trim() || undefined);
+      const conversationHistory = [...assistantMessages, { role: "user", content: question }].slice(-6).map((entry) => ({
+        role: entry.role,
+        content: entry.content,
+      }));
+      const response = await askDashboardAssistant(question, activeRole, assistantWalletInput.trim() || undefined, conversationHistory);
       setAssistantMessages((previous) => [...previous, { role: "assistant", content: response.answer, sources: response.sources }]);
     } catch (assistantError) {
       const message = assistantError instanceof Error ? assistantError.message : "Assistant unavailable";
@@ -836,6 +871,22 @@ export default function LiveDashboard() {
       ]);
     } finally {
       setAssistantLoading(false);
+    }
+  }
+
+  function clearAssistantChat() {
+    const resetMessages: AssistantMessage[] = [
+      {
+        role: "assistant",
+        content:
+          "Mình là trợ lý vận hành. Bạn có thể hỏi: 'Risk score bao nhiêu thì nguy hiểm?', 'Vì sao alerts hôm nay tăng?', hoặc 'Nên xử lý ví có status suspended như thế nào?'.",
+      },
+    ];
+    setAssistantMessages(resetMessages);
+    setAssistantInput("");
+    setAssistantWalletInput("");
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(assistantStorageKey, JSON.stringify(resetMessages));
     }
   }
 
@@ -923,7 +974,16 @@ export default function LiveDashboard() {
               <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">Assistant</p>
               <h2 className="mt-1 text-lg font-semibold text-white">AI Guide for Dashboard Metrics</h2>
             </div>
-            <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">Role: {role.label}</span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200">Role: {role.label}</span>
+              <button
+                type="button"
+                onClick={clearAssistantChat}
+                className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-300 transition hover:border-cyan-500/40 hover:text-white"
+              >
+                Clear
+              </button>
+            </div>
           </div>
 
           <div className="mb-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
@@ -996,6 +1056,17 @@ export default function LiveDashboard() {
               {assistantLoading ? "Đang trả lời..." : "Gửi câu hỏi"}
             </button>
           </div>
+
+          {assistantMessages.length > 1 ? (
+            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Knowledge sources</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-300">
+                <span className="rounded-full border border-slate-700 px-2 py-1">README.md</span>
+                <span className="rounded-full border border-slate-700 px-2 py-1">DEPLOY_HF_SUPABASE.md</span>
+                <span className="rounded-full border border-slate-700 px-2 py-1">role-based-rearchitecture-plan.md</span>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">

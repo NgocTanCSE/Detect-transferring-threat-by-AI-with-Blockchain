@@ -17,6 +17,7 @@ from blockchain_client import fetch_wallet_history
 from app.core.config import ALCHEMY_API_KEY, ALCHEMY_RPC_URL
 from app.services.ai_engine import MultiAgentDetectionEngine
 from app.services.hf_security_analyst import HFSecurityAnalyst
+from app.services.assistant_knowledge_base import retrieve_relevant_snippets
 
 
 def _get_or_create_wallet(database_session: Session, address: str) -> Wallet:
@@ -198,13 +199,20 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
     message = str(payload.get("message", "")).strip()
     role = str(payload.get("role", "operator")).strip() or "operator"
     wallet_address = str(payload.get("wallet_address", "")).strip() or None
+    conversation_history = payload.get("conversation_history") or []
 
     if not message:
         raise HTTPException(status_code=400, detail="Missing message")
 
     context = _build_dashboard_assistant_context(database_session, role=role, wallet_address=wallet_address)
+    knowledge_snippets = retrieve_relevant_snippets(message, role=role, wallet_address=wallet_address, limit=4)
     analyst = HFSecurityAnalyst()
-    answer = analyst.answer_dashboard_question(question=message, context=context)
+    answer = analyst.answer_dashboard_question(
+        question=message,
+        context=context,
+        knowledge_snippets=knowledge_snippets,
+        conversation_history=conversation_history,
+    )
 
     sources = [
         "overview: wallets/alerts/blocked_transfers",
@@ -223,6 +231,10 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             "wallet_focus": context.get("wallet_focus"),
         },
         "sources": sources,
+        "knowledge_sources": [
+            {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}
+            for snippet in knowledge_snippets
+        ],
         "model_enabled": analyst.enabled,
     }
 

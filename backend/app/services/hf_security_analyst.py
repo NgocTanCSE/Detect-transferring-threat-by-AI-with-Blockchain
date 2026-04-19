@@ -4,6 +4,7 @@ import requests
 from typing import Dict, List, Any, Optional
 
 from app.core.config import HF_API_TOKEN, HF_INFERENCE_URL
+from app.services.assistant_knowledge_base import KnowledgeSnippet, render_snippets_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -44,17 +45,33 @@ class HFSecurityAnalyst:
             logger.error(f"HF Inference API call failed: {e}")
             return f"The AI analyst encountered an error while processing this wallet: {str(e)}"
 
-    def answer_dashboard_question(self, question: str, context: Dict[str, Any]) -> str:
+    def answer_dashboard_question(
+        self,
+        question: str,
+        context: Dict[str, Any],
+        knowledge_snippets: Optional[List[KnowledgeSnippet]] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
         """Answer operator questions about dashboard metrics in Vietnamese."""
         if not self.enabled:
-            return self._fallback_dashboard_answer(question=question, context=context)
+            return self._fallback_dashboard_answer(question=question, context=context, conversation_history=conversation_history, knowledge_snippets=knowledge_snippets)
 
-        prompt = self._construct_dashboard_chat_prompt(question=question, context=context)
+        prompt = self._construct_dashboard_chat_prompt(
+            question=question,
+            context=context,
+            knowledge_snippets=knowledge_snippets or [],
+            conversation_history=conversation_history or [],
+        )
         try:
             return self._generate_text(prompt=prompt, max_new_tokens=380, temperature=0.45)
         except Exception as error:
             logger.error(f"HF dashboard chat failed: {error}")
-            return self._fallback_dashboard_answer(question=question, context=context)
+            return self._fallback_dashboard_answer(
+                question=question,
+                context=context,
+                conversation_history=conversation_history,
+                knowledge_snippets=knowledge_snippets,
+            )
 
     def _generate_text(self, prompt: str, max_new_tokens: int, temperature: float) -> str:
         payload = {
@@ -79,13 +96,22 @@ class HFSecurityAnalyst:
 
         return "Hiện chưa có đủ nội dung trả lời từ mô hình. Vui lòng thử lại."
 
-    def _construct_dashboard_chat_prompt(self, question: str, context: Dict[str, Any]) -> str:
+    def _construct_dashboard_chat_prompt(
+        self,
+        question: str,
+        context: Dict[str, Any],
+        knowledge_snippets: List[KnowledgeSnippet],
+        conversation_history: List[Dict[str, str]],
+    ) -> str:
         context_json = json.dumps(context, ensure_ascii=False)
+        knowledge_text = render_snippets_for_prompt(knowledge_snippets)
+        history_text = json.dumps(conversation_history[-6:], ensure_ascii=False)
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
 Bạn là trợ lý vận hành cho dashboard chống gian lận blockchain.
 Chỉ trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu, chính xác theo số liệu context.
 Nếu câu hỏi vượt ngoài context thì nói rõ thiếu dữ liệu, không bịa.
+Ưu tiên dùng kiến thức dự án được cung cấp bên dưới khi giải thích thuật ngữ, luồng triển khai và cách vận hành.
 
 Format trả lời:
 1) Giải thích ý nghĩa chỉ số
@@ -96,16 +122,32 @@ Format trả lời:
 CONTEXT_DASHBOARD_JSON:
 {context_json}
 
+LỊCH SỬ HỘI THOẠI GẦN ĐÂY:
+{history_text}
+
+TRÍCH DẪN TÀI LIỆU DỰ ÁN:
+{knowledge_text or "Không có snippet phù hợp."}
+
 CÂU HỎI:
 {question}
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
-    def _fallback_dashboard_answer(self, question: str, context: Dict[str, Any]) -> str:
+    def _fallback_dashboard_answer(
+        self,
+        question: str,
+        context: Dict[str, Any],
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        knowledge_snippets: Optional[List[KnowledgeSnippet]] = None,
+    ) -> str:
         overview = context.get("overview", {}) if isinstance(context, dict) else {}
         total_wallets = overview.get("total_wallets", 0)
         total_alerts = overview.get("total_alerts", 0)
         critical_alerts = overview.get("critical_alerts", 0)
         blocked = overview.get("total_blocked", 0)
+        snippet_hint = ""
+        if knowledge_snippets:
+            top_snippet = knowledge_snippets[0]
+            snippet_hint = f"\n- Nguồn tham khảo gần nhất: {top_snippet.source} / {top_snippet.heading}"
 
         return (
             "AI model đang tạm thời không khả dụng, mình trả lời theo dữ liệu hệ thống hiện có.\n\n"
@@ -114,7 +156,8 @@ CÂU HỎI:
             f"- Cảnh báo critical: {critical_alerts}\n"
             f"- Giao dịch đã chặn: {blocked}\n\n"
             f"Câu hỏi của bạn: {question}\n"
-            "Gợi ý: nếu cần giải thích sâu hơn theo ví cụ thể, hãy cung cấp địa chỉ ví để mình phân tích theo ngữ cảnh chi tiết."
+            + snippet_hint
+            + "\nGợi ý: nếu cần giải thích sâu hơn theo ví cụ thể, hãy cung cấp địa chỉ ví để mình phân tích theo ngữ cảnh chi tiết."
         )
 
     def _construct_prompt(

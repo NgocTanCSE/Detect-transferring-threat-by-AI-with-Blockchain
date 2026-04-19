@@ -156,6 +156,11 @@ export interface AssistantChatResponse {
     } | null;
   };
   sources: string[];
+  knowledge_sources: Array<{
+    source: string;
+    heading: string;
+    score: number;
+  }>;
   model_enabled: boolean;
 }
 
@@ -356,11 +361,21 @@ export async function analyzeAddress(address: string): Promise<{
   return res.json();
 }
 
-export async function askDashboardAssistant(message: string, role: string, walletAddress?: string): Promise<AssistantChatResponse> {
+export async function askDashboardAssistant(
+  message: string,
+  role: string,
+  walletAddress?: string,
+  conversationHistory?: Array<{ role: string; content: string }>
+): Promise<AssistantChatResponse> {
   const res = await fetch(`${API_BASE}/assistant/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, role, wallet_address: walletAddress || null }),
+    body: JSON.stringify({
+      message,
+      role,
+      wallet_address: walletAddress || null,
+      conversation_history: conversationHistory || [],
+    }),
   });
 
   if (!res.ok) {
