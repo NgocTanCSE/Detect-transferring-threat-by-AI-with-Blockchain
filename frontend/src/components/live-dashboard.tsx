@@ -320,35 +320,6 @@ function formatDateTime(value: string | null | undefined): string {
   return new Date(value).toLocaleString();
 }
 
-type AssistantMessage = {
-  role: "user" | "assistant";
-  content: string;
-  sources?: string[];
-};
-
-const ASSISTANT_QUICK_PROMPTS: Record<RoleKey, string[]> = {
-  system_admin: [
-    "Giải thích ý nghĩa Availability và Error budget burn",
-    "Flow 7 ngày hiện tại có bất thường gì không?",
-    "Nên ưu tiên xử lý chỉ số nào trước để ổn định hệ thống?",
-  ],
-  ai_data_engineer: [
-    "Model active hiện tại có đủ để vận hành chưa?",
-    "Feature flag nào nên bật/tắt để giảm false positive?",
-    "Tóm tắt rủi ro dữ liệu trong dashboard hiện tại",
-  ],
-  security_analyst: [
-    "Alerts hôm nay tăng do nguyên nhân nào?",
-    "Ngưỡng risk_score nào thì nên escalate case?",
-    "Đề xuất thứ tự xử lý 3 cảnh báo cấp bách nhất",
-  ],
-  compliance_risk_manager: [
-    "Audit completeness hiện tại có đạt yêu cầu không?",
-    "Policy nào đang tác động lớn nhất đến blocked transfers?",
-    "Nên bổ sung kiểm soát gì để giảm audit gaps?",
-  ],
-};
-
 function parseQueryInt(raw: string | null, fallback: number, min = 1): number {
   if (!raw) return fallback;
   const parsed = Number(raw);
