@@ -445,7 +445,7 @@ export async function askDashboardAssistant(
       console.warn(`Assistant chat response not ok: ${res.status}`);
       return {
         answer: `Không thể lấy câu trả lời từ trợ lý (lỗi ${res.status}). Vui lòng thử lại.`,
-        context: { role, screen_scope: screenScope, overview: {}, top_risky_wallets: [] },
+        context: { role, screen_scope: screenScope, overview: { total_wallets: 0, total_alerts: 0, critical_alerts: 0, alerts_today: 0, total_blocked: 0 }, top_risky_wallets: [] },
         sources: [],
         knowledge_sources: [],
         model_enabled: false,
@@ -457,7 +457,7 @@ export async function askDashboardAssistant(
     console.error("Assistant chat error:", error);
     return {
       answer: "Không thể kết nối với trợ lý. Vui lòng kiểm tra kết nối mạng và thử lại.",
-      context: { role, screen_scope: screenScope, overview: {}, top_risky_wallets: [] },
+      context: { role, screen_scope: screenScope, overview: { total_wallets: 0, total_alerts: 0, critical_alerts: 0, alerts_today: 0, total_blocked: 0 }, top_risky_wallets: [] },
       sources: [],
       knowledge_sources: [],
       model_enabled: false,

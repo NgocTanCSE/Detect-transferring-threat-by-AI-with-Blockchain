@@ -44,6 +44,29 @@ services:
     networks:
       - app_network
 
+  backend-node:
+    build: ./backend-node
+    container_name: blockchain_orchestrator
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - AI_SERVICE_URL=http://backend:8000
+      - DATABASE_URL=postgresql://user:password@db:5432/blockchain_db
+    depends_on:
+      backend:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8001/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   frontend:
     build: ./frontend
     container_name: blockchain_frontend
@@ -51,11 +74,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8001
+      - NEXT_PUBLIC_SOCKET_URL=http://localhost:8001
       - NEXT_PUBLIC_SENDER_ADDRESS=${NEXT_PUBLIC_SENDER_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
-      - BACKEND_URL=http://backend:8000
+      - BACKEND_URL=http://backend-node:8001
     depends_on:
-      - backend
+      - backend-node
     networks:
       - app_network
 
