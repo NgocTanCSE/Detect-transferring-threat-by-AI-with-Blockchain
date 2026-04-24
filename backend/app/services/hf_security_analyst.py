@@ -24,6 +24,16 @@ class HFSecurityAnalyst:
         self.model = GEMINI_MODEL
         self.api_url = f"{GEMINI_API_BASE_URL}/models/{self.model}:generateContent"
         self.enabled = bool(self.api_key)
+        
+        # Load Persona from file
+        from pathlib import Path
+        self.persona = "Bạn là trợ lý AI thông minh cho dự án Blockchain Sentinel."
+        try:
+            persona_path = Path(__file__).parent / "ai_persona.txt"
+            if persona_path.exists():
+                self.persona = persona_path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Could not load ai_persona.txt: {e}")
 
         if not self.enabled:
             logger.warning("GEMINI_API_KEY/GOOGLE_API_KEY not found. AI Security Analyst will use fallback mode.")
@@ -122,24 +132,40 @@ class HFSecurityAnalyst:
             },
         }
 
-        response = requests.post(
-            f"{self.api_url}?key={self.api_key}",
-            headers={"Content-Type": "application/json"},
-            json=payload,
-            timeout=GEMINI_REQUEST_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-        result = response.json()
+        # Try multiple model names and API versions
+        versions = ["v1", "v1beta"]
+        models_to_try = [self.model, "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+        last_error = None
 
-        candidates = result.get("candidates", []) if isinstance(result, dict) else []
-        if candidates:
-            content = candidates[0].get("content", {})
-            parts = content.get("parts", []) if isinstance(content, dict) else []
-            text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
-            if text:
-                return text
-
-        return "Hiện chưa có đủ nội dung trả lời từ mô hình. Vui lòng thử lại."
+        for version in versions:
+            for model_name in models_to_try:
+                try:
+                    # Strip 'models/' if already present in model_name
+                    clean_model_name = model_name.replace("models/", "")
+                    url = f"https://generativelanguage.googleapis.com/{version}/models/{clean_model_name}:generateContent?key={self.api_key}"
+                    
+                    response = requests.post(
+                        url,
+                        headers={"Content-Type": "application/json"},
+                        json=payload,
+                        timeout=GEMINI_REQUEST_TIMEOUT_SECONDS,
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        candidates = result.get("candidates", [])
+                        if candidates:
+                            content = candidates[0].get("content", {})
+                            parts = content.get("parts", [])
+                            text = "".join(part.get("text", "") for part in parts).strip()
+                            if text:
+                                return text
+                    else:
+                        last_error = f"({version}/{model_name}) Status {response.status_code}"
+                        # logger.warning(f"Model {model_name} on {version} failed: {response.status_code}")
+                except Exception as e:
+                    last_error = str(e)
+        
+        return f"Hiện chưa có đủ nội dung trả lời từ mô hình. (Lỗi: {last_error})"
 
     def _construct_dashboard_chat_prompt(
         self,
@@ -152,36 +178,28 @@ class HFSecurityAnalyst:
         knowledge_text = render_snippets_for_prompt(knowledge_snippets)
         history_text = json.dumps(conversation_history[-6:], ensure_ascii=False)
         screen_scope = str(context.get("screen_scope", "dashboard"))
+        
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
-Bạn là trợ lý vận hành cho dashboard chống gian lận blockchain.
-Chỉ trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu, chính xác theo số liệu context.
-Nếu câu hỏi vượt ngoài context thì nói rõ thiếu dữ liệu, không bịa.
-Ưu tiên dùng kiến thức dự án được cung cấp bên dưới khi giải thích thuật ngữ, luồng triển khai và cách vận hành.
-Màn hình hiện tại của người dùng là: {screen_scope}.
+{self.persona}
+Mục tiêu: Giải thích các chỉ số trên màn hình {screen_scope} và đưa ra lời khuyên cho người vận hành.
 
-Yêu cầu định dạng bắt buộc:
-1) Giải thích ý nghĩa chỉ số
-2) Nhận định nhanh theo dữ liệu hiện tại
-3) Hành động đề xuất cho operator
-
-Ràng buộc output:
-- Không chèn markdown đậm/nghiêng kiểu ** hoặc *.
-- Không chèn mục "Sources" hoặc "Docs" trong nội dung trả lời.
-- Mỗi mục tối đa 2 câu ngắn.
-- Nếu thiếu dữ liệu so sánh (ví dụ tăng/giảm theo hôm trước), nói rõ "chưa có dữ liệu so sánh".
-- Bắt buộc dùng số liệu trong CONTEXT_DASHBOARD_JSON (ví dụ total_wallets, alerts_today, critical_alerts, total_blocked) khi phù hợp.
-- Không trả lời chung chung kiểu "Dưới đây là giải thích..." mà không có diễn giải cụ thể.
+HƯỚNG DẪN TRẢ LỜI:
+- Luôn trả lời bằng tiếng Việt.
+- Sử dụng số liệu thực tế từ JSON CONTEXT bên dưới.
+- Trình bày rõ ràng, dễ hiểu. Nếu có nhiều ý, hãy dùng dấu gạch đầu dòng (-).
+- Nếu không có đủ dữ liệu để trả lời chính xác, hãy nêu rõ và đưa ra nhận định dựa trên kiến thức chung về bảo mật blockchain.
+- Kết hợp thông tin từ TÀI LIỆU DỰ ÁN để giải thích thuật ngữ hoặc quy trình.
 
 <|eot_id|><|start_header_id|>user<|end_header_id|>
-CONTEXT_DASHBOARD_JSON:
+JSON CONTEXT (Dữ liệu hệ thống):
 {context_json}
 
-LỊCH SỬ HỘI THOẠI GẦN ĐÂY:
+LỊCH SỬ HỘI THOẠI:
 {history_text}
 
-TRÍCH DẪN TÀI LIỆU DỰ ÁN:
-{knowledge_text or "Không có snippet phù hợp."}
+TÀI LIỆU THAM KHẢO DỰ ÁN:
+{knowledge_text or "Không có tài liệu cụ thể, hãy dùng kiến thức chuyên gia."}
 
 CÂU HỎI:
 {question}
@@ -196,27 +214,36 @@ CÂU HỎI:
     ) -> str:
         context_json = json.dumps(context, ensure_ascii=False)
         knowledge_text = render_snippets_for_prompt(knowledge_snippets)
-        history_text = json.dumps(conversation_history[-6:], ensure_ascii=False)
+        history_text = json.dumps(conversation_history[-8:], ensure_ascii=False)
+        
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
-Bạn là trợ lý chung của hệ thống blockchain AI.
-Trả lời trực tiếp, đúng trọng tâm, bằng tiếng Việt.
-Nếu câu hỏi là về tài khoản, đăng nhập, đăng ký, lỗi giao diện, deploy, API, hoặc cách dùng hệ thống thì giải thích theo ngữ cảnh dự án.
-Nếu câu hỏi không đủ dữ liệu, hãy nói rõ thiếu gì và hỏi lại ngắn gọn, không bịa.
-Không bắt buộc dùng format 3 mục như dashboard; hãy chọn định dạng phù hợp nhất với câu hỏi.
-Ưu tiên trả lời ngắn gọn, dễ hiểu, nhưng vẫn đủ thông tin để người dùng hành động.
+{self.persona}
+Bạn có kiến thức sâu rộng về dự án này, blockchain và kiến thức chung.
+Bạn không chỉ trả lời câu hỏi mà còn đưa ra các phân tích sâu và dự báo rủi ro.
+
+KHẢ NĂNG CỦA BẠN:
+1. Phân tích thuật toán: Bạn hiểu rõ các công thức tính điểm rủi ro (Random Forest, Multi-Agent Scoring, Heuristics).
+2. Chuyên gia Blockchain: Hiểu sâu về cấu trúc giao dịch, smart contract rác, kỹ thuật ẩn danh (Mixers), và các mô hình lừa đảo đa chuỗi.
+3. Kiến trúc hệ thống: Nắm rõ luồng dữ liệu từ Frontend React đến Node.js Orchestrator và AI Engine Python.
+4. Tri thức đa ngành: Có khả năng thảo luận về khoa học, lịch sử, lập trình và đời sống một cách thông tuệ.
+
+HƯỚNG DẪN TƯ DUY (Chain of Thought):
+- Khi nhận câu hỏi phức tạp, hãy phân tích từng bước: Giải thích bối cảnh -> Đưa ra số liệu/bằng chứng -> Kết luận & Khuyến nghị.
+- Luôn sử dụng tiếng Việt chuẩn, súc tích nhưng đầy đủ ý nghĩa.
+- Định dạng: Sử dụng dấu gạch đầu dòng (-) và các đoạn văn ngắn để dễ đọc. Tránh dùng markdown quá phức tạp làm rối mắt.
 
 <|eot_id|><|start_header_id|>user<|end_header_id|>
-CONTEXT_JSON:
+NGỮ CẢNH HỆ THỐNG:
 {context_json}
 
 LỊCH SỬ HỘI THOẠI GẦN ĐÂY:
 {history_text}
 
-TRÍCH DẪN TÀI LIỆU DỰ ÁN:
-{knowledge_text or "Không có snippet phù hợp."}
+DỮ LIỆU TRI THỨC DỰ ÁN (RAG):
+{knowledge_text or "Dùng cơ sở tri thức Sentinel Prime của bạn."}
 
-CÂU HỎI:
+CÂU HỎI TỪ NGƯỜI DÙNG:
 {question}
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 

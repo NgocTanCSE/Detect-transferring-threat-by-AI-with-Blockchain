@@ -56,6 +56,13 @@ def _load_knowledge_base() -> List[KnowledgeSnippet]:
     documents = {
         "README.md": _read_text_file("README.md"),
         "DEPLOY_HF_SUPABASE.md": _read_text_file("DEPLOY_HF_SUPABASE.md"),
+        "API_ENDPOINTS_BY_TABLE.md": _read_text_file("API_ENDPOINTS_BY_TABLE.md"),
+        "DATABASE_SCHEMA.md": _read_text_file("DATABASE_SCHEMA.md"),
+        "CHAIN_ASSET_MATRIX.md": _read_text_file("CHAIN_ASSET_MATRIX.md"),
+        "DATABASE_RELATIONSHIPS.md": _read_text_file("DATABASE_RELATIONSHIPS.md"),
+        "EXCHANGE_API_CONTRACT.md": _read_text_file("EXCHANGE_API_CONTRACT.md"),
+        "IMPLEMENTATION_PLAN_CHAIN_ASSET.md": _read_text_file("IMPLEMENTATION_PLAN_CHAIN_ASSET.md"),
+        "word_formulas_unicode.txt": _read_text_file("word_formulas_unicode.txt"),
         "database/docs/role-based-rearchitecture-plan.md": _read_text_file("database/docs/role-based-rearchitecture-plan.md"),
     }
 
