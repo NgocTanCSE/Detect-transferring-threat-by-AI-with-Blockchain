@@ -113,7 +113,7 @@ export default function AdminDiagnosticsDashboard() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-cyan-400">System Diagnostics</h1>
+        <h1 className="text-3xl font-bold text-zinc-400">System Diagnostics</h1>
         <Button onClick={fetchStatus} variant="outline" size="sm">
           <RefreshCw className="w-4 h-4 mr-2" />
           Refresh
@@ -145,7 +145,7 @@ export default function AdminDiagnosticsDashboard() {
                   <span className="text-xs text-gray-400">{systemStatus.database.url}</span>
                 </div>
                 {systemStatus.database.health.error && (
-                  <p className="text-xs text-red-400 mt-2">{systemStatus.database.health.error}</p>
+                  <p className="text-xs text-zinc-400 mt-2">{systemStatus.database.health.error}</p>
                 )}
               </CardContent>
             </Card>
@@ -174,12 +174,12 @@ export default function AdminDiagnosticsDashboard() {
             </CardHeader>
             <CardContent>
               {systemStatus.recent_errors.length === 0 ? (
-                <p className="text-sm text-green-400">✓ No recent errors</p>
+                <p className="text-sm text-zinc-400">✓ No recent errors</p>
               ) : (
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {systemStatus.recent_errors.map((error, idx) => (
-                    <div key={idx} className="p-2 bg-red-900/20 rounded border border-red-700/50">
-                      <p className="text-xs font-mono text-red-300">{error.message}</p>
+                    <div key={idx} className="p-2 bg-zinc-900/20 rounded border border-zinc-700/50">
+                      <p className="text-xs font-mono text-zinc-300">{error.message}</p>
                       <p className="text-xs text-gray-400">{error.endpoint}</p>
                       <p className="text-xs text-gray-500">{new Date(error.timestamp).toLocaleString()}</p>
                     </div>
@@ -200,15 +200,15 @@ export default function AdminDiagnosticsDashboard() {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {Object.entries(systemStatus.seed_data).map(([key, count]) => (
-                  <div key={key} className="p-3 bg-slate-900 rounded border border-cyan-500/20">
+                  <div key={key} className="p-3 bg-slate-900 rounded border border-zinc-500/20">
                     <p className="text-xs text-gray-400 capitalize">{key.replace(/_/g, " ")}</p>
-                    <p className="text-2xl font-bold text-cyan-400">{count}</p>
+                    <p className="text-2xl font-bold text-zinc-400">{count}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-4 p-3 bg-blue-900/20 border border-blue-700/50 rounded">
-                <p className="text-xs text-blue-300">
+              <div className="mt-4 p-3 bg-zinc-900/20 border border-zinc-700/50 rounded">
+                <p className="text-xs text-zinc-300">
                   ℹ️ Production-Grade Seed: ~1000 wallets, ~5000 transactions, ~150 alerts, ~60 blocked transfers, ~120 nodes, ~500 metrics
                 </p>
               </div>
@@ -226,10 +226,10 @@ export default function AdminDiagnosticsDashboard() {
             <CardContent>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {Object.entries(systemStatus.endpoints).map(([endpoint, stats]) => (
-                  <div key={endpoint} className="p-3 bg-slate-900 rounded border border-cyan-500/20">
+                  <div key={endpoint} className="p-3 bg-slate-900 rounded border border-zinc-500/20">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <p className="text-sm font-mono text-cyan-400">{endpoint}</p>
+                        <p className="text-sm font-mono text-zinc-400">{endpoint}</p>
                         <p className="text-xs text-gray-400">
                           Total: {stats.total_calls} | Success: {stats.success_count} | Errors: {stats.error_count}
                         </p>
@@ -241,7 +241,7 @@ export default function AdminDiagnosticsDashboard() {
                             {stats.last_status_code}
                           </Badge>
                         )}
-                        {stats.last_error && <p className="text-xs text-red-400 mt-2">{stats.last_error}</p>}
+                        {stats.last_error && <p className="text-xs text-zinc-400 mt-2">{stats.last_error}</p>}
                         {stats.last_called && (
                           <p className="text-xs text-gray-500 mt-2">
                             Last: {new Date(stats.last_called).toLocaleTimeString()}
@@ -294,10 +294,10 @@ export default function AdminDiagnosticsDashboard() {
                     <div
                       key={idx}
                       className={`p-2 rounded border ${log.type === "error" || log.type === "api_error"
-                        ? "bg-red-900/20 border-red-700/50 text-red-300"
+                        ? "bg-zinc-900/20 border-zinc-700/50 text-zinc-300"
                         : log.type === "warning"
                           ? "bg-yellow-900/20 border-yellow-700/50 text-yellow-300"
-                          : "bg-cyan-900/20 border-cyan-700/50 text-cyan-300"
+                          : "bg-zinc-900/20 border-zinc-700/50 text-zinc-300"
                         }`}
                     >
                       <div className="flex justify-between">

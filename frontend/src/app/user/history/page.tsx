@@ -119,8 +119,8 @@ export default function UserHistoryPage() {
                 <span>Loading balance...</span>
               </div>
             ) : balance ? (
-              <div className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-3 py-1.5">
-                <Wallet className="h-4 w-4 text-cyan-400" />
+              <div className="flex items-center gap-2 bg-zinc-500/10 border border-zinc-500/30 rounded-lg px-3 py-1.5">
+                <Wallet className="h-4 w-4 text-zinc-400" />
                 <span className="text-sm font-semibold text-slate-100">
                   {balance.balance_eth.toFixed(4)} ETH
                 </span>
@@ -134,8 +134,8 @@ export default function UserHistoryPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="border-slate-700/50 bg-slate-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+            <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
+              <CheckCircle2 className="h-5 w-5 text-zinc-400" />
             </div>
             <div>
               <p className="text-2xl font-semibold text-white">
@@ -148,8 +148,8 @@ export default function UserHistoryPage() {
 
         <Card className="border-slate-700/50 bg-slate-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-              <Ban className="h-5 w-5 text-red-400" />
+            <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
+              <Ban className="h-5 w-5 text-zinc-400" />
             </div>
             <div>
               <p className="text-2xl font-semibold text-white">
@@ -162,8 +162,8 @@ export default function UserHistoryPage() {
 
         <Card className="border-slate-700/50 bg-slate-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-              <AlertTriangle className="h-5 w-5 text-amber-400" />
+            <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
+              <AlertTriangle className="h-5 w-5 text-zinc-400" />
             </div>
             <div>
               <p className="text-2xl font-semibold text-white">
@@ -176,8 +176,8 @@ export default function UserHistoryPage() {
 
         <Card className="border-slate-700/50 bg-slate-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-              <Shield className="h-5 w-5 text-cyan-400" />
+            <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
+              <Shield className="h-5 w-5 text-zinc-400" />
             </div>
             <div>
               <p className="text-2xl font-semibold text-white">
@@ -211,7 +211,7 @@ export default function UserHistoryPage() {
           <Card className="border-slate-700/50 bg-slate-800/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-white">
-                <History className="h-5 w-5 text-cyan-400" />
+                <History className="h-5 w-5 text-zinc-400" />
                 Transaction History
               </CardTitle>
               <CardDescription className="text-slate-400">
@@ -221,7 +221,7 @@ export default function UserHistoryPage() {
             <CardContent>
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="h-8 w-8 animate-spin text-cyan-400" />
+                  <RefreshCw className="h-8 w-8 animate-spin text-zinc-400" />
                 </div>
               ) : history?.successful_transactions?.length === 0 ? (
                 <div className="text-center py-12 text-slate-400">
@@ -238,14 +238,14 @@ export default function UserHistoryPage() {
                       <div className="flex items-center gap-4">
                         <div
                           className={`p-2.5 rounded-lg ${tx.direction === "sent"
-                            ? "bg-red-500/10 border border-red-500/20"
-                            : "bg-emerald-500/10 border border-emerald-500/20"
+                            ? "bg-zinc-500/10 border border-zinc-500/20"
+                            : "bg-zinc-500/10 border border-zinc-500/20"
                             }`}
                         >
                           {tx.direction === "sent" ? (
-                            <ArrowUpRight className="h-5 w-5 text-red-400" />
+                            <ArrowUpRight className="h-5 w-5 text-zinc-400" />
                           ) : (
-                            <ArrowDownLeft className="h-5 w-5 text-emerald-400" />
+                            <ArrowDownLeft className="h-5 w-5 text-zinc-400" />
                           )}
                         </div>
                         <div>
@@ -261,7 +261,7 @@ export default function UserHistoryPage() {
                       </div>
                       <div className="text-right">
                         <p
-                          className={`font-semibold ${tx.direction === "sent" ? "text-red-400" : "text-emerald-400"
+                          className={`font-semibold ${tx.direction === "sent" ? "text-zinc-400" : "text-zinc-400"
                             }`}
                         >
                           {tx.direction === "sent" ? "-" : "+"}
@@ -289,7 +289,7 @@ export default function UserHistoryPage() {
           <Card className="border-slate-700/50 bg-slate-800/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-white">
-                <Ban className="h-5 w-5 text-red-400" />
+                <Ban className="h-5 w-5 text-zinc-400" />
                 Blocked Transfers
               </CardTitle>
               <CardDescription className="text-slate-400">
@@ -299,7 +299,7 @@ export default function UserHistoryPage() {
             <CardContent>
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="h-8 w-8 animate-spin text-cyan-400" />
+                  <RefreshCw className="h-8 w-8 animate-spin text-zinc-400" />
                 </div>
               ) : history?.blocked_transfers?.length === 0 ? (
                 <div className="text-center py-12 text-slate-400">
@@ -359,7 +359,7 @@ export default function UserHistoryPage() {
           <Card className="border-slate-700/50 bg-slate-800/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-white">
-                <AlertTriangle className="h-5 w-5 text-amber-400" />
+                <AlertTriangle className="h-5 w-5 text-zinc-400" />
                 Risk Warnings
               </CardTitle>
               <CardDescription className="text-slate-400">
@@ -369,11 +369,11 @@ export default function UserHistoryPage() {
             <CardContent>
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="h-8 w-8 animate-spin text-cyan-400" />
+                  <RefreshCw className="h-8 w-8 animate-spin text-zinc-400" />
                 </div>
               ) : history?.warnings?.length === 0 ? (
                 <div className="text-center py-12 text-slate-400">
-                  <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-emerald-400 opacity-50" />
+                  <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-zinc-400 opacity-50" />
                   <p>No warnings on record</p>
                   <p className="text-sm mt-1">You have a clean record!</p>
                 </div>
@@ -382,12 +382,12 @@ export default function UserHistoryPage() {
                   {history?.warnings?.map((warning: any) => (
                     <div
                       key={warning.id}
-                      className="p-4 rounded-lg bg-slate-800/50 border border-amber-500/20"
+                      className="p-4 rounded-lg bg-slate-800/50 border border-zinc-500/20"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-lg bg-amber-500/10">
-                            <AlertTriangle className="h-5 w-5 text-amber-400" />
+                          <div className="p-2 rounded-lg bg-zinc-500/10">
+                            <AlertTriangle className="h-5 w-5 text-zinc-400" />
                           </div>
                           <div>
                             <p className="font-medium text-white">

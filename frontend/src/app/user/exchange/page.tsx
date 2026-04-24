@@ -256,11 +256,11 @@ export default function UserExchange() {
         <Card className="glass-card glass-card-hover animate-slide-up gradient-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-cyan-400" />
+              <Send className="h-5 w-5 text-zinc-400" />
               Send ETH
-              <div className="ml-auto flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-3 py-1.5">
-                <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                <span className="text-sm text-emerald-400 font-medium">
+              <div className="ml-auto flex items-center gap-2 bg-zinc-500/10 border border-zinc-500/30 rounded-full px-3 py-1.5">
+                <ShieldCheck className="h-4 w-4 text-zinc-400" />
+                <span className="text-sm text-zinc-400 font-medium">
                   AI Protected
                 </span>
               </div>
@@ -268,9 +268,9 @@ export default function UserExchange() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Security Notice */}
-            <div className="bg-cyan-500/5 border border-cyan-500/30 rounded-lg p-4">
+            <div className="bg-zinc-500/5 border border-zinc-500/30 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-cyan-400 shrink-0 mt-0.5" />
+                <Info className="h-5 w-5 text-zinc-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm text-slate-100 font-medium">
                     AI Protection Active
@@ -302,7 +302,7 @@ export default function UserExchange() {
                 </div>
               )}
               {senderBalanceError && (
-                <div className="flex items-center gap-2 text-red-400 text-sm">
+                <div className="flex items-center gap-2 text-zinc-400 text-sm">
                   <XCircle className="h-4 w-4" />
                   <span>{senderBalanceError}</span>
                 </div>
@@ -311,14 +311,14 @@ export default function UserExchange() {
                 <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mt-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-cyan-400" />
+                      <Wallet className="h-4 w-4 text-zinc-400" />
                       <span className="text-sm text-slate-400">Số dư khả dụng:</span>
                     </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-lg font-bold text-slate-100">
                         {senderBalance.balance_eth.toFixed(4)}
                       </span>
-                      <span className="text-sm text-cyan-400">ETH</span>
+                      <span className="text-sm text-zinc-400">ETH</span>
                     </div>
                   </div>
 
@@ -366,20 +366,20 @@ export default function UserExchange() {
             )}
             {receiverRisk && !receiverRiskLoading && (
               <div className={`border rounded-lg p-3 -mt-2 ${receiverRisk.risk_score >= 80
-                ? 'bg-red-500/10 border-red-500/30'
+                ? 'bg-zinc-500/10 border-zinc-500/30'
                 : receiverRisk.risk_score >= 60
-                  ? 'bg-orange-500/10 border-orange-500/30'
+                  ? 'bg-zinc-500/10 border-zinc-500/30'
                   : receiverRisk.risk_score >= 40
                     ? 'bg-yellow-500/10 border-yellow-500/30'
-                    : 'bg-green-500/10 border-green-500/30'
+                    : 'bg-zinc-500/10 border-zinc-500/30'
                 }`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {receiverRisk.risk_score >= 60 ? (
-                      <ShieldAlert className={`h-5 w-5 ${receiverRisk.risk_score >= 80 ? 'text-red-400' : 'text-orange-400'
+                      <ShieldAlert className={`h-5 w-5 ${receiverRisk.risk_score >= 80 ? 'text-zinc-400' : 'text-zinc-400'
                         }`} />
                     ) : (
-                      <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-yellow-400' : 'text-green-400'
+                      <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-yellow-400' : 'text-zinc-400'
                         }`} />
                     )}
                     <span className="text-sm font-medium text-slate-100">
@@ -393,12 +393,12 @@ export default function UserExchange() {
                     </span>
                   </div>
                   <Badge variant="outline" className={`${receiverRisk.risk_score >= 80
-                    ? 'border-red-500 text-red-400'
+                    ? 'border-zinc-500 text-zinc-400'
                     : receiverRisk.risk_score >= 60
-                      ? 'border-orange-500 text-orange-400'
+                      ? 'border-zinc-500 text-zinc-400'
                       : receiverRisk.risk_score >= 40
                         ? 'border-yellow-500 text-yellow-400'
-                        : 'border-green-500 text-green-400'
+                        : 'border-zinc-500 text-zinc-400'
                     }`}>
                     Risk: {receiverRisk.risk_score.toFixed(0)}%
                   </Badge>
@@ -477,7 +477,7 @@ export default function UserExchange() {
           <CardContent>
             {(fromWalletId ? senderTxLoading : txLoading) ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-400" />
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-400" />
               </div>
             ) : (fromWalletId ? senderTransactions : transactions)?.length === 0 ? (
               <div className="text-center py-8 text-slate-400">
@@ -498,14 +498,14 @@ export default function UserExchange() {
                       <div className="flex items-center gap-3">
                         <div
                           className={`p-2 rounded-lg ${isSent
-                            ? "bg-red-500/10 border-red-500/30"
-                            : "bg-emerald-500/10 border-emerald-500/30"
+                            ? "bg-zinc-500/10 border-zinc-500/30"
+                            : "bg-zinc-500/10 border-zinc-500/30"
                             } border`}
                         >
                           {isSent ? (
-                            <ArrowUpRight className="h-5 w-5 text-red-400" />
+                            <ArrowUpRight className="h-5 w-5 text-zinc-400" />
                           ) : (
-                            <ArrowDownLeft className="h-5 w-5 text-emerald-400" />
+                            <ArrowDownLeft className="h-5 w-5 text-zinc-400" />
                           )}
                         </div>
                         <div>
@@ -521,7 +521,7 @@ export default function UserExchange() {
                       </div>
                       <div className="text-right">
                         <p
-                          className={`font-bold ${isSent ? "text-red-400" : "text-emerald-400"
+                          className={`font-bold ${isSent ? "text-zinc-400" : "text-zinc-400"
                             }`}
                         >
                           {isSent ? "-" : "+"}
@@ -549,7 +549,7 @@ export default function UserExchange() {
       <Dialog open={showWarningDialog} onOpenChange={setShowWarningDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-orange-400">
+            <DialogTitle className="flex items-center gap-2 text-zinc-400">
               <AlertTriangle className="h-6 w-6" />
               Risk Warning
             </DialogTitle>
@@ -584,7 +584,7 @@ export default function UserExchange() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold text-orange-400">
+                  <span className="text-3xl font-bold text-zinc-400">
                     {transferResponse?.receiver_risk?.toFixed(0) || 0}
                   </span>
                   <span className="text-xs text-slate-400">Risk Score</span>
@@ -593,7 +593,7 @@ export default function UserExchange() {
             </div>
 
             {/* Warning Message */}
-            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4">
+            <div className="bg-zinc-500/10 border border-zinc-500/30 rounded-lg p-4">
               <p className="text-sm text-slate-100">
                 {transferResponse?.message}
               </p>
@@ -607,20 +607,20 @@ export default function UserExchange() {
                   <div
                     key={i}
                     className={`w-3 h-3 rounded-full ${i <= currentWarnings
-                      ? "bg-red-400"
+                      ? "bg-zinc-400"
                       : "bg-slate-600"
                       }`}
                   />
                 ))}
               </div>
-              <span className="text-sm text-orange-400 font-medium">
+              <span className="text-sm text-zinc-400 font-medium">
                 {transferResponse?.warning_text}
               </span>
             </div>
 
             {currentWarnings >= 2 && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                <p className="text-sm text-red-400 flex items-center gap-2">
+              <div className="bg-zinc-500/10 border border-zinc-500/30 rounded-lg p-3">
+                <p className="text-sm text-zinc-400 flex items-center gap-2">
                   <ShieldAlert className="h-4 w-4" />
                   Final warning! Your account will be suspended if you proceed.
                 </p>
@@ -647,7 +647,7 @@ export default function UserExchange() {
       <Dialog open={showBlockedDialog} onOpenChange={setShowBlockedDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-400">
+            <DialogTitle className="flex items-center gap-2 text-zinc-400">
               <AlertOctagon className="h-6 w-6" />
               Transfer Blocked
             </DialogTitle>
@@ -657,14 +657,14 @@ export default function UserExchange() {
             {/* Blocked Icon */}
             <div className="flex items-center justify-center">
               <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-red-500/20 flex items-center justify-center animate-pulse">
-                  <XCircle className="h-12 w-12 text-red-400" />
+                <div className="w-24 h-24 rounded-full bg-zinc-500/20 flex items-center justify-center animate-pulse">
+                  <XCircle className="h-12 w-12 text-zinc-400" />
                 </div>
               </div>
             </div>
 
             {/* Block Reason */}
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+            <div className="bg-zinc-500/10 border border-zinc-500/30 rounded-lg p-4">
               <p className="text-sm text-slate-100 text-center">
                 {transferResponse?.message ||
                   "This transfer has been blocked due to high risk."}
@@ -698,7 +698,7 @@ export default function UserExchange() {
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-emerald-400">
+            <DialogTitle className="flex items-center gap-2 text-zinc-400">
               <CheckCircle2 className="h-6 w-6" />
               Transfer Successful
             </DialogTitle>
@@ -707,8 +707,8 @@ export default function UserExchange() {
           <div className="space-y-4 py-4">
             {/* Success Icon */}
             <div className="flex items-center justify-center">
-              <div className="w-24 h-24 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <CheckCircle2 className="h-12 w-12 text-emerald-400" />
+              <div className="w-24 h-24 rounded-full bg-zinc-500/20 flex items-center justify-center">
+                <CheckCircle2 className="h-12 w-12 text-zinc-400" />
               </div>
             </div>
 
@@ -726,7 +726,7 @@ export default function UserExchange() {
 
           <DialogFooter>
             <Button
-              className="w-full bg-emerald-600 hover:bg-emerald-700"
+              className="w-full bg-zinc-600 hover:bg-zinc-700"
               onClick={() => setShowSuccessDialog(false)}
             >
               Done

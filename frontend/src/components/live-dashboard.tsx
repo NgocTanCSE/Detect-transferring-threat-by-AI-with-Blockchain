@@ -994,7 +994,7 @@ export default function LiveDashboard() {
         </header>
 
         {error ? (
-          <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">Live data error: {error}</div>
+          <div className="mb-4 rounded-2xl border border-zinc-500/30 bg-zinc-500/10 px-4 py-3 text-sm text-zinc-100">Live data error: {error}</div>
         ) : null}
 
         <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1090,19 +1090,19 @@ function NodeGrid({ nodes }: { nodes: NodeEndpointItem[] }) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {nodes.map((node) => (
-        <div key={node.id} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+        <div key={node.id} className="rounded-2xl border border-zinc-700 bg-zinc-900/70 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-white">{node.provider_name}</p>
-              <p className="mt-1 text-xs text-slate-400">{node.chain} · {node.protocol}</p>
+              <p className="mt-1 text-xs text-zinc-400">{node.chain} · {node.protocol}</p>
             </div>
             <SeverityPill severity={node.health_status.toUpperCase()} />
           </div>
-          <div className="mt-3 space-y-2 text-sm text-slate-300">
+          <div className="mt-3 space-y-2 text-sm text-zinc-300">
             <p>Endpoint: {node.endpoint_url}</p>
             <p>Priority: {node.priority}</p>
             <p>Checked: {formatDateTime(node.last_checked_at)}</p>
-            {node.last_error ? <p className="text-rose-300">Error: {node.last_error}</p> : null}
+            {node.last_error ? <p className="text-zinc-100 bg-zinc-800 px-2 py-1 rounded">Error: {node.last_error}</p> : null}
           </div>
         </div>
       ))}
@@ -1272,7 +1272,7 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => void handleUpdateHealth(node, "down")}
-                      className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] text-red-200 disabled:opacity-60"
+                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
                     >
                       Down
                     </button>
@@ -1364,11 +1364,11 @@ function DiagnosticsLogsPanel({
   }, [includeArchived]);
 
   const logTypeColors: Record<string, string> = {
-    error: "bg-red-500/20 text-red-300 border-red-500/30",
+    error: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
     amber: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
-    info: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    info: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
     api_call: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
-    api_error: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+    api_error: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
     violet: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
     orange: "border-zinc-600/20 bg-zinc-600/10 text-zinc-300",
     ai_service: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30",
@@ -1466,7 +1466,7 @@ function DiagnosticsLogsPanel({
           type="button"
           disabled={isExporting}
           onClick={() => void handleExport()}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-cyan-500/50 hover:text-white disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
         >
           <Download className="h-3.5 w-3.5" />
           {isExporting ? "Exporting..." : "Export CSV"}
@@ -1475,7 +1475,7 @@ function DiagnosticsLogsPanel({
           type="button"
           disabled={isArchiving || filteredLogs.length === 0}
           onClick={() => void handleArchiveFiltered(true)}
-          className="inline-flex items-center gap-2 rounded-xl border border-amber-600/40 bg-amber-600/10 px-3 py-2 text-xs font-medium text-amber-200 transition hover:border-amber-500/60 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-zinc-600/40 bg-zinc-600/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/60 disabled:opacity-60"
         >
           <Archive className="h-3.5 w-3.5" />
           {isArchiving ? "Archiving..." : `Archive filtered (${filteredLogs.length})`}
@@ -1484,7 +1484,7 @@ function DiagnosticsLogsPanel({
           type="button"
           disabled={isArchiving || filteredLogs.length === 0}
           onClick={() => void handleArchiveFiltered(false)}
-          className="inline-flex items-center gap-2 rounded-xl border border-emerald-600/40 bg-emerald-600/10 px-3 py-2 text-xs font-medium text-emerald-200 transition hover:border-emerald-500/60 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-zinc-600/40 bg-zinc-600/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/60 disabled:opacity-60"
         >
           <Archive className="h-3.5 w-3.5" />
           {isArchiving ? "Updating..." : "Unarchive filtered"}
@@ -1554,9 +1554,9 @@ function DiagnosticsLogsPanel({
                   {log.status_code ? (
                     <span
                       className={`inline-block rounded px-2 py-1 text-xs font-semibold ${log.status_code >= 200 && log.status_code < 300
-                        ? "bg-emerald-500/20 text-emerald-300"
+                        ? "bg-zinc-500/20 text-zinc-300"
                         : log.status_code >= 400
-                          ? "bg-red-500/20 text-red-300"
+                          ? "bg-zinc-500/20 text-zinc-300"
                           : "bg-slate-700/20 text-slate-300"
                         }`}
                     >
@@ -1691,7 +1691,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
           <p className="text-sm font-semibold text-white">Data integrity controls</p>
           <p className="mt-1 text-xs text-slate-400">DB-first readiness for role modules and controls</p>
         </div>
-        <span className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${report.overall_ok ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200" : "border-amber-500/40 bg-amber-500/10 text-amber-200"}`}>
+        <span className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${report.overall_ok ? "border-zinc-500/40 bg-zinc-500/10 text-zinc-200" : "border-zinc-500/40 bg-zinc-500/10 text-zinc-200"}`}>
           {report.overall_ok ? "ALL OK" : `${missing.length} GAPS`}
         </span>
       </div>
@@ -1708,7 +1708,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
           type="button"
           onClick={() => void handleAutoFix()}
           disabled={isFixing || missing.length === 0}
-          className="inline-flex items-center gap-2 rounded-xl border border-emerald-600/40 bg-emerald-600/10 px-3 py-2 text-xs font-medium text-emerald-200 transition hover:border-emerald-500/60 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-zinc-600/40 bg-zinc-600/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/60 disabled:opacity-60"
         >
           <RefreshCcw className="h-3.5 w-3.5" />
           {isFixing ? "Auto-fixing..." : `Auto-fix missing (${missing.length})`}
@@ -1717,7 +1717,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
           type="button"
           onClick={() => void handleExportIntegrity("csv")}
           disabled={isExporting}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-cyan-500/50 hover:text-white disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
         >
           <Download className="h-3.5 w-3.5" />
           Export integrity CSV
@@ -1726,7 +1726,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
           type="button"
           onClick={() => void handleExportIntegrity("json")}
           disabled={isExporting}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-cyan-500/50 hover:text-white disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
         >
           <Download className="h-3.5 w-3.5" />
           Export integrity JSON
@@ -1930,7 +1930,7 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
                       type="button"
                       disabled={isSubmitting || isActive}
                       onClick={() => void handleActivateModel(model)}
-                      className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-200 disabled:opacity-60"
+                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
                     >
                       {isActive ? "Active" : "Activate"}
                     </button>
@@ -2067,7 +2067,7 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => void handleToggleFeature(feature)}
-                    className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-200 transition hover:border-amber-400/60 disabled:opacity-60"
+                    className="rounded-lg border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-xs font-medium text-zinc-200 transition hover:border-zinc-400/60 disabled:opacity-60"
                   >
                     {feature.enabled ? "Disable" : "Enable"}
                   </button>
@@ -2317,7 +2317,7 @@ function AlertQueuePanel({
                 setPage(1);
               }}
               placeholder="Search wallet, type, message"
-              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
+              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-zinc-500/50"
             />
           </div>
           <select
@@ -2355,7 +2355,7 @@ function AlertQueuePanel({
                   <td className="px-4 py-3">{alert.alert_type}</td>
                   <td className="px-4 py-3">{formatDateTime(alert.detected_at)}</td>
                   <td className="px-4 py-3">
-                    <Link href={`/insights/wallet/${encodeURIComponent(alert.wallet_address)}${contextQuery}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                    <Link href={`/insights/wallet/${encodeURIComponent(alert.wallet_address)}${contextQuery}`} className="inline-flex items-center gap-1 text-zinc-300 hover:text-zinc-200">
                       Wallet
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
@@ -2550,7 +2550,7 @@ function CaseQueuePanel({
               setPage(1);
             }}
             placeholder="Search tx hash or wallet"
-            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
+            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-zinc-500/50"
           />
         </div>
         <select
@@ -2594,7 +2594,7 @@ function CaseQueuePanel({
                       type="button"
                       disabled={actingTxHash === item.tx_hash}
                       onClick={() => void handleCaseAction(item.tx_hash, "CONFIRM_FRAUD")}
-                      className="rounded-md border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 disabled:opacity-60"
+                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
                     >
                       Fraud
                     </button>
@@ -2617,7 +2617,7 @@ className="rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[11px] t
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-zinc-300 hover:text-zinc-200">
                     Case
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Link>
@@ -2813,7 +2813,7 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
                 <td className="px-4 py-3">{item.status}</td>
                 <td className="px-4 py-3">{item.assigned_to ?? "-"}</td>
                 <td className="px-4 py-3">
-                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-zinc-300 hover:text-zinc-200">
                     Case
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Link>
@@ -2947,13 +2947,13 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
           <p className="text-sm font-semibold text-white">Audit checks</p>
           <div className="mt-3 flex-grow space-y-2 text-sm text-slate-300">
             {pagedChecks.length ? pagedChecks.map((item, idx) => (
-              <div key={`${item.action_type}:${idx}`} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2">
+              <div key={`${item.action_type}:${idx}`} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2">
                 <span>{item.action_type}</span>
                 <span>{item.count} · {item.present ? "PRESENT" : "MISSING"}</span>
               </div>
-            )) : <p className="text-slate-500">No audit checks found.</p>}
+            )) : <p className="text-zinc-500">No audit checks found.</p>}
           </div>
-          <div className="mt-4 border-t border-slate-800 pt-3">
+          <div className="mt-4 border-t border-zinc-800 pt-3">
             <TablePager
               page={checksPage}
               totalPages={checksTotalPages}
@@ -2967,17 +2967,17 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
           </div>
         </div>
 
-        <div className="flex flex-col rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+        <div className="flex flex-col rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
           <p className="text-sm font-semibold text-white">Missing actions</p>
-          <div className="mt-3 flex-grow space-y-2 text-sm text-slate-300">
+          <div className="mt-3 flex-grow space-y-2 text-sm text-zinc-300">
             {pagedMissing.length ? pagedMissing.map((item, idx) => (
-              <div key={`${item.action_type}:${idx}`} className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-200">
+              <div key={`${item.action_type}:${idx}`} className="rounded-xl border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-zinc-200">
                 <p className="font-medium">{item.action_type}</p>
-                <p className="text-xs text-rose-300/80 mt-1">Owner: {item.owner_role} · {item.reason}</p>
+                <p className="text-xs text-zinc-300/80 mt-1">Owner: {item.owner_role} · {item.reason}</p>
               </div>
-            )) : <p className="text-slate-500">No missing actions.</p>}
+            )) : <p className="text-zinc-500">No missing actions.</p>}
           </div>
-          <div className="mt-4 border-t border-slate-800 pt-3">
+          <div className="mt-4 border-t border-zinc-800 pt-3">
             <TablePager
               page={missingPage}
               totalPages={missingTotalPages}

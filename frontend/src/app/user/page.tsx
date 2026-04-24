@@ -51,7 +51,7 @@ export default function UserPage() {
               {/* Email */}
               <div className="flex items-start gap-4">
                 <div className="mt-1 rounded-lg bg-slate-800/50 p-2">
-                  <Mail className="h-5 w-5 text-blue-400" />
+                  <Mail className="h-5 w-5 text-zinc-400" />
                 </div>
                 <div>
                   <p className="text-sm text-slate-400">Địa chỉ email</p>
@@ -63,7 +63,7 @@ export default function UserPage() {
               {user.wallet_address ? (
                 <div className="flex items-start gap-4">
                   <div className="mt-1 rounded-lg bg-slate-800/50 p-2">
-                    <Wallet className="h-5 w-5 text-emerald-400" />
+                    <Wallet className="h-5 w-5 text-zinc-400" />
                   </div>
                   <div className="w-full">
                     <p className="text-sm text-slate-400">Địa chỉ ví</p>
@@ -87,19 +87,19 @@ export default function UserPage() {
               {/* Status */}
               <div className="flex items-start gap-4">
                 <div className="mt-1 rounded-lg bg-slate-800/50 p-2">
-                  <Shield className="h-5 w-5 text-amber-400" />
+                  <Shield className="h-5 w-5 text-zinc-400" />
                 </div>
                 <div>
                   <p className="text-sm text-slate-400">Trạng thái tài khoản</p>
                   <p className="text-base font-medium text-white">
                     {user.is_active ? (
                       <span className="flex items-center gap-2">
-                        <span className="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+                        <span className="inline-block h-2 w-2 rounded-full bg-zinc-500"></span>
                         Hoạt động
                       </span>
                     ) : (
                       <span className="flex items-center gap-2">
-                        <span className="inline-block h-2 w-2 rounded-full bg-red-500"></span>
+                        <span className="inline-block h-2 w-2 rounded-full bg-zinc-500"></span>
                         Bị vô hiệu hóa
                       </span>
                     )}
@@ -110,7 +110,7 @@ export default function UserPage() {
               {/* Warning Count */}
               <div className="flex items-start gap-4">
                 <div className="mt-1 rounded-lg bg-slate-800/50 p-2">
-                  <AlertTriangle className="h-5 w-5 text-orange-400" />
+                  <AlertTriangle className="h-5 w-5 text-zinc-400" />
                 </div>
                 <div>
                   <p className="text-sm text-slate-400">Cảnh báo</p>

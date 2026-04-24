@@ -23,16 +23,13 @@ export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [walletAddress, setWalletAddress] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const canSubmit = useMemo(() => {
-    const hasBasic = username.trim().length >= 3 && email.trim().length > 0 && password.length >= 6;
-    const hasValidWallet = walletAddress.trim().length === 0 || (walletAddress.trim().length === 42 && walletAddress.startsWith("0x"));
-    return hasBasic && hasValidWallet;
-  }, [email, password, username, walletAddress]);
+    return username.trim().length >= 3 && email.trim().length > 0 && password.length >= 6;
+  }, [email, password, username]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,10 +44,9 @@ export default function RegisterPage() {
         username: username.trim(),
         email: email.trim(),
         password,
-        wallet_address: walletAddress.trim() || undefined,
       });
 
-      setSuccess(`Đăng ký thành công. Wallet của bạn: ${registeredUser.wallet_address ?? "(không có)"}. Đang chuyển sang trang đăng nhập...`);
+      setSuccess(`Đăng ký thành công. Đang chuyển sang trang đăng nhập...`);
       setTimeout(() => {
         router.push("/login");
       }, 1200);
@@ -71,13 +67,13 @@ export default function RegisterPage() {
               <Shield className="h-7 w-7 text-zinc-950" />
             </div>
             <h1 className="text-2xl font-bold text-white">Tạo tài khoản</h1>
-            <p className="mt-1 text-slate-400">Đăng ký để theo dõi và bảo vệ giao dịch.</p>
+            <p className="mt-1 text-zinc-400">Đăng ký để theo dõi và bảo vệ giao dịch.</p>
           </div>
 
           <Card className="border-zinc-800/80 bg-zinc-900/60 backdrop-blur-xl">
             <CardHeader>
               <CardTitle className="text-white">Đăng ký</CardTitle>
-              <CardDescription className="text-slate-400">Thông tin cơ bản để tạo tài khoản mới.</CardDescription>
+              <CardDescription className="text-zinc-400">Thông tin cơ bản để tạo tài khoản mới.</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>
@@ -116,26 +112,14 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="wallet" className="text-slate-300">Wallet address (tùy chọn)</Label>
-                  <Input
-                    id="wallet"
-                    value={walletAddress}
-                    onChange={(event) => setWalletAddress(event.target.value)}
-                    placeholder="Bỏ trống để hệ thống tự tạo"
-                    className="border-zinc-800 bg-zinc-950 font-mono text-zinc-100 focus:border-white/40"
-                  />
-                  <p className="text-xs text-slate-400">
-                    Bạn có thể tự nhập ví (đúng định dạng 0x...42 ký tự) hoặc để trống để hệ thống cấp ví mới.
-                  </p>
-                </div>
+
 
                 {error ? (
-                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>
+                  <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-sm text-zinc-300">{error}</div>
                 ) : null}
 
                 {success ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+                  <div className="flex items-center gap-2 rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-sm text-zinc-300">
                     <CheckCircle2 className="h-4 w-4" />
                     {success}
                   </div>
@@ -156,7 +140,7 @@ export default function RegisterPage() {
                 </Button>
               </form>
 
-              <p className="mt-4 text-sm text-slate-400">
+              <p className="mt-4 text-sm text-zinc-400">
                 Đã có tài khoản?{" "}
                 <Link href="/login" className="text-zinc-100 underline decoration-zinc-700 underline-offset-4 hover:decoration-white transition-all">
                   Đăng nhập ngay

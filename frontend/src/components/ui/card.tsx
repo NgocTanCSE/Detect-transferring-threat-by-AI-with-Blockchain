@@ -9,9 +9,9 @@ const Card = React.forwardRef<
   }
 >(({ className, glow = "none", ...props }, ref) => {
   const glowClasses = {
-    cyan: "border-cyber-neon-cyan/30 hover:border-cyber-neon-cyan/50 hover:shadow-neon-cyan",
-    red: "border-cyber-neon-red/30 hover:border-cyber-neon-red/50 hover:shadow-neon-red",
-    green: "border-cyber-neon-green/30 hover:border-cyber-neon-green/50 hover:shadow-neon-green",
+    cyan: "border-cyber-neon-cyan/30 hover:border-cyber-neon-cyan/50 hover:shadow-none",
+    red: "border-cyber-neon-red/30 hover:border-cyber-neon-red/50 hover:shadow-none",
+    green: "border-cyber-neon-green/30 hover:border-cyber-neon-green/50 hover:shadow-none",
     purple: "border-cyber-neon-purple/30 hover:border-cyber-neon-purple/50 hover:shadow-neon-purple",
     orange: "border-cyber-neon-orange/30 hover:border-cyber-neon-orange/50 hover:shadow-neon-orange",
     none: "border-cyber-border",

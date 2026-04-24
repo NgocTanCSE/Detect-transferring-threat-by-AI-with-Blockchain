@@ -196,7 +196,7 @@
   }
 
   .stat-card-red .stat-icon {
-    @apply bg-gradient-to-br from-red-500/20 to-red-600/10 border-red-500/30;
+    @apply bg-gradient-to-br from-zinc-500/20 to-zinc-600/10 border-zinc-500/30;
   }
 
   .stat-card-purple {

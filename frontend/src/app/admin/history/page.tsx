@@ -107,8 +107,8 @@ export default function AdminHistory() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="border-slate-700/50 bg-slate-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-              <Ban className="h-6 w-6 text-red-400" />
+            <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
+              <Ban className="h-6 w-6 text-zinc-400" />
             </div>
             <div>
               <p className="text-2xl font-semibold text-white">
@@ -121,8 +121,8 @@ export default function AdminHistory() {
 
         <Card className="border-slate-700/50 bg-slate-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
-              <AlertOctagon className="h-6 w-6 text-orange-400" />
+            <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
+              <AlertOctagon className="h-6 w-6 text-zinc-400" />
             </div>
             <div>
               <p className="text-2xl font-semibold text-white">
@@ -135,8 +135,8 @@ export default function AdminHistory() {
 
         <Card className="border-slate-700/50 bg-slate-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-              <TrendingUp className="h-6 w-6 text-cyan-400" />
+            <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
+              <TrendingUp className="h-6 w-6 text-zinc-400" />
             </div>
             <div>
               <p className="text-2xl font-semibold text-white">
@@ -152,7 +152,7 @@ export default function AdminHistory() {
       <Card className="border-slate-700/50 bg-slate-800/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
-            <TrendingUp className="h-5 w-5 text-cyan-400" />
+            <TrendingUp className="h-5 w-5 text-zinc-400" />
             Money Flow Analysis
           </CardTitle>
           <CardDescription className="text-slate-400">
@@ -162,7 +162,7 @@ export default function AdminHistory() {
         <CardContent>
           {flowLoading ? (
             <div className="h-80 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" />
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-400" />
             </div>
           ) : flowStats && flowStats.length > 0 ? (
             <ResponsiveContainer width="100%" height={350}>
@@ -228,7 +228,7 @@ export default function AdminHistory() {
       <Card className="border-slate-700/50 bg-slate-800/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
-            <History className="h-5 w-5 text-red-400" />
+            <History className="h-5 w-5 text-zinc-400" />
             Blocked Transfers History
           </CardTitle>
           <CardDescription className="text-slate-400">
@@ -253,7 +253,7 @@ export default function AdminHistory() {
               {blockedLoading ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-400 mx-auto" />
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-400 mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : blockedTransfers?.length === 0 ? (
@@ -284,7 +284,7 @@ export default function AdminHistory() {
                       {formatAddress(transfer.sender_address)}
                     </TableCell>
                     <TableCell>
-                      <ArrowRight className="h-4 w-4 text-red-400" />
+                      <ArrowRight className="h-4 w-4 text-zinc-400" />
                     </TableCell>
                     <TableCell className="font-mono text-sm text-slate-300">
                       {formatAddress(transfer.receiver_address)}
@@ -312,7 +312,7 @@ export default function AdminHistory() {
                           <div
                             key={i}
                             className={`w-2 h-2 rounded-full ${i <= transfer.user_warning_count
-                              ? "bg-red-400"
+                              ? "bg-zinc-400"
                               : "bg-slate-600"
                               }`}
                           />

@@ -67,13 +67,13 @@ export default function LoginPage() {
               <Shield className="h-7 w-7 text-zinc-950" />
             </div>
             <h1 className="text-2xl font-bold text-white">Blockchain Sentinel</h1>
-            <p className="mt-1 text-slate-400">Đăng nhập hệ thống giám sát</p>
+            <p className="mt-1 text-zinc-400">Đăng nhập hệ thống giám sát</p>
           </div>
 
           <Card className="border-zinc-800/80 bg-zinc-900/60 backdrop-blur-xl">
             <CardHeader>
               <CardTitle className="text-white">Đăng nhập</CardTitle>
-              <CardDescription className="text-slate-400">Dùng username hoặc email đã đăng ký.</CardDescription>
+              <CardDescription className="text-zinc-400">Dùng username hoặc email đã đăng ký.</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>
@@ -100,10 +100,11 @@ export default function LoginPage() {
                     placeholder="Tối thiểu 6 ký tự"
                     className="border-zinc-800 bg-zinc-950 text-zinc-100 focus:border-white/40"
                   />
+                  <p className="text-[11px] text-zinc-500">Mật khẩu phải có ít nhất 6 ký tự.</p>
                 </div>
 
                 {error ? (
-                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>
+                  <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-sm text-zinc-300">{error}</div>
                 ) : null}
 
                 <Button type="submit" className="w-full bg-white text-zinc-950 hover:bg-zinc-200 transition-colors" disabled={!canSubmit || isSubmitting}>
@@ -121,7 +122,12 @@ export default function LoginPage() {
                 </Button>
               </form>
 
-              <div className="mt-4 flex flex-col gap-2 text-sm text-slate-400">
+              <div className="mt-4 flex flex-col gap-3 text-sm text-zinc-400">
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3 text-[12px]">
+                  <p className="font-semibold text-zinc-300">Tài khoản mặc định:</p>
+                  <p className="mt-1">Admin: <code className="text-white">admin_security</code> / <code className="text-white">admin123</code></p>
+                  <p>Analyst: <code className="text-white">linh_analyst</code> / <code className="text-white">analyst123</code></p>
+                </div>
                 <p>
                   Chưa có tài khoản?{" "}
                   <Link href="/register" className="text-zinc-100 underline decoration-zinc-700 underline-offset-4 hover:decoration-white transition-all">

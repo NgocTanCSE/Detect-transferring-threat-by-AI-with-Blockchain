@@ -45,12 +45,12 @@ function MetricBlock({
 }) {
   const toneClass =
     tone === "amber"
-      ? "border-amber-500/30 bg-amber-500/10"
+      ? "border-zinc-500/30 bg-zinc-500/10"
       : tone === "rose"
-        ? "border-rose-500/30 bg-rose-500/10"
+        ? "border-zinc-500/30 bg-zinc-500/10"
         : tone === "violet"
-          ? "border-violet-500/30 bg-violet-500/10"
-          : "border-emerald-500/30 bg-emerald-500/10";
+          ? "border-zinc-500/30 bg-zinc-500/10"
+          : "border-zinc-500/30 bg-zinc-500/10";
 
   return (
     <div className={`rounded-2xl border p-3 ${toneClass}`}>
@@ -351,7 +351,7 @@ export default function PolicyRulesPanel({
               setPage(1);
             }}
             placeholder="Search rule name or description"
-            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
+            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-zinc-500/50"
           />
         </div>
         <select
@@ -409,7 +409,7 @@ export default function PolicyRulesPanel({
                       type="button"
                       disabled={isMutating}
                       onClick={() => void handleTogglePolicy(policy)}
-                      className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200 disabled:opacity-60"
+                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
                     >
                       {policy.is_active ? "Disable" : "Enable"}
                     </button>
@@ -417,7 +417,7 @@ export default function PolicyRulesPanel({
                       type="button"
                       disabled={isMutating}
                       onClick={() => void handleDeletePolicy(policy)}
-                      className="rounded-md border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 disabled:opacity-60"
+                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
                     >
                       Delete
                     </button>
@@ -426,7 +426,7 @@ export default function PolicyRulesPanel({
                 <td className="px-4 py-3">
                   <Link
                     href={`/insights/policy/${encodeURIComponent(policy.id)}${contextQuery}`}
-                    className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200"
+                    className="inline-flex items-center gap-1 text-zinc-300 hover:text-zinc-200"
                   >
                     Policy
                     <ExternalLink className="h-3.5 w-3.5" />
