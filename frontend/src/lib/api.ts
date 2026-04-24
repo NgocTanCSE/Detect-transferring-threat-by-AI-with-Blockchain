@@ -173,8 +173,8 @@ function unwrapApiResponse<T>(payload: unknown): T {
 }
 
 // API Functions
-export async function fetchDashboardStats(): Promise<DashboardStats> {
-  const res = await fetch(`${API_BASE}/statistics/dashboard`);
+export async function fetchDashboardStats(chain = "ethereum"): Promise<DashboardStats> {
+  const res = await fetch(`${API_BASE}/statistics/dashboard?chain=${chain}`);
   if (!res.ok) throw new Error("Failed to fetch dashboard stats");
   const payload = await res.json();
   return unwrapApiResponse<DashboardStats>(payload);
@@ -267,10 +267,12 @@ export async function fetchWalletConnections(address: string): Promise<WalletCon
 export async function fetchRecentAlerts(
   limit = 500,
   severity?: string,
-  search?: string
+  search?: string,
+  chain = "ethereum"
 ): Promise<{ alerts: Alert[]; statistics: Record<string, unknown> }> {
   const params = new URLSearchParams();
   params.set("limit", limit.toString());
+  params.set("chain", chain);
   if (severity && severity !== "all") params.set("severity", severity);
   if (search && search.trim()) params.set("search", search.trim());
 
@@ -296,11 +298,13 @@ export async function fetchLatestAlerts(): Promise<Alert[]> {
 export async function fetchBlockedTransfers(
   limit = 500,
   search?: string,
-  minRisk?: number
+  minRisk?: number,
+  chain = "ethereum"
 ): Promise<{ blocked_transfers: BlockedTransfer[]; statistics: Record<string, unknown> }> {
   try {
     const params = new URLSearchParams();
     params.set("limit", limit.toString());
+    params.set("chain", chain);
     if (search && search.trim()) params.set("search", search.trim());
     if (minRisk !== undefined) params.set("min_risk", minRisk.toString());
 
@@ -315,9 +319,9 @@ export async function fetchBlockedTransfers(
   }
 }
 
-export async function fetchFlowStats(): Promise<FlowStats[]> {
+export async function fetchFlowStats(chain = "ethereum"): Promise<FlowStats[]> {
   try {
-    const res = await fetch(`${API_BASE}/statistics/flow?days=7`);
+    const res = await fetch(`${API_BASE}/statistics/flow?days=7&chain=${chain}`);
     if (!res.ok) {
       return [];
     }

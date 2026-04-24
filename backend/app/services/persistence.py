@@ -49,7 +49,8 @@ def persist_transactions(
                     gas_price=int(tx_data.get("gas_price", 0)),
                     gas_used=int(tx_data.get("gas_used", 0)),
                     input_data=tx_data.get("input_data", "0x"),
-                    status=1  # Assume success (Alchemy only returns successful transfers)
+                    chain_id=tx_data.get("chain", "ethereum"),
+                    status=1  # Assume success
                 )
                 database_session.add(transaction_record)
                 eth_count += 1

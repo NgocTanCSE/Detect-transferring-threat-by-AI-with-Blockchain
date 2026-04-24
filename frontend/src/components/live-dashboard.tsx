@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
+import { io } from "socket.io-client";
 import PolicyRulesPanel from "@/components/panels/policy-rules-panel";
 import {
   AlertTriangle,
@@ -448,10 +449,40 @@ export default function LiveDashboard() {
   const [notificationEvents, setNotificationEvents] = useState<NotificationItem[]>([]);
   const [caseItems, setCaseItems] = useState<CaseItem[]>([]);
   const [reportingSummary, setReportingSummary] = useState<ReportingSummary | null>(null);
-  const [controlEffectiveness, setControlEffectiveness] = useState<ControlEffectiveness | null>(null);
+  const [currentChain, setCurrentChain] = useState<string>("ethereum");
   const [auditCompleteness, setAuditCompleteness] = useState<AuditCompleteness | null>(null);
   const [auditGaps, setAuditGaps] = useState<AuditGaps | null>(null);
+  const [controlEffectiveness, setControlEffectiveness] = useState<ControlEffectiveness | null>(null);
   const [sloMetrics, setSloMetrics] = useState<SloMetrics | null>(null);
+
+  // WebSocket for real-time threat alerts
+  useEffect(() => {
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8001";
+    const socket = io(socketUrl);
+
+    socket.on("connect", () => {
+      console.log("Connected to Real-time Sentinel Node");
+    });
+
+    socket.on("new-threat", (threat) => {
+      notify(`Critical threat detected on ${threat.chain}: ${threat.address}`, "error");
+      // Optionally update the recentAlerts state immediately
+      setRecentAlerts(prev => [{
+        id: Math.random().toString(36).substring(7),
+        alert_type: "REAL_TIME_DETECTION",
+        severity: threat.level,
+        wallet_address: threat.address,
+        risk_score: threat.score,
+        detected_at: threat.timestamp,
+        message: `Automated detection on ${threat.chain}`,
+        is_acknowledged: false
+      }, ...prev]);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
   const [totalAlertCount, setTotalAlertCount] = useState<number>(0);
   const [totalBlockedCount, setTotalBlockedCount] = useState<number>(0);
   const [totalCaseCount, setTotalCaseCount] = useState<number>(0);
@@ -575,10 +606,10 @@ export default function LiveDashboard() {
 
     try {
       const [dashboardResult, flowResult, alertsResult, blockedResult] = await Promise.all([
-        fetchDashboardStats(),
-        fetchFlowStats(),
-        fetchRecentAlerts(500),  // Fetch more alerts for filtering
-        fetchBlockedTransfers(500),  // Fetch more blocked transfers for filtering
+        fetchDashboardStats(currentChain),
+        fetchFlowStats(currentChain),
+        fetchRecentAlerts(500, undefined, undefined, currentChain),
+        fetchBlockedTransfers(500, undefined, undefined, currentChain),
       ]);
 
       setDashboardStats(dashboardResult);
@@ -661,7 +692,7 @@ export default function LiveDashboard() {
 
   useEffect(() => {
     void loadLiveData(activeRole, "auto");
-  }, [activeRole]);
+  }, [activeRole, currentChain]);
 
   // Refresh when switching sidebar function so each view is up to date without manual click.
   useEffect(() => {
@@ -677,7 +708,7 @@ export default function LiveDashboard() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [activeRole]);
+  }, [activeRole, currentChain]);
 
   // Refresh after returning to tab/window to avoid stale values.
   useEffect(() => {
@@ -935,6 +966,22 @@ export default function LiveDashboard() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 rounded-xl border border-zinc-700 bg-zinc-950/50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentChain("ethereum")}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${currentChain === "ethereum" ? "bg-zinc-100 text-black shadow-lg" : "text-zinc-400 hover:text-zinc-200"}`}
+                >
+                  ETH
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentChain("bsc")}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${currentChain === "bsc" ? "bg-zinc-100 text-black shadow-lg" : "text-zinc-400 hover:text-zinc-200"}`}
+                >
+                  BSC
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => void loadLiveData(activeRole, "manual")}
@@ -944,7 +991,7 @@ export default function LiveDashboard() {
                 Refresh live data
               </button>
               <div className="rounded-xl border border-zinc-500/30 bg-zinc-500/10 px-4 py-2 text-sm font-medium text-zinc-200">
-                {isLoading ? "Loading live feeds" : "Feeds connected"}
+                {isLoading ? "Loading live feeds" : `${currentChain.toUpperCase()} feeds connected`}
               </div>
             </div>
           </div>

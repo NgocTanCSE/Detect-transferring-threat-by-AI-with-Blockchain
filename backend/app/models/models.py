@@ -88,6 +88,7 @@ class Wallet(Base):
     flagged_at = Column(DateTime(timezone=True), nullable=True)
     flagged_by = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
+    chain_id = Column(String(50), default='ethereum', index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -119,6 +120,7 @@ class Transaction(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_flagged = Column(Boolean, default=False)
     flag_reason = Column(String(100), nullable=True)
+    chain_id = Column(String(50), default='ethereum', index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self) -> str:

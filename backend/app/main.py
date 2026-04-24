@@ -20,7 +20,7 @@ from sqlalchemy import func, case
 from app.core.database import engine, get_db, Base, ensure_schema
 from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase, NodeEndpoint, PipelineMetric, FeatureStoreConfig, ModelRegistry, PolicyRule, NotificationEvent, DiagnosticEvent
 from blockchain_client import fetch_wallet_history
-from app.core.config import ALCHEMY_API_KEY, ALCHEMY_RPC_URL
+from app.core.config import ALCHEMY_API_KEY, ALCHEMY_ETH_RPC_URL, ALCHEMY_BSC_RPC_URL
 from app.services.ai_engine import MultiAgentDetectionEngine
 from app.services.persistence import persist_transactions
 from app.services.hf_security_analyst import HFSecurityAnalyst
@@ -996,7 +996,7 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
 
 
 @app.get("/diagnostics/alchemy/{wallet_address}", tags=["Diagnostics"])
-def diagnose_alchemy_wallet(wallet_address: str) -> Dict[str, Any]:
+def diagnose_alchemy_wallet(wallet_address: str, chain: str = Query("ethereum")) -> Dict[str, Any]:
     """Check whether Alchemy returns fresh transfer data for a wallet address."""
     normalized_address = wallet_address.lower().strip()
 
@@ -1011,12 +1011,12 @@ def diagnose_alchemy_wallet(wallet_address: str) -> Dict[str, Any]:
         }
 
     try:
-        transfers = fetch_wallet_history(normalized_address, max_count=10)
+        transfers = fetch_wallet_history(normalized_address, chain=chain, max_count=10)
         sample_transfer = transfers[0] if transfers else None
 
         return {
             "configured": True,
-            "rpc_url_ready": bool(ALCHEMY_RPC_URL),
+            "rpc_url_ready": bool(ALCHEMY_ETH_RPC_URL if chain == "ethereum" else ALCHEMY_BSC_RPC_URL),
             "wallet_address": normalized_address,
             "data_available": len(transfers) > 0,
             "transfer_count": len(transfers),
@@ -1033,7 +1033,7 @@ def diagnose_alchemy_wallet(wallet_address: str) -> Dict[str, Any]:
     except Exception as error:
         return {
             "configured": True,
-            "rpc_url_ready": bool(ALCHEMY_RPC_URL),
+            "rpc_url_ready": bool(ALCHEMY_ETH_RPC_URL if chain == "ethereum" else ALCHEMY_BSC_RPC_URL),
             "wallet_address": normalized_address,
             "data_available": False,
             "transfer_count": 0,
@@ -1046,6 +1046,7 @@ def diagnose_alchemy_wallet(wallet_address: str) -> Dict[str, Any]:
 @app.get("/analyze/{wallet_address}", tags=["Risk Assessment"])
 def analyze_wallet_risk(
     wallet_address: str,
+    chain: str = Query("ethereum"),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -1098,8 +1099,8 @@ def analyze_wallet_risk(
 
     try:
         # Step 1: Fetch fresh blockchain data from Alchemy
-        logger.info(f"Fetching transaction history for {normalized_address}")
-        transaction_history = fetch_wallet_history(normalized_address, max_count=100)
+        logger.info(f"Fetching transaction history for {normalized_address} on {chain}")
+        transaction_history = fetch_wallet_history(normalized_address, chain=chain, max_count=100)
 
         if not transaction_history:
             logger.warning(f"No transaction history found for {normalized_address}")
@@ -1384,6 +1385,7 @@ def get_wallet_balance(wallet_address: str, database_session: Session = Depends(
 def get_wallet_transactions(
     wallet_address: str,
     limit: int = 20,
+    chain: str = Query("ethereum"),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """Return recent transactions for a wallet from DB (fallback to Alchemy fetch+persist)."""
@@ -1392,7 +1394,10 @@ def get_wallet_transactions(
     # Try DB first
     txs = (
         database_session.query(Transaction)
-        .filter((Transaction.from_address == normalized_address) | (Transaction.to_address == normalized_address))
+        .filter(
+            ((Transaction.from_address == normalized_address) | (Transaction.to_address == normalized_address)) &
+            (Transaction.chain_id == chain)
+        )
         .order_by(Transaction.timestamp.desc().nullslast(), Transaction.created_at.desc())
         .limit(limit)
         .all()
@@ -1400,7 +1405,7 @@ def get_wallet_transactions(
 
     # If empty, fetch from Alchemy and persist
     if not txs:
-        history = fetch_wallet_history(normalized_address, max_count=max(limit, 50))
+        history = fetch_wallet_history(normalized_address, chain=chain, max_count=max(limit, 50))
         if history:
             _persist_blockchain_data(database_session, history, normalized_address)
             txs = (

@@ -50,7 +50,8 @@ ETHERSCAN_REQUEST_TIMEOUT: int = 10
 
 # Alchemy Configuration
 ALCHEMY_API_KEY: str = os.getenv("ALCHEMY_API_KEY", "")
-ALCHEMY_RPC_URL: str = f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}"
+ALCHEMY_ETH_RPC_URL: str = f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}"
+ALCHEMY_BSC_RPC_URL: str = f"https://bnb-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}"
 ALCHEMY_REQUEST_TIMEOUT: int = 15
 ALCHEMY_MAX_RETRIES: int = 3
 ALCHEMY_RETRY_DELAY: int = 2
