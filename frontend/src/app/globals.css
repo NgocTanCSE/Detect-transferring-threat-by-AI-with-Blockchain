@@ -138,7 +138,7 @@
   }
 
   .glow-amber {
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.2), 0 0 40px rgba(245, 158, 11, 0.05);
+    box-shadow: 0 0 20px rgba(161, 161, 170, 0.1), 0 0 40px rgba(161, 161, 170, 0.05);
   }
 
   .glow-red {
@@ -182,17 +182,17 @@
   }
 
   .stat-card-orange {
-    --card-glow-color: rgba(249, 115, 22, 0.25);
-    border-color: rgba(249, 115, 22, 0.2);
+    --card-glow-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.1);
   }
 
   .stat-card-orange .stat-icon {
-    @apply bg-gradient-to-br from-orange-500/20 to-orange-600/10 border-orange-500/30;
+    @apply bg-gradient-to-br from-zinc-700/20 to-zinc-800/10 border-zinc-700/30;
   }
 
   .stat-card-red {
-    --card-glow-color: rgba(239, 68, 68, 0.25);
-    border-color: rgba(239, 68, 68, 0.2);
+    --card-glow-color: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.15);
   }
 
   .stat-card-red .stat-icon {
@@ -200,12 +200,12 @@
   }
 
   .stat-card-purple {
-    --card-glow-color: rgba(139, 92, 246, 0.25);
-    border-color: rgba(139, 92, 246, 0.2);
+    --card-glow-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.1);
   }
 
   .stat-card-purple .stat-icon {
-    @apply bg-gradient-to-br from-violet-500/20 to-violet-600/10 border-violet-500/30;
+    @apply bg-gradient-to-br from-zinc-700/20 to-zinc-800/10 border-zinc-700/30;
   }
 
   .stat-icon {
@@ -253,10 +253,10 @@
 
   @keyframes pulse-glow {
     0%, 100% {
-      box-shadow: 0 0 5px rgba(6, 182, 212, 0.2);
+      box-shadow: 0 0 5px rgba(255, 255, 255, 0.1);
     }
     50% {
-      box-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
     }
   }
 
@@ -338,7 +338,7 @@
   }
 
   .btn-glow:hover {
-    box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
   }
 
   .btn-glow::after {
@@ -375,8 +375,8 @@
   }
 
   .status-card-amber {
-    @apply border-amber-500/30 bg-amber-500/5;
-    box-shadow: inset 0 0 30px rgba(245, 158, 11, 0.05);
+    @apply border-zinc-500/30 bg-zinc-500/5;
+    box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.02);
   }
 
   .status-card-orange {
@@ -385,7 +385,7 @@
   }
 
   .status-card-cyan {
-    @apply border-cyan-500/30 bg-cyan-500/5;
+    @apply border-zinc-500/30 bg-zinc-500/5;
     box-shadow: inset 0 0 30px rgba(6, 182, 212, 0.05);
   }
 

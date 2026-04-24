@@ -320,13 +320,13 @@ const QUICK_ROUTES = [
 ];
 
 const TONAL_STYLES: Record<string, string> = {
-  cyan: "border-zinc-400/20 bg-zinc-400/10 text-zinc-100",
-  violet: "border-slate-400/20 bg-slate-400/10 text-slate-100",
-  rose: "border-gray-400/20 bg-gray-400/10 text-gray-100",
-  amber: "border-neutral-400/20 bg-neutral-400/10 text-neutral-100",
-  emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
-  blue: "border-blue-400/20 bg-blue-400/10 text-blue-100",
-  slate: "border-slate-500/20 bg-slate-500/10 text-slate-100",
+  cyan: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
+  violet: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
+  rose: "border-zinc-600/20 bg-zinc-600/10 text-zinc-200",
+  amber: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
+  emerald: "border-zinc-400/20 bg-zinc-400/10 text-zinc-100",
+  blue: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
+  slate: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
 };
 
 async function fetchJson<T>(path: string, defaultValue: T | null = null): Promise<T> {
@@ -396,12 +396,12 @@ function percentage(value: number, total: number): number {
 function SeverityPill({ severity }: { severity: string }) {
   const color =
     severity === "CRITICAL"
-      ? "border-rose-500/30 bg-rose-500/10 text-rose-200"
+      ? "border-zinc-200/40 bg-zinc-200/10 text-zinc-50 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
       : severity === "HIGH"
-        ? "border-orange-500/30 bg-orange-500/10 text-orange-200"
+        ? "border-zinc-400/30 bg-zinc-400/10 text-zinc-100"
         : severity === "MEDIUM"
-          ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
-          : "border-slate-500/30 bg-slate-500/10 text-slate-200";
+          ? "border-zinc-600/30 bg-zinc-600/10 text-zinc-300"
+          : "border-zinc-800/30 bg-zinc-800/10 text-zinc-500";
 
   return <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${color}`}>{severity}</span>;
 }
@@ -764,10 +764,10 @@ export default function LiveDashboard() {
                   {flowStats.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300} minHeight={300}>
                       <LineChart data={flowChartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                        <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 12 }} stroke="#475569" />
-                        <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} stroke="#475569" />
-                        <Tooltip cursor={{ stroke: "#0ea5e9", strokeWidth: 1 }} contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} labelStyle={{ color: "#e2e8f0" }} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                        <XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 12 }} stroke="#3f3f46" />
+                        <YAxis tick={{ fill: "#71717a", fontSize: 12 }} stroke="#3f3f46" />
+                        <Tooltip cursor={{ stroke: "#ffffff", strokeWidth: 1 }} contentStyle={{ background: "#09090b", border: "1px solid #27272a", borderRadius: 16 }} labelStyle={{ color: "#fafafa" }} />
                         <Legend wrapperStyle={{ paddingTop: "16px" }} />
                         <Line type="monotone" dataKey="inflow" stroke={chartPalette[0]} strokeWidth={2} dot={false} name="Inflow" isAnimationActive={true} />
                         <Line type="monotone" dataKey="outflow" stroke={chartPalette[1]} strokeWidth={2} dot={false} name="Outflow" isAnimationActive={true} />
@@ -786,9 +786,9 @@ export default function LiveDashboard() {
                   {sloMetrics ? (
                     <>
                       <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper="Healthy / active endpoints" tone="cyan" />
-                      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current period" tone="rose" />
-                      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="blue" />
-                      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="emerald" />
+                      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current period" tone="slate" />
+                      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="slate" />
+                      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="slate" />
                     </>
                   ) : null}
                 </div>
@@ -985,7 +985,7 @@ export default function LiveDashboard() {
                 key={route.href}
                 href={route.href}
                 prefetch={false}
-                className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800/70 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-white"
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800/70 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-zinc-500/50 hover:text-white"
               >
                 {route.label}
               </Link>
@@ -1213,7 +1213,7 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
           type="button"
           disabled={isSubmitting}
           onClick={() => void handleCreateNode()}
-          className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
         >
           Add node endpoint
         </button>
@@ -1228,7 +1228,7 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
         type="button"
         disabled={isSubmitting}
         onClick={() => void handleCreateNode()}
-        className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
       >
         Add node endpoint
       </button>
@@ -1256,7 +1256,7 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => void handleUpdateHealth(node, "healthy")}
-                      className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-200 disabled:opacity-60"
+                      className="rounded-md border border-zinc-400/40 bg-zinc-400/10 px-2 py-1 text-[11px] text-zinc-100 disabled:opacity-60"
                     >
                       Healthy
                     </button>
@@ -1264,7 +1264,7 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => void handleUpdateHealth(node, "degraded")}
-                      className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200 disabled:opacity-60"
+                      className="rounded-md border border-zinc-600/40 bg-zinc-600/10 px-2 py-1 text-[11px] text-zinc-300 disabled:opacity-60"
                     >
                       Degraded
                     </button>
@@ -1272,7 +1272,7 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => void handleUpdateHealth(node, "down")}
-                      className="rounded-md border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 disabled:opacity-60"
+                      className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] text-red-200 disabled:opacity-60"
                     >
                       Down
                     </button>
@@ -1292,13 +1292,13 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <MetricCard label="Points" value={summary ? formatCompact(summary.total_points) : "-"} hint="Pipeline samples" accentClass="border-slate-700 bg-slate-900/70" />
-        <MetricCard label="Avg TPS" value={summary?.avg_throughput_tps != null ? summary.avg_throughput_tps.toFixed(1) : "-"} hint="Throughput" accentClass="border-cyan-500/20 bg-cyan-500/10" />
-        <MetricCard label="Ingest latency" value={summary?.avg_ingestion_latency_ms != null ? `${summary.avg_ingestion_latency_ms.toFixed(0)} ms` : "-"} hint="Average" accentClass="border-violet-500/20 bg-violet-500/10" />
-        <MetricCard label="Last block" value={summary?.last_block_number != null ? formatCompact(summary.last_block_number) : "-"} hint="Latest signal" accentClass="border-amber-500/20 bg-amber-500/10" />
+        <MetricCard label="Avg TPS" value={summary?.avg_throughput_tps != null ? summary.avg_throughput_tps.toFixed(1) : "-"} hint="Throughput" accentClass="border-zinc-500/20 bg-zinc-500/10" />
+        <MetricCard label="Ingest latency" value={summary?.avg_ingestion_latency_ms != null ? `${summary.avg_ingestion_latency_ms.toFixed(0)} ms` : "-"} hint="Average" accentClass="border-zinc-500/20 bg-zinc-500/10" />
+        <MetricCard label="Last block" value={summary?.last_block_number != null ? formatCompact(summary.last_block_number) : "-"} hint="Latest signal" accentClass="border-zinc-500/20 bg-zinc-500/10" />
       </div>
       <div className="overflow-hidden rounded-2xl border border-slate-700">
         <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Chain</th>
               <th className="px-4 py-3 text-left font-medium">Block</th>
@@ -1307,7 +1307,7 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
               <th className="px-4 py-3 text-left font-medium">Decode</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-slate-800 bg-zinc-950/60 text-zinc-200">
             {metrics.slice(0, 8).map((metric) => (
               <tr key={metric.id}>
                 <td className="px-4 py-3">{metric.chain}</td>
@@ -1365,12 +1365,12 @@ function DiagnosticsLogsPanel({
 
   const logTypeColors: Record<string, string> = {
     error: "bg-red-500/20 text-red-300 border-red-500/30",
-    warning: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    amber: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
     info: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-    api_call: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+    api_call: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
     api_error: "bg-rose-500/20 text-rose-300 border-rose-500/30",
-    database: "bg-violet-500/20 text-violet-300 border-violet-500/30",
-    seed_data: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+    violet: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
+    orange: "border-zinc-600/20 bg-zinc-600/10 text-zinc-300",
     ai_service: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30",
   };
 
@@ -1512,7 +1512,7 @@ function DiagnosticsLogsPanel({
             value={searchFilter}
             onChange={(event) => setSearchFilter(event.target.value)}
             placeholder="Search message or endpoint..."
-            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-cyan-500/50"
+            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-zinc-500/50"
           />
         </div>
         <select
@@ -1762,7 +1762,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
                   <Link
                     href={integrityRouteForKey(item.key, item.owner_role)}
                     prefetch={false}
-                    className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-200 hover:border-cyan-400/70"
+className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-xs font-medium text-white hover:border-white/40"
                   >
                     Open owner view
                   </Link>
@@ -1880,7 +1880,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
           type="button"
           disabled={isSubmitting}
           onClick={() => void handleRegisterModel()}
-          className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
         >
           Register model
         </button>
@@ -1901,7 +1901,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
         type="button"
         disabled={isSubmitting}
         onClick={() => void handleRegisterModel()}
-        className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
       >
         Register model
       </button>
@@ -2025,7 +2025,7 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
           type="button"
           disabled={isSubmitting}
           onClick={() => void handleCreateFeature()}
-          className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+          className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
         >
           Add feature
         </button>
@@ -2040,7 +2040,7 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
         type="button"
         disabled={isSubmitting}
         onClick={() => void handleCreateFeature()}
-        className="inline-flex items-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+        className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
       >
         Add feature
       </button>
@@ -2610,7 +2610,7 @@ function CaseQueuePanel({
                       type="button"
                       disabled={actingTxHash === item.tx_hash}
                       onClick={() => void handleCaseAction(item.tx_hash, "ESCALATE")}
-                      className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-200 disabled:opacity-60"
+className="rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[11px] text-white disabled:opacity-60"
                     >
                       Escalate
                     </button>
@@ -3057,15 +3057,15 @@ function AuditPanel({ auditCompleteness, auditGaps }: { auditCompleteness: Audit
         <MetricBlock label="Missing actions" value={auditGaps ? formatCompact(auditGaps.missing_count) : "-"} helper="Gaps needing evidence" tone="rose" />
       </div>
       <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Action</th>
               <th className="px-4 py-3 text-left font-medium">Count</th>
               <th className="px-4 py-3 text-left font-medium">Present</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {auditCompleteness?.checks.slice(0, 8).map((check) => (
               <tr key={check.action_type}>
                 <td className="px-4 py-3">{check.action_type}</td>
@@ -3147,11 +3147,11 @@ function AlertList({ alerts }: { alerts: Alert[] }) {
   return (
     <div className="space-y-2">
       {alerts.slice(0, 8).map((alert) => (
-        <div key={alert.alert_id} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-3">
+        <div key={alert.alert_id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-white">{alert.message}</p>
-              <p className="mt-1 text-xs text-slate-500">{formatAddress(alert.wallet_address)} · {alert.alert_type}</p>
+              <p className="mt-1 text-xs text-zinc-500">{formatAddress(alert.wallet_address)} · {alert.alert_type}</p>
             </div>
             <SeverityPill severity={alert.severity} />
           </div>
@@ -3169,15 +3169,15 @@ function BlockedTransferList({ blockedTransfers }: { blockedTransfers: BlockedTr
   return (
     <div className="space-y-2">
       {blockedTransfers.slice(0, 8).map((item) => (
-        <div key={item.id} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-3">
+        <div key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-white">{formatAddress(item.sender_address)} → {formatAddress(item.receiver_address)}</p>
-              <p className="mt-1 text-xs text-slate-500">{item.block_reason}</p>
+              <p className="mt-1 text-xs text-zinc-500">{item.block_reason}</p>
             </div>
             <div className="text-right">
               <p className="text-sm font-semibold text-white">{formatEth(item.amount_eth)}</p>
-              <p className="mt-1 text-xs text-slate-500">Risk {item.risk_score.toFixed(1)}</p>
+              <p className="mt-1 text-xs text-zinc-500">Risk {item.risk_score.toFixed(1)}</p>
             </div>
           </div>
         </div>

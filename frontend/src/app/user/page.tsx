@@ -31,7 +31,7 @@ export default function UserPage() {
           <CardHeader className="border-b border-slate-700/50">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg">
+                <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-200 to-zinc-500 shadow-lg">
                   <UserIcon className="h-8 w-8 text-white" />
                 </div>
                 <div>
@@ -41,7 +41,7 @@ export default function UserPage() {
                   </CardDescription>
                 </div>
               </div>
-              <div className="rounded-lg bg-cyan-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-cyan-300 border border-cyan-500/30">
+              <div className="rounded-lg bg-zinc-500/20 text-zinc-100 border-zinc-500/30">
                 {user.role === "admin" ? "Admin" : "User"}
               </div>
             </div>
@@ -123,7 +123,7 @@ export default function UserPage() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Card className="border-slate-700/70 bg-slate-950/80 backdrop-blur hover:border-cyan-500/50 transition cursor-pointer">
+          <Card className="border-zinc-700/70 bg-zinc-950/80 hover:border-white/30">
             <CardHeader
               onClick={() => router.push("/user/exchange")}
               className="pb-4"
@@ -140,7 +140,7 @@ export default function UserPage() {
             </CardHeader>
           </Card>
 
-          <Card className="border-slate-700/70 bg-slate-950/80 backdrop-blur hover:border-cyan-500/50 transition cursor-pointer">
+          <Card className="border-zinc-700/70 bg-zinc-950/80 hover:border-white/30">
             <CardHeader
               onClick={() => router.push("/user/history")}
               className="pb-4"

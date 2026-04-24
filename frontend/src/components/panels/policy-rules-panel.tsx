@@ -338,7 +338,7 @@ export default function PolicyRulesPanel({
           type="button"
           disabled={isMutating}
           onClick={() => void handleCreatePolicy()}
-          className="h-10 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/60 disabled:opacity-60"
+          className="h-10 rounded-xl border border-zinc-500/20 bg-zinc-800/40 text-zinc-100 hover:border-zinc-400/60"
         >
           Add policy
         </button>

@@ -81,7 +81,7 @@ export default function AdminLayout({
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 text-cyan-500 animate-spin" />
+          <Loader2 className="h-8 w-8 text-zinc-500 animate-spin" />
           <p className="text-slate-400">Đang xác thực...</p>
         </div>
       </div>
@@ -128,7 +128,7 @@ export default function AdminLayout({
       <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-slate-700/50 bg-slate-900/95 backdrop-blur-sm">
         {/* Logo */}
         <div className="flex h-16 items-center gap-3 border-b border-slate-700/50 px-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-200 to-zinc-500">
             <Shield className="h-6 w-6 text-white" />
           </div>
           <div>
@@ -142,7 +142,7 @@ export default function AdminLayout({
         {/* User Info */}
         <div className="border-b border-slate-700/50 px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-blue-600">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-zinc-200 to-zinc-500">
               <span className="text-sm font-medium text-white">
                 {user?.username?.charAt(0).toUpperCase()}
               </span>

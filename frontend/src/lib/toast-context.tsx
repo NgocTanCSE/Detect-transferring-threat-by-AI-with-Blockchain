@@ -42,7 +42,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-100"
                 : item.tone === "error"
                   ? "border-rose-500/40 bg-rose-500/15 text-rose-100"
-                  : "border-cyan-500/40 bg-cyan-500/15 text-cyan-100",
+                  : "border-zinc-500/40 bg-zinc-500/15 text-zinc-100",
             ].join(" ")}
           >
             {item.message}

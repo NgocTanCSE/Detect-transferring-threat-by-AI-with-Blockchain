@@ -46,7 +46,7 @@ export default function UserLayout({
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 text-cyan-500 animate-spin" />
+          <Loader2 className="h-8 w-8 text-zinc-500 animate-spin" />
           <p className="text-slate-400">Đang tải...</p>
         </div>
       </div>
@@ -66,7 +66,7 @@ export default function UserLayout({
               </Button>
             </Link>
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-200 to-zinc-500">
                 <Shield className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -107,7 +107,7 @@ export default function UserLayout({
                     variant="ghost"
                     className="flex items-center gap-2 px-3 py-2 hover:bg-slate-800"
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-blue-600">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-zinc-200 to-zinc-500">
                       <User className="h-4 w-4 text-white" />
                     </div>
                     <span className="text-sm font-medium text-white max-w-[120px] truncate">
