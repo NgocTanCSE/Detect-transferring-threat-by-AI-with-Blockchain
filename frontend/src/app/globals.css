@@ -4,31 +4,31 @@
 
 @layer base {
   :root {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 199 89% 48%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 10% 4%;
+    --secondary: 240 5% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 5% 12%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 5% 15%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 25%;
-    --input: 217 33% 25%;
-    --ring: 199 89% 48%;
+    --border: 240 5% 20%;
+    --input: 240 5% 20%;
+    --ring: 240 5% 60%;
     --radius: 0.75rem;
-    --chart-1: 199 89% 48%;
-    --chart-2: 160 84% 39%;
-    --chart-3: 30 100% 50%;
-    --chart-4: 280 100% 60%;
-    --chart-5: 340 100% 60%;
+    --chart-1: 0 0% 90%;
+    --chart-2: 0 0% 70%;
+    --chart-3: 0 0% 50%;
+    --chart-4: 0 0% 30%;
+    --chart-5: 0 0% 15%;
   }
 }
 
@@ -38,9 +38,9 @@
   }
 
   body {
-    @apply bg-slate-950 text-slate-100;
+    @apply bg-[#08080a] text-slate-100;
     font-feature-settings: "rlig" 1, "calt" 1;
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    background: radial-gradient(circle at 50% -20%, #1a1a1f 0%, #08080a 80%);
     background-attachment: fixed;
     min-height: 100vh;
   }
@@ -52,16 +52,16 @@
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-slate-900;
+    @apply bg-[#08080a];
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-slate-700 rounded-full;
-    border: 1px solid rgba(6, 182, 212, 0.2);
+    @apply bg-zinc-800 rounded-full;
+    border: 1px solid rgba(255, 255, 255, 0.05);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-600;
+    @apply bg-zinc-700;
   }
 }
 
@@ -71,11 +71,11 @@
   /* ====================== */
 
   .glass-card {
-    @apply bg-slate-900/60 backdrop-blur-xl border border-slate-700/50;
+    @apply bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/50;
     box-shadow:
       0 4px 24px -1px rgba(0, 0, 0, 0.4),
       0 2px 8px -2px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.03);
   }
 
   .glass-card-hover {
@@ -83,17 +83,17 @@
   }
 
   .glass-card-hover:hover {
-    @apply border-cyan-500/30;
+    @apply border-white/20;
     transform: translateY(-2px);
     box-shadow:
       0 8px 32px -4px rgba(0, 0, 0, 0.5),
-      0 4px 16px -4px rgba(6, 182, 212, 0.15),
+      0 4px 16px -4px rgba(255, 255, 255, 0.05),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
   }
 
-  /* Legacy glass effect (keep for compatibility) */
+  /* Legacy glass effect */
   .glass {
-    @apply bg-slate-800/80 backdrop-blur-sm;
+    @apply bg-zinc-800/80 backdrop-blur-sm;
   }
 
   /* ====================== */
@@ -109,7 +109,7 @@
     position: absolute;
     inset: 0;
     padding: 1px;
-    background: linear-gradient(135deg, #06b6d4 0%, #8b5cf6 50%, #06b6d4 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #404040 100%);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
@@ -119,14 +119,14 @@
   }
 
   .gradient-text {
-    background: linear-gradient(135deg, #06b6d4 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #a1a1aa 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
   .gradient-bg-subtle {
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
   }
 
   /* ====================== */
@@ -134,27 +134,27 @@
   /* ====================== */
 
   .glow-cyan {
-    box-shadow: 0 0 20px rgba(6, 182, 212, 0.3), 0 0 40px rgba(6, 182, 212, 0.1);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.05), 0 0 40px rgba(255, 255, 255, 0.02);
   }
 
   .glow-amber {
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3), 0 0 40px rgba(245, 158, 11, 0.1);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.2), 0 0 40px rgba(245, 158, 11, 0.05);
   }
 
   .glow-red {
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3), 0 0 40px rgba(239, 68, 68, 0.1);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.2), 0 0 40px rgba(239, 68, 68, 0.05);
   }
 
   .glow-orange {
-    box-shadow: 0 0 20px rgba(249, 115, 22, 0.3), 0 0 40px rgba(249, 115, 22, 0.1);
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.2), 0 0 40px rgba(249, 115, 22, 0.05);
   }
 
   .glow-emerald {
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), 0 0 40px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2), 0 0 40px rgba(16, 185, 129, 0.05);
   }
 
   .glow-purple {
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3), 0 0 40px rgba(139, 92, 246, 0.1);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.05), 0 0 40px rgba(255, 255, 255, 0.02);
   }
 
   /* ====================== */
@@ -169,16 +169,16 @@
     transform: translateY(-4px);
     box-shadow:
       0 12px 40px -8px rgba(0, 0, 0, 0.5),
-      0 4px 20px -4px var(--card-glow-color, rgba(6, 182, 212, 0.2));
+      0 4px 20px -4px var(--card-glow-color, rgba(255, 255, 255, 0.05));
   }
 
   .stat-card-cyan {
-    --card-glow-color: rgba(6, 182, 212, 0.25);
-    border-color: rgba(6, 182, 212, 0.2);
+    --card-glow-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.1);
   }
 
   .stat-card-cyan .stat-icon {
-    @apply bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 border-cyan-500/30;
+    @apply bg-gradient-to-br from-zinc-700/20 to-zinc-800/10 border-zinc-700/30;
   }
 
   .stat-card-orange {

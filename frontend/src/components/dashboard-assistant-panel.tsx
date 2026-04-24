@@ -235,23 +235,23 @@ export default function DashboardAssistantPanel({
   }
 
   return (
-    <section className="mb-4 rounded-[26px] border border-cyan-500/20 bg-slate-950/80 p-4 shadow-[0_20px_60px_rgba(8,47,73,0.35)] backdrop-blur-xl">
+    <section className="mb-4 rounded-[26px] border border-zinc-700/30 bg-zinc-950/80 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">Assistant</p>
+          <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-400">Assistant</p>
           <h2 className="mt-1 text-lg font-semibold text-white">Operational Chat Panel</h2>
-          <p className="mt-1 text-sm text-slate-400">Role: {roleLabel} · Scope: {SCOPE_LABELS[currentScope as AssistantScope] || currentScope}</p>
+          <p className="mt-1 text-sm text-zinc-400">Role: {roleLabel} · Scope: {SCOPE_LABELS[currentScope as AssistantScope] || currentScope}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={clearChat}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 transition hover:border-cyan-500/40 hover:text-white"
+            className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-zinc-500/40 hover:text-white"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Clear
           </button>
-          <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200">
+          <span className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-800/50 px-3 py-1.5 text-xs text-zinc-300">
             <Sparkles className="h-3.5 w-3.5" />
             Phase 3
           </span>
@@ -263,7 +263,7 @@ export default function DashboardAssistantPanel({
         <select
           value={currentScope}
           onChange={(event) => onScopeChange(event.target.value as AssistantScope)}
-          className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-500"
+          className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-zinc-500"
         >
           <option value="dashboard">Dashboard</option>
           <option value="wallet">Wallet</option>
@@ -301,7 +301,7 @@ export default function DashboardAssistantPanel({
               key={prompt}
               type="button"
               onClick={() => void sendQuestion(prompt)}
-              className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 transition hover:border-cyan-500/40 hover:text-white"
+              className="rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-zinc-500/40 hover:text-white"
             >
               {prompt}
             </button>
@@ -316,8 +316,8 @@ export default function DashboardAssistantPanel({
             className={[
               "rounded-xl px-3 py-3 text-sm leading-relaxed whitespace-pre-wrap",
               message.role === "assistant"
-                ? "border border-cyan-500/20 bg-cyan-500/10 text-cyan-50"
-                : "border border-slate-700 bg-slate-800 text-slate-200",
+                ? "border border-zinc-700 bg-zinc-800/80 text-zinc-50"
+                : "border border-zinc-800 bg-zinc-900/60 text-zinc-300",
             ].join(" ")}
           >
             {message.content}
@@ -341,7 +341,7 @@ export default function DashboardAssistantPanel({
           value={walletInputValue}
           onChange={(event) => setWalletInputValue(event.target.value)}
           placeholder="(Optional) Wallet focus, e.g. 0xabc..."
-          className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-sm text-slate-100 outline-none transition focus:border-cyan-500"
+          className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-500"
         />
         <div className="flex gap-2">
           <input
@@ -355,13 +355,13 @@ export default function DashboardAssistantPanel({
                 void sendQuestion();
               }
             }}
-            className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-base text-slate-100 outline-none transition focus:border-cyan-500"
+            className="min-w-0 flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-3 text-base text-zinc-100 outline-none transition focus:border-zinc-500"
           />
           <button
             type="button"
             onClick={() => void sendQuestion()}
             disabled={isLoading || !inputValue.trim()}
-            className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <SendHorizonal className="h-5 w-5" />
             {isLoading ? "Đang trả lời..." : "Gửi"}

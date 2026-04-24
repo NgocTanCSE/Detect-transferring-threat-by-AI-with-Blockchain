@@ -59,18 +59,18 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4">
+    <div className="min-h-screen bg-[#08080a] p-4">
       <div className="mx-auto flex min-h-screen w-full max-w-md items-center">
         <div className="w-full">
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/25">
-              <Shield className="h-7 w-7 text-white" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-200 to-zinc-500 shadow-lg shadow-white/10">
+              <Shield className="h-7 w-7 text-zinc-950" />
             </div>
             <h1 className="text-2xl font-bold text-white">Blockchain Sentinel</h1>
             <p className="mt-1 text-slate-400">Đăng nhập hệ thống giám sát</p>
           </div>
 
-          <Card className="border-slate-700/70 bg-slate-900/80 backdrop-blur">
+          <Card className="border-zinc-800/80 bg-zinc-900/60 backdrop-blur-xl">
             <CardHeader>
               <CardTitle className="text-white">Đăng nhập</CardTitle>
               <CardDescription className="text-slate-400">Dùng username hoặc email đã đăng ký.</CardDescription>
@@ -85,7 +85,7 @@ export default function LoginPage() {
                     onChange={(event) => setUsername(event.target.value)}
                     placeholder="vd: ngoc.tan"
                     autoComplete="username"
-                    className="border-slate-700 bg-slate-950 text-slate-100"
+                    className="border-zinc-800 bg-zinc-950 text-zinc-100 focus:border-white/40"
                   />
                 </div>
 
@@ -98,7 +98,7 @@ export default function LoginPage() {
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="current-password"
                     placeholder="Tối thiểu 6 ký tự"
-                    className="border-slate-700 bg-slate-950 text-slate-100"
+                    className="border-zinc-800 bg-zinc-950 text-zinc-100 focus:border-white/40"
                   />
                 </div>
 
@@ -106,7 +106,7 @@ export default function LoginPage() {
                   <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>
                 ) : null}
 
-                <Button type="submit" className="w-full bg-cyan-600 hover:bg-cyan-700" disabled={!canSubmit || isSubmitting}>
+                <Button type="submit" className="w-full bg-white text-zinc-950 hover:bg-zinc-200 transition-colors" disabled={!canSubmit || isSubmitting}>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -124,13 +124,13 @@ export default function LoginPage() {
               <div className="mt-4 flex flex-col gap-2 text-sm text-slate-400">
                 <p>
                   Chưa có tài khoản?{" "}
-                  <Link href="/register" className="text-cyan-400 hover:text-cyan-300">
+                  <Link href="/register" className="text-zinc-100 underline decoration-zinc-700 underline-offset-4 hover:decoration-white transition-all">
                     Tạo tài khoản
                   </Link>
                 </p>
                 <p>
                   Hoặc vào nhanh{" "}
-                  <Link href="/user/exchange" className="text-cyan-400 hover:text-cyan-300">
+                  <Link href="/user/exchange" className="text-zinc-100 underline decoration-zinc-700 underline-offset-4 hover:decoration-white transition-all">
                     khu vực user
                   </Link>
                   .

@@ -263,32 +263,32 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
     key: "system_admin",
     label: "System Admin",
     shortLabel: "SYS",
-    accentClass: "border-cyan-500/40 bg-cyan-500/15 text-cyan-100",
-    highlightClass: "from-cyan-500/20 via-sky-500/10 to-transparent",
+    accentClass: "border-zinc-400/40 bg-zinc-400/10 text-zinc-50",
+    highlightClass: "from-zinc-400/20 via-zinc-500/10 to-transparent",
     sidebarFeatures: ["Health", "Availability", "Node Ops", "Pipeline Ops", "Diagnostics Logs", "SLO Data"],
   },
   {
     key: "ai_data_engineer",
     label: "AI Data Engineer",
     shortLabel: "AI",
-    accentClass: "border-violet-500/40 bg-violet-500/15 text-violet-100",
-    highlightClass: "from-violet-500/20 via-fuchsia-500/10 to-transparent",
+    accentClass: "border-slate-400/40 bg-slate-400/10 text-slate-50",
+    highlightClass: "from-slate-400/20 via-slate-500/10 to-transparent",
     sidebarFeatures: ["Model State", "Feature State", "Feature Ops", "Model Ops", "Feature Data", "Registry Data"],
   },
   {
     key: "security_analyst",
     label: "Security Analyst",
     shortLabel: "SEC",
-    accentClass: "border-rose-500/40 bg-rose-500/15 text-rose-100",
-    highlightClass: "from-rose-500/20 via-orange-500/10 to-transparent",
+    accentClass: "border-gray-400/40 bg-gray-400/10 text-gray-50",
+    highlightClass: "from-gray-400/20 via-gray-500/10 to-transparent",
     sidebarFeatures: ["Alert Queue", "Case Queue", "Case Actions", "Notifications", "Alert Data", "Case Data"],
   },
   {
     key: "compliance_risk_manager",
     label: "Compliance Risk Manager",
     shortLabel: "CMP",
-    accentClass: "border-amber-500/40 bg-amber-500/15 text-amber-100",
-    highlightClass: "from-amber-500/20 via-yellow-500/10 to-transparent",
+    accentClass: "border-neutral-400/40 bg-neutral-400/10 text-neutral-50",
+    highlightClass: "from-neutral-400/20 via-neutral-500/10 to-transparent",
     sidebarFeatures: ["Policy State", "Audit State", "Policy Actions", "Reporting", "Policy Data", "Audit Data"],
   },
 ];
@@ -302,10 +302,10 @@ const SIDEBAR_GROUPS: Array<{ title: string; start: number; end: number }> = [
 const ROLE_ICONS = [Gauge, ChartColumn, Brain, Shield, FileCheck2, Wallet];
 
 const ROLE_COLORS: Record<RoleKey, string[]> = {
-  system_admin: ["#22d3ee", "#38bdf8", "#0ea5e9"],
-  ai_data_engineer: ["#c084fc", "#a855f7", "#8b5cf6"],
-  security_analyst: ["#fb7185", "#f97316", "#ef4444"],
-  compliance_risk_manager: ["#fbbf24", "#f59e0b", "#d97706"],
+  system_admin: ["#ffffff", "#d4d4d8", "#a1a1aa"],
+  ai_data_engineer: ["#e4e4e7", "#a1a1aa", "#71717a"],
+  security_analyst: ["#f4f4f5", "#d4d4d8", "#a1a1aa"],
+  compliance_risk_manager: ["#fafafa", "#f5f5f5", "#e5e5e5"],
 };
 
 const QUICK_ROUTES = [
@@ -320,12 +320,12 @@ const QUICK_ROUTES = [
 ];
 
 const TONAL_STYLES: Record<string, string> = {
-  cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-100",
-  violet: "border-violet-500/20 bg-violet-500/10 text-violet-100",
-  rose: "border-rose-500/20 bg-rose-500/10 text-rose-100",
-  amber: "border-amber-500/20 bg-amber-500/10 text-amber-100",
+  cyan: "border-zinc-400/20 bg-zinc-400/10 text-zinc-100",
+  violet: "border-slate-400/20 bg-slate-400/10 text-slate-100",
+  rose: "border-gray-400/20 bg-gray-400/10 text-gray-100",
+  amber: "border-neutral-400/20 bg-neutral-400/10 text-neutral-100",
   emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
-  blue: "border-blue-500/20 bg-blue-500/10 text-blue-100",
+  blue: "border-blue-400/20 bg-blue-400/10 text-blue-100",
   slate: "border-slate-500/20 bg-slate-500/10 text-slate-100",
 };
 
@@ -408,13 +408,13 @@ function SeverityPill({ severity }: { severity: string }) {
 
 function CardShell({ title, subtitle, children, icon: Icon }: { title: string; subtitle: string; children: React.ReactNode; icon?: React.ComponentType<{ className?: string }> }) {
   return (
-    <section className="rounded-3xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-[0_24px_60px_rgba(2,6,23,0.35)] backdrop-blur">
+    <section className="rounded-3xl border border-zinc-800/80 bg-zinc-900/60 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-300">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-white">{title}</h3>
-          <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
+          <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>
         </div>
-        {Icon ? <Icon className="h-5 w-5 text-slate-400" /> : null}
+        {Icon ? <Icon className="h-5 w-5 text-zinc-500" /> : null}
       </div>
       {children}
     </section>
