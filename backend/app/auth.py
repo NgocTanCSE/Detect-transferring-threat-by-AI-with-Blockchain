@@ -711,6 +711,31 @@ def register_user(user_data: UserCreate, request: Request, db: Session = Depends
     db.commit()
     db.refresh(new_user)
 
+    # Add welcome balance for new users (10 ETH)
+    try:
+        welcome_tx = Transaction(
+            id=uuid.uuid4(),
+            tx_hash="0x" + secrets.token_hex(32),
+            from_address="0x0000000000000000000000000000000000000000",
+            to_address=wallet_address,
+            value=10 * 10**18, # 10 ETH in wei
+            block_number=1000000,
+            timestamp=datetime.utcnow(),
+            status=1,
+            case_status='PENDING'
+        )
+        db.add(welcome_tx)
+        
+        # Also update wallet profile
+        wallet_profile.total_transactions = (wallet_profile.total_transactions or 0) + 1
+        wallet_profile.total_value_received = (wallet_profile.total_value_received or 0) + (10 * 10**18)
+        wallet_profile.last_activity_at = datetime.utcnow()
+        
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to add welcome bonus: {e}")
+        db.rollback()
+
     # Auto-link this account to existing wallet-centric records.
     _link_registered_user_wallet(db, new_user)
     db.commit()
