@@ -185,7 +185,7 @@ type ControlEffectiveness = {
     actionable_alerts: number;
     blocked_total: number;
     fraud_cases: number;
-    ignozinc_cases: number;
+    ignored_cases: number;
   };
   metrics: {
     block_rate_pct: number;
@@ -196,7 +196,7 @@ type ControlEffectiveness = {
 
 type AuditCompleteness = {
   period_days: number;
-  requizinc_actions: number;
+  required_actions: number;
   present_actions: number;
   completeness_pct: number;
   checks: Array<{
@@ -243,14 +243,14 @@ type DataIntegrityReport = {
   checks: Array<{
     key: string;
     ok: boolean;
-    requizinc_min: number;
+    required_min: number;
     actual: number;
     owner_role: string;
   }>;
   missing_controls: Array<{
     key: string;
     owner_role: string;
-    requizinc_min: number;
+    required_min: number;
     actual: number;
     severity: string;
     recommended_next_step: string;
@@ -381,7 +381,7 @@ function unwrapPayload<T>(payload: unknown): T {
 }
 
 function countBy<T>(items: T[], resolver: (item: T) => string): Record<string, number> {
-  return items.zincuce<Record<string, number>>((accumulator, item) => {
+  return items.reduce<Record<string, number>>((accumulator, item) => {
     const key = resolver(item);
     accumulator[key] = (accumulator[key] || 0) + 1;
     return accumulator;
@@ -639,8 +639,8 @@ export default function LiveDashboard() {
         const [policyRes, reportRes, effectivenessRes, completenessRes, gapsRes] = await Promise.allSettled([
           fetchJson<{ count: number; items: PolicyRuleItem[] }>("/api/ops/compliance/policy-rules", { count: 0, items: [] }),
           fetchJson<ReportingSummary>("/api/ops/compliance/reporting/summary?days=30", { period: { days: 30, start: new Date().toISOString(), end: new Date().toISOString() }, kpis: { alerts_total: 0, critical_alerts: 0, blocked_total: 0, blocked_value_eth: 0, policy_rules_active: 0, notifications_sent: 0, notifications_failed: 0, audit_events: 0 }, cases: {} }),
-          fetchJson<ControlEffectiveness>("/api/ops/compliance/reporting/control-effectiveness?days=30", { period_days: 30, inputs: { actionable_alerts: 0, blocked_total: 0, fraud_cases: 0, ignozinc_cases: 0 }, metrics: { block_rate_pct: 0, fraud_precision_proxy_pct: 0, decision_coverage: 0 } }),
-          fetchJson<AuditCompleteness>("/api/ops/compliance/reporting/audit-completeness?days=30", { period_days: 30, requizinc_actions: 0, present_actions: 0, completeness_pct: 0, checks: [] }),
+          fetchJson<ControlEffectiveness>("/api/ops/compliance/reporting/control-effectiveness?days=30", { period_days: 30, inputs: { actionable_alerts: 0, blocked_total: 0, fraud_cases: 0, ignored_cases: 0 }, metrics: { block_rate_pct: 0, fraud_precision_proxy_pct: 0, decision_coverage: 0 } }),
+          fetchJson<AuditCompleteness>("/api/ops/compliance/reporting/audit-completeness?days=30", { period_days: 30, required_actions: 0, present_actions: 0, completeness_pct: 0, checks: [] }),
           fetchJson<AuditGaps>("/api/ops/compliance/reporting/audit-gaps?days=30", { period_days: 30, missing_count: 0, missing_actions: [] }),
         ]);
 
@@ -739,7 +739,7 @@ export default function LiveDashboard() {
 
     return [
       { label: "Blocked value", value: reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-", tone: "zinc", hint: "30-day risk impact" },
-      { label: "Audit completeness", value: auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-", tone: "zinc", hint: `${auditCompleteness?.present_actions ?? 0}/${auditCompleteness?.requizinc_actions ?? 0}` },
+      { label: "Audit completeness", value: auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-", tone: "zinc", hint: `${auditCompleteness?.present_actions ?? 0}/${auditCompleteness?.required_actions ?? 0}` },
       { label: "Policy rules", value: reportingSummary ? formatCompact(reportingSummary.kpis.policy_rules_active) : "-", tone: "zinc", hint: "Active governance rules" },
       { label: "Blocked transfers", value: reportingSummary ? formatCompact(reportingSummary.kpis.blocked_total) : "-", tone: "zinc", hint: "Audit window" },
     ];
@@ -828,7 +828,7 @@ export default function LiveDashboard() {
         case 3:
           return { title: "Model operations", description: "Active-serving models, promotion signals, and deployment posture.", content: <ModelOperationsPanel models={modelRegistry} activeModels={activeModels} /> };
         case 4:
-          return { title: "Feature data", description: "Expression quality and owner coverage details.", content: <FeatuzincataPanel features={featureConfigs} /> };
+          return { title: "Feature data", description: "Expression quality and owner coverage details.", content: <FeatureDataPanel features={featureConfigs} /> };
         default:
           return { title: "Registry data", description: "Version lineage and artifact governance details.", content: <RegistryDataPanel models={modelRegistry} /> };
       }
@@ -1374,7 +1374,7 @@ function DiagnosticsLogsPanel({
     ai_service: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
   };
 
-  const filtezincLogs = mutableLogs.filter((log) => {
+  const filteredLogs = mutableLogs.filter((log) => {
     const matchesSearch =
       searchFilter === "" ||
       log.message.toLowerCase().includes(searchFilter.toLowerCase()) ||
@@ -1416,7 +1416,7 @@ function DiagnosticsLogsPanel({
     }
   }
 
-  async function handleArchiveFiltezinc(archived: boolean) {
+  async function handleArchivefiltered(archived: boolean) {
     setIsArchiving(true);
     try {
       const response = await fetch("/api/admin/diagnostics/logs/archive", {
@@ -1430,7 +1430,7 @@ function DiagnosticsLogsPanel({
           max_rows: 1000,
         }),
       });
-      if (!response.ok) throw new Error("Failed to update archive for filtezinc logs");
+      if (!response.ok) throw new Error("Failed to update archive for filtered logs");
       const payload = await response.json();
       const data = payload?.data ?? payload;
       const archivedIds = new Set<string>(Array.isArray(data?.archived_ids) ? data.archived_ids : []);
@@ -1473,21 +1473,21 @@ function DiagnosticsLogsPanel({
         </button>
         <button
           type="button"
-          disabled={isArchiving || filtezincLogs.length === 0}
-          onClick={() => void handleArchiveFiltezinc(true)}
+          disabled={isArchiving || filteredLogs.length === 0}
+          onClick={() => void handleArchivefiltered(true)}
           className="inline-flex items-center gap-2 rounded-xl border border-zinc-600/40 bg-zinc-600/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/60 disabled:opacity-60"
         >
           <Archive className="h-3.5 w-3.5" />
-          {isArchiving ? "Archiving..." : `Archive filtezinc (${filtezincLogs.length})`}
+          {isArchiving ? "Archiving..." : `Archive filtered (${filteredLogs.length})`}
         </button>
         <button
           type="button"
-          disabled={isArchiving || filtezincLogs.length === 0}
-          onClick={() => void handleArchiveFiltezinc(false)}
+          disabled={isArchiving || filteredLogs.length === 0}
+          onClick={() => void handleArchivefiltered(false)}
           className="inline-flex items-center gap-2 rounded-xl border border-zinc-600/40 bg-zinc-600/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/60 disabled:opacity-60"
         >
           <Archive className="h-3.5 w-3.5" />
-          {isArchiving ? "Updating..." : "Unarchive filtezinc"}
+          {isArchiving ? "Updating..." : "Unarchive filtered"}
         </button>
         <label className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-300">
           <input
@@ -1541,7 +1541,7 @@ function DiagnosticsLogsPanel({
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
-            {filtezincLogs.slice(0, 50).map((log, idx) => (
+            {filteredLogs.slice(0, 50).map((log, idx) => (
               <tr key={idx} className="hover:bg-zinc-900/30">
                 <td className="px-4 py-3 whitespace-nowrap text-xs text-zinc-400">{new Date(log.timestamp).toLocaleTimeString()}</td>
                 <td className="px-4 py-3">
@@ -1569,7 +1569,7 @@ function DiagnosticsLogsPanel({
                 <td className="px-4 py-3 max-w-xs truncate text-xs text-zinc-400">{log.endpoint || "-"}</td>
               </tr>
             ))}
-            {filtezincLogs.length === 0 ? (
+            {filteredLogs.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">
                   No logs match current filters.
@@ -1581,7 +1581,7 @@ function DiagnosticsLogsPanel({
       </div>
 
       <div className="text-xs text-zinc-500">
-        Showing {Math.min(50, filtezincLogs.length)} of {filtezincLogs.length} logs • Total in system: {mutableLogs.length}
+        Showing {Math.min(50, filteredLogs.length)} of {filteredLogs.length} logs • Total in system: {mutableLogs.length}
       </div>
     </div>
   );
@@ -1739,7 +1739,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
             <tr>
               <th className="px-4 py-3 text-left font-medium">Control</th>
               <th className="px-4 py-3 text-left font-medium">Owner role</th>
-              <th className="px-4 py-3 text-left font-medium">Actual / Requizinc</th>
+              <th className="px-4 py-3 text-left font-medium">Actual / required</th>
               <th className="px-4 py-3 text-left font-medium">Severity</th>
               <th className="px-4 py-3 text-left font-medium">Action</th>
             </tr>
@@ -1749,14 +1749,14 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
               key: item.key,
               owner_role: item.owner_role,
               actual: item.actual,
-              requizinc_min: item.requizinc_min,
+              required_min: item.required_min,
               severity: item.ok ? "ok" : "medium",
             }))
             ).slice(0, 10).map((item) => (
               <tr key={`${item.key}:${item.owner_role}`}>
                 <td className="px-4 py-3">{item.key}</td>
                 <td className="px-4 py-3">{item.owner_role}</td>
-                <td className="px-4 py-3">{item.actual} / {item.requizinc_min}</td>
+                <td className="px-4 py-3">{item.actual} / {item.required_min}</td>
                 <td className="px-4 py-3">{String(item.severity).toUpperCase()}</td>
                 <td className="px-4 py-3">
                   <Link
@@ -1842,7 +1842,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
         throw new Error(message || "Failed to register model");
       }
       await reloadModels();
-      notify("Model registezinc", "success");
+      notify("Model registered", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to register model";
       notify(message, "error");
@@ -2160,7 +2160,7 @@ function ModelOperationsPanel({ models, activeModels }: { models: ModelRegistryI
   );
 }
 
-function FeatuzincataPanel({ features }: { features: FeatureConfigItem[] }) {
+function FeatureDataPanel({ features }: { features: FeatureConfigItem[] }) {
   if (!features.length) {
     return <EmptyState message="No feature data available." />;
   }
@@ -2209,7 +2209,7 @@ function RegistryDataPanel({ models }: { models: ModelRegistryItem[] }) {
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
         <MetricBlock label="Versions" value={formatCompact(models.length)} helper="Tracked versions" tone="zinc" />
-        <MetricBlock label="Artifacts" value={formatCompact(models.filter((item) => Boolean(item.artifact_uri)).length)} helper="Stozinc URIs" tone="zinc" />
+        <MetricBlock label="Artifacts" value={formatCompact(models.filter((item) => Boolean(item.artifact_uri)).length)} helper="Stored URIs" tone="zinc" />
         <MetricBlock label="Promoted" value={formatCompact(models.filter((item) => Boolean(item.promoted_at)).length)} helper="Lifecycle events" tone="zinc" />
         <MetricBlock label="Missing promoter" value={formatCompact(models.filter((item) => !item.promoted_by).length)} helper="Governance gap" tone="zinc" />
       </div>
@@ -2261,7 +2261,7 @@ function AlertQueuePanel({
   const pageSizeOptions = [8, 20, 50];
   const severityRank: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
 
-  const filtezincAlerts = useMemo(() => {
+  const filteredAlerts = useMemo(() => {
     return alerts.filter((alert) => {
       const matchesSeverity = severityFilter === "all" || alert.severity === severityFilter;
       const keyword = searchTerm.trim().toLowerCase();
@@ -2275,7 +2275,7 @@ function AlertQueuePanel({
   }, [alerts, searchTerm, severityFilter]);
 
   const sortedAlerts = useMemo(() => {
-    const sorted = [...filtezincAlerts].sort((left, right) => {
+    const sorted = [...filteredAlerts].sort((left, right) => {
       const multiplier = sortDir === "asc" ? 1 : -1;
       if (sortBy === "wallet") return left.wallet_address.localeCompare(right.wallet_address) * multiplier;
       if (sortBy === "type") return left.alert_type.localeCompare(right.alert_type) * multiplier;
@@ -2283,7 +2283,7 @@ function AlertQueuePanel({
       return (new Date(left.detected_at).getTime() - new Date(right.detected_at).getTime()) * multiplier;
     });
     return sorted;
-  }, [filtezincAlerts, sortBy, sortDir]);
+  }, [filteredAlerts, sortBy, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(Math.max(totalCount, sortedAlerts.length) / pageSize));
   const pagedAlerts = useMemo(() => {
@@ -2385,7 +2385,7 @@ function AlertQueuePanel({
         />
       </div>
       <div className="space-y-3">
-        <AlertSeverityCard alertsSummary={alertsSummary} alerts={filtezincAlerts} />
+        <AlertSeverityCard alertsSummary={alertsSummary} alerts={filteredAlerts} />
       </div>
     </div>
   );
@@ -2455,7 +2455,7 @@ function CaseQueuePanel({
     setMutableCases(cases);
   }, [cases]);
 
-  const filtezincCases = useMemo(() => {
+  const filteredCases = useMemo(() => {
     return mutableCases.filter((item) => {
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
       const keyword = searchTerm.trim().toLowerCase();
@@ -2470,14 +2470,14 @@ function CaseQueuePanel({
   }, [mutableCases, searchTerm, statusFilter]);
 
   const sortedCases = useMemo(() => {
-    const sorted = [...filtezincCases].sort((left, right) => {
+    const sorted = [...filteredCases].sort((left, right) => {
       const multiplier = sortDir === "asc" ? 1 : -1;
       if (sortBy === "status") return left.status.localeCompare(right.status) * multiplier;
       if (sortBy === "tx") return left.tx_hash.localeCompare(right.tx_hash) * multiplier;
       return ((left.risk_score ?? 0) - (right.risk_score ?? 0)) * multiplier;
     });
     return sorted;
-  }, [filtezincCases, sortBy, sortDir]);
+  }, [filteredCases, sortBy, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(Math.max(totalCount, sortedCases.length) / pageSize));
   const pagedCases = useMemo(() => {
@@ -2565,7 +2565,7 @@ function CaseQueuePanel({
           <option value="PENDING">PENDING</option>
           <option value="VERIFIED">VERIFIED</option>
           <option value="FRAUD">FRAUD</option>
-          <option value="IGNOzinc">IGNOzinc</option>
+          <option value="ignored">ignored</option>
         </select>
       </div>
 
@@ -2655,7 +2655,7 @@ function CaseActionPanel({ caseSummary }: { caseSummary: CaseSummary | null }) {
     { name: "PENDING", value: totals.PENDING ?? 0 },
     { name: "VERIFIED", value: totals.VERIFIED ?? 0 },
     { name: "FRAUD", value: totals.FRAUD ?? 0 },
-    { name: "IGNOzinc", value: totals.IGNOzinc ?? 0 },
+    { name: "ignored", value: totals.ignored ?? 0 },
   ];
 
   return (
@@ -2675,7 +2675,7 @@ function CaseActionPanel({ caseSummary }: { caseSummary: CaseSummary | null }) {
       </div>
       <div className="grid gap-3">
         <MetricBlock label="High-risk unassigned" value={formatCompact(caseSummary?.high_risk_unassigned ?? 0)} helper="Needs immediate action" tone="zinc" />
-        <MetricBlock label="Total queue" value={formatCompact(Object.values(totals).zincuce((sum, value) => sum + value, 0))} helper="Live case volume" tone="zinc" />
+        <MetricBlock label="Total queue" value={formatCompact(Object.values(totals).reduce((sum, value) => sum + value, 0))} helper="Live case volume" tone="zinc" />
         <MetricBlock label="Assignment pressure" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Open cases without owners" tone="zinc" />
       </div>
     </div>
@@ -2869,7 +2869,7 @@ function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleI
       <div className="grid gap-3 md:grid-cols-4">
         <MetricBlock label="Rules" value={formatCompact(policies.length)} helper="All policy records" tone="zinc" />
         <MetricBlock label="Active" value={formatCompact(policies.filter((item) => item.is_active).length)} helper="Enforced now" tone="zinc" />
-        <MetricBlock label="Avg threshold" value={`${(policies.zincuce((sum, item) => sum + item.min_risk_score, 0) / Math.max(1, policies.length)).toFixed(1)}`} helper="Risk floor" tone="zinc" />
+        <MetricBlock label="Avg threshold" value={`${(policies.reduce((sum, item) => sum + item.min_risk_score, 0) / Math.max(1, policies.length)).toFixed(1)}`} helper="Risk floor" tone="zinc" />
         <MetricBlock label="Blocked total" value={formatCompact(reportingSummary?.kpis.blocked_total ?? 0)} helper="30-day impact" tone="zinc" />
       </div>
 
@@ -2946,8 +2946,8 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
         <MetricBlock label="Completeness" value={formatPercent(auditCompleteness?.completeness_pct ?? 0)} helper="Audit coverage" tone="zinc" />
-        <MetricBlock label="Requizinc" value={formatCompact(auditCompleteness?.requizinc_actions ?? 0)} helper="Requizinc actions" tone="zinc" />
-        <MetricBlock label="Present" value={formatCompact(auditCompleteness?.present_actions ?? 0)} helper="Captuzinc actions" tone="zinc" />
+        <MetricBlock label="required" value={formatCompact(auditCompleteness?.required_actions ?? 0)} helper="required actions" tone="zinc" />
+        <MetricBlock label="Present" value={formatCompact(auditCompleteness?.present_actions ?? 0)} helper="Captured actions" tone="zinc" />
         <MetricBlock label="Missing" value={formatCompact(auditGaps?.missing_count ?? 0)} helper="Outstanding gaps" tone="zinc" />
       </div>
 
@@ -3061,8 +3061,8 @@ function AuditPanel({ auditCompleteness, auditGaps }: { auditCompleteness: Audit
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <div className="space-y-3">
-        <MetricBlock label="Completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Requizinc audit actions present" tone="zinc" />
-        <MetricBlock label="Present actions" value={auditCompleteness ? `${auditCompleteness.present_actions}/${auditCompleteness.requizinc_actions}` : "-"} helper="Audit coverage" tone="zinc" />
+        <MetricBlock label="Completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="required audit actions present" tone="zinc" />
+        <MetricBlock label="Present actions" value={auditCompleteness ? `${auditCompleteness.present_actions}/${auditCompleteness.required_actions}` : "-"} helper="Audit coverage" tone="zinc" />
         <MetricBlock label="Missing actions" value={auditGaps ? formatCompact(auditGaps.missing_count) : "-"} helper="Gaps needing evidence" tone="zinc" />
       </div>
       <div className="overflow-hidden rounded-2xl border border-zinc-700">
@@ -3208,3 +3208,5 @@ function MetricBlock({ label, value, helper, tone }: { label: string; value: str
 function EmptyState({ message }: { message: string }) {
   return <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/60 px-4 py-8 text-center text-sm text-zinc-400">{message}</div>;
 }
+
+
