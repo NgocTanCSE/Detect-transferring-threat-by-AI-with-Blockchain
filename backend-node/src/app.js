@@ -2,10 +2,12 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://backend:8000';
 const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -19,7 +21,7 @@ app.use(express.json());
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
-  
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });
@@ -38,8 +40,67 @@ app.get('/health', (req, res) => {
 
 // Routes
 const transactionRoutes = require('./routes/transactionRoutes');
-app.use('/api/ops/compliance/transactions', transactionRoutes);
-app.use('/api/ops/compliance/analyze', transactionRoutes); // Alias for analysis
+
+// Orchestrated routes (support both with and without /api prefix).
+app.use('/ops/compliance', transactionRoutes);
+app.use('/api/ops/compliance', transactionRoutes);
+
+function toUpstreamPath(originalPath) {
+  if (!originalPath) {
+    return '/';
+  }
+
+  if (originalPath === '/api') {
+    return '/';
+  }
+
+  if (originalPath.startsWith('/api/')) {
+    return originalPath.slice(4);
+  }
+
+  return originalPath;
+}
+
+function getForwardHeaders(headers) {
+  const filtered = { ...headers };
+  delete filtered.host;
+  delete filtered.connection;
+  delete filtered['content-length'];
+  return filtered;
+}
+
+// Fallback proxy: forward all unhandled routes to Python backend.
+app.use(async (req, res) => {
+  if (req.path === '/health') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  const upstreamPath = toUpstreamPath(req.path);
+  const query = new URLSearchParams(req.query || {}).toString();
+  const upstreamUrl = `${AI_SERVICE_URL}${upstreamPath}${query ? `?${query}` : ''}`;
+
+  try {
+    const response = await axios({
+      method: req.method,
+      url: upstreamUrl,
+      headers: getForwardHeaders(req.headers),
+      data: ['GET', 'DELETE'].includes(req.method.toUpperCase()) ? undefined : req.body,
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      timeout: 30000,
+    });
+
+    const contentType = response.headers['content-type'];
+    if (contentType) {
+      res.setHeader('content-type', contentType);
+    }
+
+    return res.status(response.status).send(response.data);
+  } catch (error) {
+    console.error('Proxy forwarding failed:', error.message);
+    return res.status(502).json({ error: 'Upstream AI service unavailable' });
+  }
+});
 
 const PORT = process.env.PORT || 8001;
 server.listen(PORT, () => {

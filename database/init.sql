@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS wallets (
         TIME ZONE,
         flagged_by VARCHAR(255),
         notes TEXT,
+        chain_id VARCHAR(50) DEFAULT 'ethereum',
         created_at TIMESTAMP
     WITH
         TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -91,6 +92,8 @@ CREATE INDEX idx_wallets_status ON wallets (account_status);
 CREATE INDEX idx_wallets_last_activity ON wallets (last_activity_at DESC);
 
 CREATE INDEX idx_wallets_risk_category ON wallets (risk_category);
+
+CREATE INDEX idx_wallets_chain_id ON wallets (chain_id);
 
 COMMENT ON
 TABLE wallets IS 'Ethereum wallet addresses with risk metadata and activity statistics';
@@ -116,6 +119,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     status SMALLINT DEFAULT 1 CHECK (status IN (0, 1)),
     is_flagged BOOLEAN DEFAULT false,
     flag_reason VARCHAR(100),
+    chain_id VARCHAR(50) DEFAULT 'ethereum',
     contract_address VARCHAR(255),
     timestamp TIMESTAMP
     WITH
@@ -159,6 +163,8 @@ WHERE
     value > 0;
 
 CREATE INDEX idx_transactions_status ON transactions (status);
+
+CREATE INDEX idx_transactions_chain_id ON transactions (chain_id);
 
 -- Composite indexes for common query patterns
 CREATE INDEX idx_transactions_from_to ON transactions (from_address, to_address);

@@ -408,6 +408,41 @@ def ensure_schema() -> None:
                 logger.warning("Applying schema fix: adding transactions.updated_at")
                 connection.execute(text("ALTER TABLE transactions ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW()"))
 
+            # Multi-chain compatibility columns
+            wallets_chain_id_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'wallets'
+                      AND column_name = 'chain_id'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if not wallets_chain_id_exists:
+                logger.warning("Applying schema fix: adding wallets.chain_id")
+                connection.execute(text("ALTER TABLE wallets ADD COLUMN chain_id VARCHAR(50) DEFAULT 'ethereum'"))
+            connection.execute(text("UPDATE wallets SET chain_id = 'ethereum' WHERE chain_id IS NULL"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_wallets_chain_id ON wallets (chain_id)"))
+
+            tx_chain_id_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'transactions'
+                      AND column_name = 'chain_id'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if not tx_chain_id_exists:
+                logger.warning("Applying schema fix: adding transactions.chain_id")
+                connection.execute(text("ALTER TABLE transactions ADD COLUMN chain_id VARCHAR(50) DEFAULT 'ethereum'"))
+            connection.execute(text("UPDATE transactions SET chain_id = 'ethereum' WHERE chain_id IS NULL"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_chain_id ON transactions (chain_id)"))
+
             # Case-management constraints and indexes
             connection.execute(
                 text(
