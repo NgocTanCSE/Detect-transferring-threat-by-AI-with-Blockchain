@@ -128,13 +128,6 @@ export default function LoginPage() {
                     Tạo tài khoản
                   </Link>
                 </p>
-                <p>
-                  Hoặc vào nhanh{" "}
-                  <Link href="/user/exchange" className="text-zinc-100 underline decoration-zinc-700 underline-offset-4 hover:decoration-white transition-all">
-                    khu vực user
-                  </Link>
-                  .
-                </p>
               </div>
             </CardContent>
           </Card>

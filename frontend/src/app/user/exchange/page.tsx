@@ -425,7 +425,7 @@ export default function UserExchange() {
                   onChange={(e) => setAmount(e.target.value)}
                   className="pr-16 bg-zinc-950 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-white/20"
                 />
-                <span className="absolute right-3 top-1/2 -tranzinc-y-1/2 text-zinc-500">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
                   ETH
                 </span>
               </div>
