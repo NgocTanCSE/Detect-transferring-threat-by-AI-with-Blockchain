@@ -104,7 +104,7 @@ export default function AdminDiagnosticsDashboard() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <p className="text-gray-400">Loading diagnostics...</p>
+          <p className="text-zinc-400">Loading diagnostics...</p>
         </div>
       </div>
     );
@@ -142,7 +142,7 @@ export default function AdminDiagnosticsDashboard() {
                   >
                     {systemStatus.database.health.status}
                   </Badge>
-                  <span className="text-xs text-gray-400">{systemStatus.database.url}</span>
+                  <span className="text-xs text-zinc-400">{systemStatus.database.url}</span>
                 </div>
                 {systemStatus.database.health.error && (
                   <p className="text-xs text-zinc-400 mt-2">{systemStatus.database.health.error}</p>
@@ -158,7 +158,7 @@ export default function AdminDiagnosticsDashboard() {
                 <Badge variant={systemStatus.ai_service.gemini_api_key_configured ? "default" : "secondary"}>
                   {systemStatus.ai_service.gemini_api_key_configured ? "Configured" : "Not Configured"}
                 </Badge>
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-zinc-400 mt-2">
                   {systemStatus.ai_service.gemini_api_key_configured
                     ? `GEMINI_API_KEY is set (${systemStatus.ai_service.gemini_model || "default model"})`
                     : "GEMINI_API_KEY missing - fallback mode"}
@@ -180,8 +180,8 @@ export default function AdminDiagnosticsDashboard() {
                   {systemStatus.recent_errors.map((error, idx) => (
                     <div key={idx} className="p-2 bg-zinc-900/20 rounded border border-zinc-700/50">
                       <p className="text-xs font-mono text-zinc-300">{error.message}</p>
-                      <p className="text-xs text-gray-400">{error.endpoint}</p>
-                      <p className="text-xs text-gray-500">{new Date(error.timestamp).toLocaleString()}</p>
+                      <p className="text-xs text-zinc-400">{error.endpoint}</p>
+                      <p className="text-xs text-zinc-500">{new Date(error.timestamp).toLocaleString()}</p>
                     </div>
                   ))}
                 </div>
@@ -201,7 +201,7 @@ export default function AdminDiagnosticsDashboard() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {Object.entries(systemStatus.seed_data).map(([key, count]) => (
                   <div key={key} className="p-3 bg-zinc-900 rounded border border-zinc-500/20">
-                    <p className="text-xs text-gray-400 capitalize">{key.replace(/_/g, " ")}</p>
+                    <p className="text-xs text-zinc-400 capitalize">{key.replace(/_/g, " ")}</p>
                     <p className="text-2xl font-bold text-zinc-400">{count}</p>
                   </div>
                 ))}
@@ -230,7 +230,7 @@ export default function AdminDiagnosticsDashboard() {
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <p className="text-sm font-mono text-zinc-400">{endpoint}</p>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-zinc-400">
                           Total: {stats.total_calls} | Success: {stats.success_count} | Errors: {stats.error_count}
                         </p>
                         {stats.last_status_code && (
@@ -243,7 +243,7 @@ export default function AdminDiagnosticsDashboard() {
                         )}
                         {stats.last_error && <p className="text-xs text-zinc-400 mt-2">{stats.last_error}</p>}
                         {stats.last_called && (
-                          <p className="text-xs text-gray-500 mt-2">
+                          <p className="text-xs text-zinc-500 mt-2">
                             Last: {new Date(stats.last_called).toLocaleTimeString()}
                           </p>
                         )}
@@ -288,7 +288,7 @@ export default function AdminDiagnosticsDashboard() {
             <CardContent>
               <div className="space-y-2 max-h-96 overflow-y-auto font-mono text-xs">
                 {logs.length === 0 ? (
-                  <p className="text-gray-400">No logs</p>
+                  <p className="text-zinc-400">No logs</p>
                 ) : (
                   logs.map((log, idx) => (
                     <div
@@ -296,18 +296,18 @@ export default function AdminDiagnosticsDashboard() {
                       className={`p-2 rounded border ${log.type === "error" || log.type === "api_error"
                         ? "bg-zinc-900/20 border-zinc-700/50 text-zinc-300"
                         : log.type === "warning"
-                          ? "bg-yellow-900/20 border-yellow-700/50 text-yellow-300"
+                          ? "bg-zinc-900/20 border-zinc-700/50 text-zinc-300"
                           : "bg-zinc-900/20 border-zinc-700/50 text-zinc-300"
                         }`}
                     >
                       <div className="flex justify-between">
                         <span>{log.message}</span>
-                        <span className="text-gray-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                        <span className="text-zinc-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
                       </div>
-                      {log.endpoint && <p className="text-gray-400 mt-1">{log.endpoint}</p>}
-                      {log.status_code && <p className="text-gray-400 mt-1">Status: {log.status_code}</p>}
+                      {log.endpoint && <p className="text-zinc-400 mt-1">{log.endpoint}</p>}
+                      {log.status_code && <p className="text-zinc-400 mt-1">Status: {log.status_code}</p>}
                       {Object.keys(log.details).length > 0 && (
-                        <pre className="text-gray-500 mt-1 text-[10px] overflow-auto max-h-20">
+                        <pre className="text-zinc-500 mt-1 text-[10px] overflow-auto max-h-20">
                           {JSON.stringify(log.details, null, 2)}
                         </pre>
                       )}

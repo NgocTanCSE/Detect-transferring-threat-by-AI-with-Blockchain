@@ -279,16 +279,16 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
     key: "security_analyst",
     label: "Security Analyst",
     shortLabel: "SEC",
-    accentClass: "border-gray-400/40 bg-gray-400/10 text-gray-50",
-    highlightClass: "from-gray-400/20 via-gray-500/10 to-transparent",
+    accentClass: "border-zinc-400/40 bg-zinc-400/10 text-zinc-50",
+    highlightClass: "from-zinc-400/20 via-zinc-500/10 to-transparent",
     sidebarFeatures: ["Alert Queue", "Case Queue", "Case Actions", "Notifications", "Alert Data", "Case Data"],
   },
   {
     key: "compliance_risk_manager",
     label: "Compliance Risk Manager",
     shortLabel: "CMP",
-    accentClass: "border-neutral-400/40 bg-neutral-400/10 text-neutral-50",
-    highlightClass: "from-neutral-400/20 via-neutral-500/10 to-transparent",
+    accentClass: "border-zinc-400/40 bg-zinc-400/10 text-zinc-50",
+    highlightClass: "from-zinc-400/20 via-zinc-500/10 to-transparent",
     sidebarFeatures: ["Policy State", "Audit State", "Policy Actions", "Reporting", "Policy Data", "Audit Data"],
   },
 ];
@@ -712,10 +712,10 @@ export default function LiveDashboard() {
 
     if (role.key === "system_admin") {
       return [
-        { label: "Availability", value: sloMetrics ? formatPercent(sloMetrics.endpoint_health.availability_pct) : "-", tone: "cyan", hint: "Active endpoints" },
-        { label: "Healthy nodes", value: sloMetrics ? `${sloMetrics.endpoint_health.healthy_active}/${sloMetrics.endpoint_health.active}` : "-", tone: "blue", hint: "Endpoint health" },
-        { label: "Pipeline TPS", value: pipelineSummary?.avg_throughput_tps != null ? pipelineSummary.avg_throughput_tps.toFixed(1) : "-", tone: "emerald", hint: "Average throughput" },
-        { label: "Alerts today", value: overview ? formatCompact(overview.alerts_today) : "-", tone: "rose", hint: "Live alert volume" },
+        { label: "Availability", value: sloMetrics ? formatPercent(sloMetrics.endpoint_health.availability_pct) : "-", tone: "zinc", hint: "Active endpoints" },
+        { label: "Healthy nodes", value: sloMetrics ? `${sloMetrics.endpoint_health.healthy_active}/${sloMetrics.endpoint_health.active}` : "-", tone: "zinc", hint: "Endpoint health" },
+        { label: "Pipeline TPS", value: pipelineSummary?.avg_throughput_tps != null ? pipelineSummary.avg_throughput_tps.toFixed(1) : "-", tone: "zinc", hint: "Average throughput" },
+        { label: "Alerts today", value: overview ? formatCompact(overview.alerts_today) : "-", tone: "zinc", hint: "Live alert volume" },
       ];
     }
 
@@ -730,18 +730,18 @@ export default function LiveDashboard() {
 
     if (role.key === "security_analyst") {
       return [
-        { label: "Critical alerts", value: alertsSummary ? formatCompact(alertsSummary.critical) : "-", tone: "rose", hint: "Severity snapshot" },
-        { label: "Pending cases", value: caseSummary ? formatCompact(caseSummary.totals.PENDING || 0) : "-", tone: "amber", hint: `${caseSummary?.unassigned ?? 0} unassigned` },
-        { label: "Notifications", value: notificationEvents.length ? formatCompact(notificationEvents.length) : "-", tone: "violet", hint: "Recent channel events" },
-        { label: "Blocked today", value: blockedTransfers.length ? formatCompact(blockedTransfers.length) : "-", tone: "blue", hint: "Transfer intervention" },
+        { label: "Critical alerts", value: alertsSummary ? formatCompact(alertsSummary.critical) : "-", tone: "zinc", hint: "Severity snapshot" },
+        { label: "Pending cases", value: caseSummary ? formatCompact(caseSummary.totals.PENDING || 0) : "-", tone: "zinc", hint: `${caseSummary?.unassigned ?? 0} unassigned` },
+        { label: "Notifications", value: notificationEvents.length ? formatCompact(notificationEvents.length) : "-", tone: "zinc", hint: "Recent channel events" },
+        { label: "Blocked today", value: blockedTransfers.length ? formatCompact(blockedTransfers.length) : "-", tone: "zinc", hint: "Transfer intervention" },
       ];
     }
 
     return [
-      { label: "Blocked value", value: reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-", tone: "amber", hint: "30-day risk impact" },
-      { label: "Audit completeness", value: auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-", tone: "emerald", hint: `${auditCompleteness?.present_actions ?? 0}/${auditCompleteness?.required_actions ?? 0}` },
-      { label: "Policy rules", value: reportingSummary ? formatCompact(reportingSummary.kpis.policy_rules_active) : "-", tone: "violet", hint: "Active governance rules" },
-      { label: "Blocked transfers", value: reportingSummary ? formatCompact(reportingSummary.kpis.blocked_total) : "-", tone: "rose", hint: "Audit window" },
+      { label: "Blocked value", value: reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-", tone: "zinc", hint: "30-day risk impact" },
+      { label: "Audit completeness", value: auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-", tone: "zinc", hint: `${auditCompleteness?.present_actions ?? 0}/${auditCompleteness?.required_actions ?? 0}` },
+      { label: "Policy rules", value: reportingSummary ? formatCompact(reportingSummary.kpis.policy_rules_active) : "-", tone: "zinc", hint: "Active governance rules" },
+      { label: "Blocked transfers", value: reportingSummary ? formatCompact(reportingSummary.kpis.blocked_total) : "-", tone: "zinc", hint: "Audit window" },
     ];
   }, [activeModels.length, alertsSummary, auditCompleteness, blockedTransfers.length, caseSummary, dashboardStats, featureConfigs.length, modelRegistry.length, notificationEvents.length, pipelineSummary, reportingSummary, role.key, sloMetrics]);
 
@@ -785,7 +785,7 @@ export default function LiveDashboard() {
                 <div className="grid gap-3">
                   {sloMetrics ? (
                     <>
-                      <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper="Healthy / active endpoints" tone="cyan" />
+                      <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper="Healthy / active endpoints" tone="zinc" />
                       <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current period" tone="zinc" />
                       <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="zinc" />
                       <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="zinc" />
@@ -1371,7 +1371,7 @@ function DiagnosticsLogsPanel({
     api_error: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
     violet: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
     orange: "border-zinc-600/20 bg-zinc-600/10 text-zinc-300",
-    ai_service: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30",
+    ai_service: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
   };
 
   const filteredLogs = mutableLogs.filter((log) => {
@@ -1449,10 +1449,10 @@ function DiagnosticsLogsPanel({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Total logs" value={formatCompact(mutableLogs.length)} helper="All diagnostic entries" tone="cyan" />
+        <MetricBlock label="Total logs" value={formatCompact(mutableLogs.length)} helper="All diagnostic entries" tone="zinc" />
         <MetricBlock label="Errors" value={formatCompact(errorCount)} helper="Error logs" tone={errorCount > 0 ? "rose" : "emerald"} />
-        <MetricBlock label="Endpoints" value={formatCompact(new Set(mutableLogs.map((log) => log.endpoint).filter(Boolean)).size)} helper="Unique endpoints" tone="blue" />
-        <MetricBlock label="Log types" value={formatCompact(uniqueTypes.length)} helper="Different log categories" tone="violet" />
+        <MetricBlock label="Endpoints" value={formatCompact(new Set(mutableLogs.map((log) => log.endpoint).filter(Boolean)).size)} helper="Unique endpoints" tone="zinc" />
+        <MetricBlock label="Log types" value={formatCompact(uniqueTypes.length)} helper="Different log categories" tone="zinc" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -1612,10 +1612,10 @@ function SloPanel({ sloMetrics }: { sloMetrics: SloMetrics | null }) {
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper={`${sloMetrics.endpoint_health.healthy_active}/${sloMetrics.endpoint_health.active} active endpoints healthy`} tone="cyan" />
-      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current window" tone="rose" />
-      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="violet" />
-      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="amber" />
+      <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper={`${sloMetrics.endpoint_health.healthy_active}/${sloMetrics.endpoint_health.active} active endpoints healthy`} tone="zinc" />
+      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current window" tone="zinc" />
+      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="zinc" />
+      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="zinc" />
     </div>
   );
 }
@@ -1697,10 +1697,10 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Checks" value={formatCompact(report.checks.length)} helper="Total controls" tone="cyan" />
+        <MetricBlock label="Checks" value={formatCompact(report.checks.length)} helper="Total controls" tone="zinc" />
         <MetricBlock label="Missing" value={formatCompact(missing.length)} helper="Need seeding/config" tone={missing.length ? "rose" : "emerald"} />
-        <MetricBlock label="Roles ready" value={formatCompact(Object.values(report.role_readiness || {}).filter(Boolean).length)} helper="Out of 4 roles" tone="violet" />
-        <MetricBlock label="Diagnostics rows" value={formatCompact(report.counts?.diagnostic_events ?? 0)} helper="Persistent logs" tone="amber" />
+        <MetricBlock label="Roles ready" value={formatCompact(Object.values(report.role_readiness || {}).filter(Boolean).length)} helper="Out of 4 roles" tone="zinc" />
+        <MetricBlock label="Diagnostics rows" value={formatCompact(report.counts?.diagnostic_events ?? 0)} helper="Persistent logs" tone="zinc" />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -1892,10 +1892,10 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricBlock label="Registry entries" value={formatCompact(mutableModels.length)} helper="Current records" tone="violet" />
-        <MetricBlock label="Active models" value={formatCompact(mutableActiveModels.length)} helper="Serving now" tone="emerald" />
-        <MetricBlock label="Frameworks" value={formatCompact(new Set(mutableModels.map((item) => item.framework)).size)} helper="Unique runtimes" tone="cyan" />
-        <MetricBlock label="Artifacts" value={formatCompact(mutableModels.length)} helper="Tracked versions" tone="amber" />
+        <MetricBlock label="Registry entries" value={formatCompact(mutableModels.length)} helper="Current records" tone="zinc" />
+        <MetricBlock label="Active models" value={formatCompact(mutableActiveModels.length)} helper="Serving now" tone="zinc" />
+        <MetricBlock label="Frameworks" value={formatCompact(new Set(mutableModels.map((item) => item.framework)).size)} helper="Unique runtimes" tone="zinc" />
+        <MetricBlock label="Artifacts" value={formatCompact(mutableModels.length)} helper="Tracked versions" tone="zinc" />
       </div>
       <button
         type="button"
@@ -2105,9 +2105,9 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
       </div>
       <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
         <div className="space-y-3">
-          <MetricBlock label="Enabled features" value={formatCompact(enabled)} helper="Active feature flags" tone="violet" />
-          <MetricBlock label="Disabled features" value={formatCompact(Math.max(0, features.length - enabled))} helper="Risk-free toggles" tone="amber" />
-          <MetricBlock label="Owner coverage" value={formatCompact(new Set(features.map((item) => item.owner_user_id).filter(Boolean)).size)} helper="Unique owners" tone="emerald" />
+          <MetricBlock label="Enabled features" value={formatCompact(enabled)} helper="Active feature flags" tone="zinc" />
+          <MetricBlock label="Disabled features" value={formatCompact(Math.max(0, features.length - enabled))} helper="Risk-free toggles" tone="zinc" />
+          <MetricBlock label="Owner coverage" value={formatCompact(new Set(features.map((item) => item.owner_user_id).filter(Boolean)).size)} helper="Unique owners" tone="zinc" />
         </div>
       </div>
     </div>
@@ -2122,10 +2122,10 @@ function ModelOperationsPanel({ models, activeModels }: { models: ModelRegistryI
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Active serving" value={formatCompact(activeModels.length)} helper="Live models" tone="emerald" />
-        <MetricBlock label="Promoted" value={formatCompact(promoted.length)} helper="Governed promotions" tone="cyan" />
-        <MetricBlock label="Inactive" value={formatCompact(inactive.length)} helper="Needs review" tone="rose" />
-        <MetricBlock label="Frameworks" value={formatCompact(new Set(models.map((item) => item.framework)).size)} helper="Runtime diversity" tone="violet" />
+        <MetricBlock label="Active serving" value={formatCompact(activeModels.length)} helper="Live models" tone="zinc" />
+        <MetricBlock label="Promoted" value={formatCompact(promoted.length)} helper="Governed promotions" tone="zinc" />
+        <MetricBlock label="Inactive" value={formatCompact(inactive.length)} helper="Needs review" tone="zinc" />
+        <MetricBlock label="Frameworks" value={formatCompact(new Set(models.map((item) => item.framework)).size)} helper="Runtime diversity" tone="zinc" />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-700">
@@ -2168,10 +2168,10 @@ function FeatureDataPanel({ features }: { features: FeatureConfigItem[] }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Features" value={formatCompact(features.length)} helper="All records" tone="violet" />
-        <MetricBlock label="With expression" value={formatCompact(features.filter((item) => Boolean(item.expression)).length)} helper="Ready for runtime" tone="amber" />
-        <MetricBlock label="Owned" value={formatCompact(features.filter((item) => Boolean(item.owner_user_id)).length)} helper="Has owner" tone="emerald" />
-        <MetricBlock label="Updated" value={formatCompact(features.filter((item) => Boolean(item.updated_at)).length)} helper="Fresh metadata" tone="cyan" />
+        <MetricBlock label="Features" value={formatCompact(features.length)} helper="All records" tone="zinc" />
+        <MetricBlock label="With expression" value={formatCompact(features.filter((item) => Boolean(item.expression)).length)} helper="Ready for runtime" tone="zinc" />
+        <MetricBlock label="Owned" value={formatCompact(features.filter((item) => Boolean(item.owner_user_id)).length)} helper="Has owner" tone="zinc" />
+        <MetricBlock label="Updated" value={formatCompact(features.filter((item) => Boolean(item.updated_at)).length)} helper="Fresh metadata" tone="zinc" />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-700">
@@ -2208,10 +2208,10 @@ function RegistryDataPanel({ models }: { models: ModelRegistryItem[] }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Versions" value={formatCompact(models.length)} helper="Tracked versions" tone="violet" />
-        <MetricBlock label="Artifacts" value={formatCompact(models.filter((item) => Boolean(item.artifact_uri)).length)} helper="Stored URIs" tone="cyan" />
-        <MetricBlock label="Promoted" value={formatCompact(models.filter((item) => Boolean(item.promoted_at)).length)} helper="Lifecycle events" tone="emerald" />
-        <MetricBlock label="Missing promoter" value={formatCompact(models.filter((item) => !item.promoted_by).length)} helper="Governance gap" tone="rose" />
+        <MetricBlock label="Versions" value={formatCompact(models.length)} helper="Tracked versions" tone="zinc" />
+        <MetricBlock label="Artifacts" value={formatCompact(models.filter((item) => Boolean(item.artifact_uri)).length)} helper="Stored URIs" tone="zinc" />
+        <MetricBlock label="Promoted" value={formatCompact(models.filter((item) => Boolean(item.promoted_at)).length)} helper="Lifecycle events" tone="zinc" />
+        <MetricBlock label="Missing promoter" value={formatCompact(models.filter((item) => !item.promoted_by).length)} helper="Governance gap" tone="zinc" />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-700">
@@ -2534,10 +2534,10 @@ function CaseQueuePanel({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Pending" value={formatCompact(caseSummary?.totals.PENDING ?? 0)} helper="Case queue" tone="rose" />
-        <MetricBlock label="Verified" value={formatCompact(caseSummary?.totals.VERIFIED ?? 0)} helper="Analyst review" tone="violet" />
-        <MetricBlock label="Fraud" value={formatCompact(caseSummary?.totals.FRAUD ?? 0)} helper="Confirmed risk" tone="amber" />
-        <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="cyan" />
+        <MetricBlock label="Pending" value={formatCompact(caseSummary?.totals.PENDING ?? 0)} helper="Case queue" tone="zinc" />
+        <MetricBlock label="Verified" value={formatCompact(caseSummary?.totals.VERIFIED ?? 0)} helper="Analyst review" tone="zinc" />
+        <MetricBlock label="Fraud" value={formatCompact(caseSummary?.totals.FRAUD ?? 0)} helper="Confirmed risk" tone="zinc" />
+        <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="zinc" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -2674,9 +2674,9 @@ function CaseActionPanel({ caseSummary }: { caseSummary: CaseSummary | null }) {
         </ResponsiveContainer>
       </div>
       <div className="grid gap-3">
-        <MetricBlock label="High-risk unassigned" value={formatCompact(caseSummary?.high_risk_unassigned ?? 0)} helper="Needs immediate action" tone="rose" />
-        <MetricBlock label="Total queue" value={formatCompact(Object.values(totals).reduce((sum, value) => sum + value, 0))} helper="Live case volume" tone="violet" />
-        <MetricBlock label="Assignment pressure" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Open cases without owners" tone="amber" />
+        <MetricBlock label="High-risk unassigned" value={formatCompact(caseSummary?.high_risk_unassigned ?? 0)} helper="Needs immediate action" tone="zinc" />
+        <MetricBlock label="Total queue" value={formatCompact(Object.values(totals).reduce((sum, value) => sum + value, 0))} helper="Live case volume" tone="zinc" />
+        <MetricBlock label="Assignment pressure" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Open cases without owners" tone="zinc" />
       </div>
     </div>
   );
@@ -2788,10 +2788,10 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Total cases" value={formatCompact(cases.length)} helper="Current dataset" tone="violet" />
-        <MetricBlock label="Flagged" value={formatCompact(cases.filter((item) => item.is_flagged).length)} helper="Risk signals" tone="amber" />
-        <MetricBlock label="Assigned" value={formatCompact(cases.filter((item) => Boolean(item.assigned_to)).length)} helper="Has owner" tone="emerald" />
-        <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="rose" />
+        <MetricBlock label="Total cases" value={formatCompact(cases.length)} helper="Current dataset" tone="zinc" />
+        <MetricBlock label="Flagged" value={formatCompact(cases.filter((item) => item.is_flagged).length)} helper="Risk signals" tone="zinc" />
+        <MetricBlock label="Assigned" value={formatCompact(cases.filter((item) => Boolean(item.assigned_to)).length)} helper="Has owner" tone="zinc" />
+        <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="zinc" />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-700">
@@ -2867,10 +2867,10 @@ function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleI
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Rules" value={formatCompact(policies.length)} helper="All policy records" tone="amber" />
-        <MetricBlock label="Active" value={formatCompact(policies.filter((item) => item.is_active).length)} helper="Enforced now" tone="emerald" />
-        <MetricBlock label="Avg threshold" value={`${(policies.reduce((sum, item) => sum + item.min_risk_score, 0) / Math.max(1, policies.length)).toFixed(1)}`} helper="Risk floor" tone="violet" />
-        <MetricBlock label="Blocked total" value={formatCompact(reportingSummary?.kpis.blocked_total ?? 0)} helper="30-day impact" tone="rose" />
+        <MetricBlock label="Rules" value={formatCompact(policies.length)} helper="All policy records" tone="zinc" />
+        <MetricBlock label="Active" value={formatCompact(policies.filter((item) => item.is_active).length)} helper="Enforced now" tone="zinc" />
+        <MetricBlock label="Avg threshold" value={`${(policies.reduce((sum, item) => sum + item.min_risk_score, 0) / Math.max(1, policies.length)).toFixed(1)}`} helper="Risk floor" tone="zinc" />
+        <MetricBlock label="Blocked total" value={formatCompact(reportingSummary?.kpis.blocked_total ?? 0)} helper="30-day impact" tone="zinc" />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-700">
@@ -2923,6 +2923,15 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
   const checksTotalPages = Math.max(1, Math.ceil(checks.length / pageSize));
   const missingTotalPages = Math.max(1, Math.ceil(missingActions.length / pageSize));
 
+  // Reset page if out of bounds (e.g. data refresh)
+  useEffect(() => {
+    if (checksPage > checksTotalPages) setChecksPage(Math.max(1, checksTotalPages));
+  }, [checksTotalPages, checksPage]);
+
+  useEffect(() => {
+    if (missingPage > missingTotalPages) setMissingPage(Math.max(1, missingTotalPages));
+  }, [missingTotalPages, missingPage]);
+
   const pagedChecks = useMemo(() => {
     const startIndex = (checksPage - 1) * pageSize;
     return checks.slice(startIndex, startIndex + pageSize);
@@ -2936,18 +2945,18 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Completeness" value={formatPercent(auditCompleteness?.completeness_pct ?? 0)} helper="Audit coverage" tone="emerald" />
-        <MetricBlock label="Required" value={formatCompact(auditCompleteness?.required_actions ?? 0)} helper="Required actions" tone="violet" />
-        <MetricBlock label="Present" value={formatCompact(auditCompleteness?.present_actions ?? 0)} helper="Captured actions" tone="cyan" />
-        <MetricBlock label="Missing" value={formatCompact(auditGaps?.missing_count ?? 0)} helper="Outstanding gaps" tone="rose" />
+        <MetricBlock label="Completeness" value={formatPercent(auditCompleteness?.completeness_pct ?? 0)} helper="Audit coverage" tone="zinc" />
+        <MetricBlock label="Required" value={formatCompact(auditCompleteness?.required_actions ?? 0)} helper="Required actions" tone="zinc" />
+        <MetricBlock label="Present" value={formatCompact(auditCompleteness?.present_actions ?? 0)} helper="Captured actions" tone="zinc" />
+        <MetricBlock label="Missing" value={formatCompact(auditGaps?.missing_count ?? 0)} helper="Outstanding gaps" tone="zinc" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <div className="flex flex-col rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+        <div key="audit-checks-card" className="flex flex-col rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
           <p className="text-sm font-semibold text-white">Audit checks</p>
           <div className="mt-3 flex-grow space-y-2 text-sm text-zinc-300">
             {pagedChecks.length ? pagedChecks.map((item, idx) => (
-              <div key={`${item.action_type}:${idx}`} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+              <div key={`check-${item.action_type}-${idx}`} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2">
                 <span>{item.action_type}</span>
                 <span>{item.count} · {item.present ? "PRESENT" : "MISSING"}</span>
               </div>
@@ -2955,37 +2964,37 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
           </div>
           <div className="mt-4 border-t border-zinc-800 pt-3">
             <TablePager
+              key="checks-pager"
               page={checksPage}
               totalPages={checksTotalPages}
               onPrev={() => setChecksPage((prev) => Math.max(1, prev - 1))}
               onNext={() => setChecksPage((prev) => Math.min(checksTotalPages, prev + 1))}
               itemCount={checks.length}
               pageSize={pageSize}
-              pageSizeOptions={[5]}
               onPageSizeChange={() => {}}
             />
           </div>
         </div>
 
-        <div className="flex flex-col rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+        <div key="missing-actions-card" className="flex flex-col rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
           <p className="text-sm font-semibold text-white">Missing actions</p>
           <div className="mt-3 flex-grow space-y-2 text-sm text-zinc-300">
             {pagedMissing.length ? pagedMissing.map((item, idx) => (
-              <div key={`${item.action_type}:${idx}`} className="rounded-xl border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-zinc-200">
+              <div key={`missing-${item.action_type}-${idx}`} className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-zinc-200">
                 <p className="font-medium">{item.action_type}</p>
-                <p className="text-xs text-zinc-300/80 mt-1">Owner: {item.owner_role} · {item.reason}</p>
+                <p className="text-xs text-zinc-400 mt-1">Owner: {item.owner_role} · {item.reason}</p>
               </div>
             )) : <p className="text-zinc-500">No missing actions.</p>}
           </div>
           <div className="mt-4 border-t border-zinc-800 pt-3">
             <TablePager
+              key="missing-pager"
               page={missingPage}
               totalPages={missingTotalPages}
               onPrev={() => setMissingPage((prev) => Math.max(1, prev - 1))}
               onNext={() => setMissingPage((prev) => Math.min(missingTotalPages, prev + 1))}
               itemCount={missingActions.length}
               pageSize={pageSize}
-              pageSizeOptions={[5]}
               onPageSizeChange={() => {}}
             />
           </div>
@@ -3052,9 +3061,9 @@ function AuditPanel({ auditCompleteness, auditGaps }: { auditCompleteness: Audit
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <div className="space-y-3">
-        <MetricBlock label="Completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Required audit actions present" tone="emerald" />
-        <MetricBlock label="Present actions" value={auditCompleteness ? `${auditCompleteness.present_actions}/${auditCompleteness.required_actions}` : "-"} helper="Audit coverage" tone="cyan" />
-        <MetricBlock label="Missing actions" value={auditGaps ? formatCompact(auditGaps.missing_count) : "-"} helper="Gaps needing evidence" tone="rose" />
+        <MetricBlock label="Completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Required audit actions present" tone="zinc" />
+        <MetricBlock label="Present actions" value={auditCompleteness ? `${auditCompleteness.present_actions}/${auditCompleteness.required_actions}` : "-"} helper="Audit coverage" tone="zinc" />
+        <MetricBlock label="Missing actions" value={auditGaps ? formatCompact(auditGaps.missing_count) : "-"} helper="Gaps needing evidence" tone="zinc" />
       </div>
       <div className="overflow-hidden rounded-2xl border border-zinc-700">
         <table className="min-w-full divide-y divide-zinc-800 text-sm">
@@ -3088,9 +3097,9 @@ function ControlEffectivenessPanel({ controlEffectiveness, reportingSummary }: {
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
       <div className="grid gap-3 md:grid-cols-3">
-        <MetricBlock label="Block rate" value={formatPercent(controlEffectiveness.metrics.block_rate_pct)} helper="Actionable alerts blocked" tone="rose" />
-        <MetricBlock label="Fraud precision" value={formatPercent(controlEffectiveness.metrics.fraud_precision_proxy_pct)} helper="Decision quality proxy" tone="emerald" />
-        <MetricBlock label="Decision coverage" value={formatCompact(controlEffectiveness.metrics.decision_coverage)} helper="Resolved cases" tone="violet" />
+        <MetricBlock label="Block rate" value={formatPercent(controlEffectiveness.metrics.block_rate_pct)} helper="Actionable alerts blocked" tone="zinc" />
+        <MetricBlock label="Fraud precision" value={formatPercent(controlEffectiveness.metrics.fraud_precision_proxy_pct)} helper="Decision quality proxy" tone="zinc" />
+        <MetricBlock label="Decision coverage" value={formatCompact(controlEffectiveness.metrics.decision_coverage)} helper="Resolved cases" tone="zinc" />
       </div>
       <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
         <p className="text-sm font-semibold text-white">Reporting summary</p>
@@ -3131,9 +3140,9 @@ function ReportingSummaryPanel({ reportingSummary, controlEffectiveness, auditCo
         </ResponsiveContainer>
       </div>
       <div className="grid gap-3">
-        <MetricBlock label="Audit completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Evidence coverage" tone="emerald" />
-        <MetricBlock label="Block rate" value={controlEffectiveness ? formatPercent(controlEffectiveness.metrics.block_rate_pct) : "-"} helper="Compliance outcomes" tone="amber" />
-        <MetricBlock label="Blocked value" value={formatEth(reportingSummary.kpis.blocked_value_eth)} helper="Live risk impact" tone="rose" />
+        <MetricBlock label="Audit completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Evidence coverage" tone="zinc" />
+        <MetricBlock label="Block rate" value={controlEffectiveness ? formatPercent(controlEffectiveness.metrics.block_rate_pct) : "-"} helper="Compliance outcomes" tone="zinc" />
+        <MetricBlock label="Blocked value" value={formatEth(reportingSummary.kpis.blocked_value_eth)} helper="Live risk impact" tone="zinc" />
       </div>
     </div>
   );

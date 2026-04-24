@@ -357,7 +357,7 @@ export default function UserExchange() {
               </div>
             )}
             {receiverRiskError && (
-              <div className="flex items-center gap-2 text-yellow-400 text-sm -mt-2">
+              <div className="flex items-center gap-2 text-zinc-400 text-sm -mt-2">
                 <AlertTriangle className="h-4 w-4" />
                 <span>{receiverRiskError}</span>
               </div>
@@ -368,7 +368,7 @@ export default function UserExchange() {
                 : receiverRisk.risk_score >= 60
                   ? 'bg-zinc-500/10 border-zinc-500/30'
                   : receiverRisk.risk_score >= 40
-                    ? 'bg-yellow-500/10 border-yellow-500/30'
+                    ? 'bg-zinc-500/10 border-zinc-500/30'
                     : 'bg-zinc-500/10 border-zinc-500/30'
                 }`}>
                 <div className="flex items-center justify-between">
@@ -377,7 +377,7 @@ export default function UserExchange() {
                       <ShieldAlert className={`h-5 w-5 ${receiverRisk.risk_score >= 80 ? 'text-zinc-400' : 'text-zinc-400'
                         }`} />
                     ) : (
-                      <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-yellow-400' : 'text-zinc-400'
+                      <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-zinc-400' : 'text-zinc-400'
                         }`} />
                     )}
                     <span className="text-sm font-medium text-zinc-100">
@@ -395,7 +395,7 @@ export default function UserExchange() {
                     : receiverRisk.risk_score >= 60
                       ? 'border-zinc-500 text-zinc-400'
                       : receiverRisk.risk_score >= 40
-                        ? 'border-yellow-500 text-yellow-400'
+                        ? 'border-zinc-500 text-zinc-400'
                         : 'border-zinc-500 text-zinc-400'
                     }`}>
                     Risk: {receiverRisk.risk_score.toFixed(0)}%
