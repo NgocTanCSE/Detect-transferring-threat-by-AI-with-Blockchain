@@ -38,12 +38,24 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Node.js Backend is healthy', timestamp: new Date() });
 });
 
+// Database connection
+const { connectDb } = require('./config/database');
+connectDb();
+
 // Routes
-const transactionRoutes = require('./routes/transactionRoutes');
+const authRoutes = require('./routes/authRoutes');
+const alertRoutes = require('./routes/alertRoutes');
+const complianceRoutes = require('./routes/complianceRoutes');
 
 // Orchestrated routes (support both with and without /api prefix).
-app.use('/ops/compliance', transactionRoutes);
-app.use('/api/ops/compliance', transactionRoutes);
+app.use('/auth', authRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/ops/compliance', complianceRoutes);
+app.use('/api/ops/compliance', complianceRoutes);
+app.use('/alerts', alertRoutes);
+app.use('/api/alerts', alertRoutes);
+app.use('/ops/security/alerts-summary', alertRoutes); // Alias for compatibility
+app.use('/api/ops/security/alerts-summary', alertRoutes);
 
 alertMonitorService.start(io);
 
