@@ -134,7 +134,7 @@ class HFSecurityAnalyst:
 
         # Try multiple model names and API versions
         versions = ["v1beta", "v1"]
-        models_to_try = [self.model, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-pro"]
+        models_to_try = ["gemini-2.0-flash", self.model, "gemini-flash-latest", "gemini-pro"]
         last_error = None
 
         for version in versions:
