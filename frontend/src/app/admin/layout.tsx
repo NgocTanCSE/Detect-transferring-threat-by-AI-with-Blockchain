@@ -79,10 +79,10 @@ export default function AdminLayout({
   // Show loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 text-zinc-500 animate-spin" />
-          <p className="text-slate-400">Đang xác thực...</p>
+          <p className="text-zinc-400">Đang xác thực...</p>
         </div>
       </div>
     );
@@ -91,13 +91,13 @@ export default function AdminLayout({
   // Show access denied
   if (!isAuthenticated || user?.role !== "admin") {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20">
-            <ShieldX className="h-8 w-8 text-red-400" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-800/50">
+            <ShieldX className="h-8 w-8 text-zinc-400" />
           </div>
           <h2 className="text-xl font-semibold text-white">Truy cập bị từ chối</h2>
-          <p className="text-slate-400 max-w-md">
+          <p className="text-zinc-400 max-w-md">
             {!isAuthenticated
               ? "Bạn cần đăng nhập để truy cập trang quản trị."
               : "Tài khoản của bạn không có quyền truy cập trang quản trị."}
@@ -105,13 +105,13 @@ export default function AdminLayout({
           <div className="flex gap-3 mt-4">
             {!isAuthenticated ? (
               <Link href="/login">
-                <Button className="bg-cyan-600 hover:bg-cyan-700">
+                <Button className="bg-zinc-100 text-black hover:bg-zinc-200">
                   Đăng nhập
                 </Button>
               </Link>
             ) : (
               <Link href="/">
-                <Button className="bg-cyan-600 hover:bg-cyan-700">
+                <Button className="bg-zinc-100 text-black hover:bg-zinc-200">
                   Về trang chủ
                 </Button>
               </Link>
@@ -123,39 +123,39 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-[#08080a]">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-slate-700/50 bg-slate-900/95 backdrop-blur-sm">
+      <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-zinc-800/50 bg-zinc-950/95 backdrop-blur-sm">
         {/* Logo */}
-        <div className="flex h-16 items-center gap-3 border-b border-slate-700/50 px-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-200 to-zinc-500">
-            <Shield className="h-6 w-6 text-white" />
+        <div className="flex h-16 items-center gap-3 border-b border-zinc-800/50 px-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-100 to-zinc-400">
+            <Shield className="h-6 w-6 text-black" />
           </div>
           <div>
             <h1 className="text-lg font-semibold text-white">
-              AI<span className="text-cyan-400">Guard</span>
+              AI<span className="text-zinc-100">Guard</span>
             </h1>
-            <p className="text-xs text-slate-500">Admin Panel</p>
+            <p className="text-xs text-zinc-500">Admin Panel</p>
           </div>
         </div>
 
         {/* User Info */}
-        <div className="border-b border-slate-700/50 px-4 py-3">
+        <div className="border-b border-zinc-800/50 px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-zinc-200 to-zinc-500">
-              <span className="text-sm font-medium text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-zinc-100 to-zinc-400">
+              <span className="text-sm font-medium text-black">
                 {user?.username?.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">{user?.username}</p>
-              <p className="text-xs text-cyan-400">Admin</p>
+              <p className="text-xs text-zinc-100">Admin</p>
             </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={handleLogout}
-              className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-500/20"
+              className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-800/50"
               title="Đăng xuất"
             >
               <LogOut className="h-4 w-4" />
@@ -173,19 +173,19 @@ export default function AdminLayout({
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-150",
                     isActive
-                      ? "bg-slate-800 text-white border border-slate-600/50"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent"
+                      ? "bg-zinc-800 text-white border border-zinc-700/50 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+                      : "text-zinc-400 hover:bg-zinc-800/50 hover:text-white border border-transparent"
                   )}
                 >
                   <item.icon
                     className={cn(
                       "h-5 w-5",
-                      isActive ? "text-cyan-400" : ""
+                      isActive ? "text-white" : ""
                     )}
                   />
                   <div>
                     <p className="text-sm font-medium">{item.title}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-zinc-500">
                       {item.description}
                     </p>
                   </div>
@@ -195,21 +195,21 @@ export default function AdminLayout({
           })}
         </nav>
 
-        <Separator className="mx-4 w-auto bg-slate-700/50" />
+        <Separator className="mx-4 w-auto bg-zinc-800/50" />
 
         {/* Status Indicator */}
         <div className="p-4">
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+          <div className="rounded-lg border border-zinc-100/20 bg-zinc-100/5 p-3">
             <div className="flex items-center gap-2">
               <div className="relative">
-                <Activity className="h-4 w-4 text-emerald-400" />
-                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400" />
+                <Activity className="h-4 w-4 text-zinc-100" />
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-zinc-100 animate-pulse" />
               </div>
-              <span className="text-sm text-emerald-400">
+              <span className="text-sm text-zinc-100">
                 System Active
               </span>
             </div>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-zinc-500">
               AI Engine Running
             </p>
           </div>
@@ -218,7 +218,7 @@ export default function AdminLayout({
         {/* Back to Home */}
         <div className="absolute bottom-4 left-4 right-4">
           <Link href="/">
-            <Button variant="outline" className="w-full text-slate-300 border-slate-600 hover:bg-slate-800 hover:text-white">
+            <Button variant="outline" className="w-full text-zinc-300 border-zinc-700 hover:bg-zinc-800 hover:text-white">
               <ChevronLeft className="h-4 w-4" />
               Back to Home
             </Button>

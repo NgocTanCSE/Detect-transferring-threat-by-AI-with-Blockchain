@@ -40,6 +40,9 @@ type AssistantContext = {
     alert_count: number;
   } | null;
   screen_scope?: string;
+  dashboard_role?: string;
+  dashboard_feature_index?: number;
+  dashboard_feature_label?: string;
 };
 
 function dedupeStrings(values: string[] | undefined): string[] {
@@ -259,7 +262,7 @@ export default function DashboardAssistantPanel({
       </div>
 
       <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-[160px_1fr] md:items-center">
-        <label className="text-xs uppercase tracking-[0.24em] text-slate-500">Scope</label>
+        <label className="text-xs uppercase tracking-[0.24em] text-zinc-500">Scope</label>
         <select
           value={currentScope}
           onChange={(event) => onScopeChange(event.target.value as AssistantScope)}
@@ -274,27 +277,27 @@ export default function DashboardAssistantPanel({
       </div>
 
       {context.overview || context.dashboard_role ? (
-        <div className="mb-3 rounded-2xl border border-slate-800 bg-slate-900/55 p-3 text-xs text-slate-300">
-          <div className="flex flex-wrap items-center gap-2 text-slate-400">
+        <div className="mb-3 rounded-2xl border border-zinc-800 bg-zinc-900/55 p-3 text-xs text-zinc-300">
+          <div className="flex flex-wrap items-center gap-2 text-zinc-400">
             <span className="uppercase tracking-[0.24em]">Loaded context</span>
-            {context.dashboard_role ? <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px]">Role: {context.dashboard_role}</span> : null}
-            {typeof context.dashboard_feature_index === "number" ? <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px]">Feature: {context.dashboard_feature_index}</span> : null}
-            {context.dashboard_feature_label ? <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px]">{context.dashboard_feature_label}</span> : null}
+            {context.dashboard_role ? <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px]">Role: {context.dashboard_role}</span> : null}
+            {typeof context.dashboard_feature_index === "number" ? <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px]">Feature: {context.dashboard_feature_index}</span> : null}
+            {context.dashboard_feature_label ? <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px]">{context.dashboard_feature_label}</span> : null}
           </div>
           {context.overview ? (
             <div className="mt-2 grid gap-2 md:grid-cols-5">
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">Wallets: {context.overview.total_wallets}</div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">Alerts: {context.overview.total_alerts}</div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">Critical: {context.overview.critical_alerts}</div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">Today: {context.overview.alerts_today}</div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">Blocked: {context.overview.total_blocked}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Wallets: {context.overview.total_wallets}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Alerts: {context.overview.total_alerts}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Critical: {context.overview.critical_alerts}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Today: {context.overview.alerts_today}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Blocked: {context.overview.total_blocked}</div>
             </div>
           ) : null}
         </div>
       ) : null}
 
-      <div className="mb-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
-        <p className="mb-2 text-xs uppercase tracking-[0.24em] text-slate-500">Quick prompts</p>
+      <div className="mb-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+        <p className="mb-2 text-xs uppercase tracking-[0.24em] text-zinc-500">Quick prompts</p>
         <div className="flex flex-wrap gap-2">
           {QUICK_PROMPTS[currentScope as AssistantScope].map((prompt) => (
             <button
@@ -309,7 +312,7 @@ export default function DashboardAssistantPanel({
         </div>
       </div>
 
-      <div className="max-h-96 space-y-2 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
+      <div className="max-h-96 space-y-2 overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
         {messages.map((message, index) => (
           <div
             key={`${message.role}-${index}`}
@@ -322,12 +325,12 @@ export default function DashboardAssistantPanel({
           >
             {message.content}
             {message.role === "assistant" && message.sources && message.sources.length ? (
-              <p className="mt-2 border-t border-cyan-400/20 pt-2 text-[11px] text-cyan-200/80">
+              <p className="mt-2 border-t border-white/20 pt-2 text-[11px] text-white/80">
                 Sources: {message.sources.join(" | ")}
               </p>
             ) : null}
             {message.role === "assistant" && message.knowledgeSources && message.knowledgeSources.length ? (
-              <p className="mt-2 text-[11px] text-slate-400">
+              <p className="mt-2 text-[11px] text-zinc-400">
                 Docs: {dedupeStrings(message.knowledgeSources.map((item) => item.source)).join(" | ")}
               </p>
             ) : null}
@@ -369,12 +372,12 @@ export default function DashboardAssistantPanel({
         </div>
       </div>
 
-      <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Knowledge sources</p>
-        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-300">
-          <span className="rounded-full border border-slate-700 px-2 py-1">README.md</span>
-          <span className="rounded-full border border-slate-700 px-2 py-1">DEPLOY_HF_SUPABASE.md</span>
-          <span className="rounded-full border border-slate-700 px-2 py-1">role-based-rearchitecture-plan.md</span>
+      <div className="mt-3 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3">
+        <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Knowledge sources</p>
+        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-300">
+          <span className="rounded-full border border-zinc-700 px-2 py-1">README.md</span>
+          <span className="rounded-full border border-zinc-700 px-2 py-1">DEPLOY_HF_SUPABASE.md</span>
+          <span className="rounded-full border border-zinc-700 px-2 py-1">role-based-rearchitecture-plan.md</span>
         </div>
       </div>
     </section>
