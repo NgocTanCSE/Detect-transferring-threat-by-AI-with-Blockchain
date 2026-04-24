@@ -82,9 +82,13 @@ Required env vars:
 - `JWT_SECRET_KEY`
 - `AUTH_DISABLED=false`
 
+DB mode on HF:
+- If `DATABASE_URL` is Postgres, runtime uses remote DB (Supabase).
+- If `DATABASE_URL` is not set, runtime falls back to SQLite at `/data/blockchain_local.db`.
+
 The frontend proxies `/api` requests to the backend inside the same container, so one Space is enough.
 
-On startup, the Space can bootstrap an empty Supabase database from `database/init.sql` and `database/seed_rich_demo.sql`.
+On startup in Postgres mode, the Space can bootstrap an empty database from `database/init.sql` and `database/seed_rich_demo.sql`.
 
 ---
 

@@ -1,10 +1,12 @@
 ## Persistent Storage Migration
 
-Hệ thống đã được update để **lưu tất cả data ở `/data`** (persistent bucket trên HF Spaces).
+Hệ thống hỗ trợ 2 mode DB trên HF Spaces:
+- Postgres mode: dùng `DATABASE_URL` cloud (Supabase).
+- SQLite mode: fallback về `/data/blockchain_local.db` khi không có `DATABASE_URL` Postgres.
 
 ### 🎯 Thay Đổi
 
-1. **entrypoint.sh** - Tự động detect HF Spaces và set `DATABASE_URL=/data/blockchain_local.db`
+1. **entrypoint.sh** - Tự động detect HF Spaces và chọn DB mode theo `DATABASE_URL`
 2. **migrate_persistent_storage.py** - Script migration tự động (chạy khi khởi động)
 3. **seed_wallets.py** - Fixed bcrypt error, giờ chạy thành công và seed 5000 users
 
@@ -12,17 +14,19 @@ Hệ thống đã được update để **lưu tất cả data ở `/data`** (pe
 
 | Environment | Database Location | Persistent? |
 |-------------|------------------|------------|
-| **HF Spaces** | `/data/blockchain_local.db` | ✅ YES (persists across restarts) |
+| **HF Spaces (Postgres mode)** | `postgresql://...` | ✅ YES (cloud persistent) |
+| **HF Spaces (SQLite mode)** | `/data/blockchain_local.db` | ✅ YES (persists across restarts) |
 | **Local Docker** | `postgresql://user:password@db:5432` | ✅ YES (PostgreSQL volume) |
 
 ### 🔄 Quá Trình Khởi Động
 
 ```bash
 1. mkdir -p /data                                    # Tạo persistent directory
-2. Detect SPACE_ID → set DATABASE_URL → /data       # Force persistent storage
-3. migrate_persistent_storage.py                    # Chuyển data cũ (nếu có) → /data
-4. seed_wallets.py                                  # Seed 5000 demo users
-5. supervisord                                      # Start backend/frontend/scanner
+2. Detect SPACE_ID                                  # Đang chạy trên HF
+3. Nếu DATABASE_URL là Postgres -> dùng remote DB   # Supabase mode
+4. Nếu không có Postgres URL -> fallback SQLite /data
+5. SQLite mode: migrate_persistent_storage.py + seed_wallets.py
+6. supervisord                                      # Start backend/frontend/scanner
 ```
 
 ### 🧹 Reset Data (Clear Old)
@@ -58,5 +62,5 @@ Password: demo123
 
 - Plaintext password chỉ cho **dev/test**
 - Production data sẽ dùng bcrypt hashed passwords
-- Migration chạy **tự động** trên HF Spaces lần đầu
-- Data persists across **Space restarts/rebuilds** (nếu không xóa `/data` manually)
+- SQLite migration chạy **tự động** khi ở SQLite mode
+- Data persists across **Space restarts/rebuilds** (SQLite `/data` hoặc cloud Postgres)

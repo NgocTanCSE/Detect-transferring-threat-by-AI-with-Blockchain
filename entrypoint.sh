@@ -11,26 +11,39 @@ export PYTHONPATH="/app/backend:${PYTHONPATH}"
 # Ensure /data directory exists for persistent storage
 mkdir -p /data
 
-# Force DATABASE_URL to persistent storage on HF Spaces
+# Resolve database mode on HF Spaces:
+# - If DATABASE_URL points to Postgres, keep it (Supabase/remote mode)
+# - Otherwise default to persistent SQLite in /data
 if [ -n "$SPACE_ID" ]; then
     echo "Detected HF Spaces environment (SPACE_ID=$SPACE_ID)"
-    export DATABASE_URL="sqlite:////data/blockchain_local.db"
-    echo "DATABASE_URL set to: $DATABASE_URL"
 
-    # Optional one-shot DB reset for persistent HF storage.
-    # Set RESET_DB=1 in Space variables, restart once, then unset it.
-    if [ "$RESET_DB" = "1" ]; then
-        echo "RESET_DB=1 detected. Removing persistent SQLite files in /data"
-        rm -f /data/blockchain_local.db
-        rm -f /data/blockchain_local.db-wal
-        rm -f /data/blockchain_local.db-shm
-        rm -f /data/blockchain_local.db-journal
+    if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres://* || "$DATABASE_URL" == postgresql://* ]]; then
+        echo "HF mode: remote PostgreSQL detected from DATABASE_URL"
+    else
+        if [ -z "$DATABASE_URL" ]; then
+            export DATABASE_URL="sqlite:////data/blockchain_local.db"
+            echo "HF mode: DATABASE_URL not provided, defaulting to persistent SQLite"
+        else
+            echo "HF mode: non-Postgres DATABASE_URL detected, using as provided"
+        fi
+
+        echo "DATABASE_URL set to: $DATABASE_URL"
+
+        # Optional one-shot DB reset for persistent HF storage.
+        # Set RESET_DB=1 in Space variables, restart once, then unset it.
+        if [ "$RESET_DB" = "1" ]; then
+            echo "RESET_DB=1 detected. Removing persistent SQLite files in /data"
+            rm -f /data/blockchain_local.db
+            rm -f /data/blockchain_local.db-wal
+            rm -f /data/blockchain_local.db-shm
+            rm -f /data/blockchain_local.db-journal
+        fi
+
+        # Run migration to move old data to /data if it exists elsewhere
+        echo "Running persistent storage migration..."
+        cd /app/backend
+        python migrate_persistent_storage.py || echo "Migration completed (no old data found)"
     fi
-
-    # Run migration to move old data to /data if it exists elsewhere
-    echo "Running persistent storage migration..."
-    cd /app/backend
-    python migrate_persistent_storage.py || echo "Migration completed (no old data found)"
 else
     echo "Not on HF Spaces, using default database configuration"
 fi

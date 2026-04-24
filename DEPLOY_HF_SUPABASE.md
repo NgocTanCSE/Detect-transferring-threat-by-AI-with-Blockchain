@@ -7,6 +7,10 @@ This guide uses one Hugging Face Space with the repository root Dockerfile to ru
 
 Supabase provides PostgreSQL, so the Space does not need a local database container.
 
+Runtime DB mode on HF now follows this precedence:
+- If `DATABASE_URL` is Postgres (`postgresql://`), the app uses remote DB (recommended for production).
+- If `DATABASE_URL` is missing, the app falls back to persistent SQLite at `/data/blockchain_local.db`.
+
 ## 1) Create Supabase database URL
 
 In Supabase:
@@ -44,9 +48,11 @@ After deploy, verify health endpoint:
 
 ## 3) Run DB initialization and seed once
 
-The Space now runs a best-effort bootstrap on startup:
+When using Postgres `DATABASE_URL`, the Space runs a best-effort bootstrap on startup:
 - If `users` does not exist, it loads `database/init.sql` and then `database/seed_rich_demo.sql`
 - If the schema exists but `users` is empty, it loads `database/seed_rich_demo.sql`
+
+When `DATABASE_URL` is missing, the Space uses SQLite `/data/blockchain_local.db` and runs local seed flow.
 
 If you want to do it manually, you can still run the SQL directly against Supabase using psql or Supabase SQL Editor.
 
@@ -67,6 +73,7 @@ No extra frontend deployment is needed for this single-Space setup.
 - One Space = one public endpoint. This setup uses a single Docker Space for the full app.
 - Free Spaces can sleep when idle; first request after idle can be slow.
 - Scanner/background jobs are not ideal on sleeping Spaces; for always-on scanning, use a dedicated worker host.
+- Check startup logs for `HF mode` lines to confirm which DB mode is active.
 
 ## 6) Quick smoke tests
 
