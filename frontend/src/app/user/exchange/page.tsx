@@ -250,10 +250,10 @@ export default function UserExchange() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-900 p-6">
+    <div className="min-h-[calc(100vh-4rem)] bg-transparent p-6 relative z-10">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Send Form */}
-        <Card className="glass-card glass-card-hover animate-slide-up gradient-border">
+        <Card className="border-zinc-800 bg-zinc-900/50 backdrop-blur-sm animate-slide-up">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Send className="h-5 w-5 text-zinc-400" />
@@ -268,17 +268,16 @@ export default function UserExchange() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Security Notice */}
-            <div className="bg-zinc-500/5 border border-zinc-500/30 rounded-lg p-4">
+            <div className="bg-zinc-500/5 border border-zinc-800 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-zinc-400 shrink-0 mt-0.5" />
+                <Info className="h-5 w-5 text-zinc-500 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm text-slate-100 font-medium">
-                    AI Protection Active
+                  <p className="text-sm text-zinc-100 font-medium">
+                    Hệ thống bảo vệ AI đang hoạt động
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    All transfers are checked against our AI fraud detection system.
-                    Transfers to high-risk wallets (score &gt; 80) will be blocked
-                    automatically.
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Mọi giao dịch đều được kiểm tra qua hệ thống phát hiện gian lận AI. 
+                    Giao dịch tới các ví có rủi ro cao (score &gt; 80) sẽ bị chặn tự động.
                   </p>
                 </div>
               </div>
@@ -286,49 +285,48 @@ export default function UserExchange() {
 
             {/* From Wallet ID */}
             <div className="space-y-2">
-              <Label htmlFor="fromWalletId">From Wallet Address</Label>
+              <Label htmlFor="fromWalletId">Địa chỉ ví của bạn</Label>
               <Input
                 id="fromWalletId"
                 placeholder="0x..."
                 value={fromWalletId}
                 onChange={(e) => setFromWalletId(e.target.value)}
-                className="font-mono bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500"
+                className="font-mono bg-zinc-950 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-white/20"
               />
               {/* Sender Balance Info */}
               {senderBalanceLoading && (
-                <div className="flex items-center gap-2 text-slate-400 text-sm">
+                <div className="flex items-center gap-2 text-zinc-500 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Đang kiểm tra ví...</span>
                 </div>
               )}
               {senderBalanceError && (
-                <div className="flex items-center gap-2 text-zinc-400 text-sm">
+                <div className="flex items-center gap-2 text-zinc-500 text-sm">
                   <XCircle className="h-4 w-4" />
                   <span>{senderBalanceError}</span>
                 </div>
               )}
               {senderBalance && !senderBalanceLoading && (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mt-2">
+                <div className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-3 mt-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-zinc-400" />
-                      <span className="text-sm text-slate-400">Số dư khả dụng:</span>
+                      <Wallet className="h-4 w-4 text-zinc-500" />
+                      <span className="text-sm text-zinc-400">Số dư khả dụng:</span>
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-lg font-bold text-slate-100">
+                      <span className="text-lg font-bold text-white">
                         {senderBalance.balance_eth.toFixed(4)}
                       </span>
-                      <span className="text-sm text-zinc-400">ETH</span>
+                      <span className="text-sm text-zinc-500">ETH</span>
                     </div>
                   </div>
-
-                  {/* Transaction History removed from here */}
                 </div>
               )}
             </div>
 
             {/* To Wallet ID */}
             <div className="space-y-2">
+              <Label htmlFor="toWalletId">Địa chỉ ví nhận</Label>
               <Input
                 id="toWalletId"
                 placeholder="0x... hoặc Wallet ID"
@@ -341,10 +339,10 @@ export default function UserExchange() {
                     setToAddress(value);
                   }
                 }}
-                className="font-mono bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500"
+                className="font-mono bg-zinc-950 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-white/20"
               />
-              <p className="text-xs text-slate-500">
-                Nhập địa chỉ ví Ethereum (0x...) hoặc Wallet ID
+              <p className="text-xs text-zinc-500">
+                Nhập địa chỉ ví Ethereum (0x...) hoặc Wallet ID của người nhận
               </p>
             </div>
 
@@ -353,7 +351,7 @@ export default function UserExchange() {
 
             {/* Receiver Risk Assessment - Shown below To Wallet ID */}
             {receiverRiskLoading && (
-              <div className="flex items-center gap-2 text-slate-400 text-sm -mt-2">
+              <div className="flex items-center gap-2 text-zinc-400 text-sm -mt-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>Đang kiểm tra độ an toàn...</span>
               </div>
@@ -382,7 +380,7 @@ export default function UserExchange() {
                       <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-yellow-400' : 'text-zinc-400'
                         }`} />
                     )}
-                    <span className="text-sm font-medium text-slate-100">
+                    <span className="text-sm font-medium text-zinc-100">
                       {receiverRisk.risk_score >= 80
                         ? '⚠️ Địa chỉ nguy hiểm!'
                         : receiverRisk.risk_score >= 60
@@ -404,7 +402,7 @@ export default function UserExchange() {
                   </Badge>
                 </div>
                 {receiverRisk.risk_score >= 60 && (
-                  <p className="text-xs text-slate-400 mt-2">
+                  <p className="text-xs text-zinc-400 mt-2">
                     {receiverRisk.risk_score >= 80
                       ? 'Giao dịch đến địa chỉ này sẽ bị chặn tự động!'
                       : 'Bạn sẽ nhận được cảnh báo nếu tiếp tục giao dịch.'}
@@ -415,7 +413,7 @@ export default function UserExchange() {
 
             {/* Amount */}
             <div className="space-y-2">
-              <Label htmlFor="amount">Amount (ETH)</Label>
+              <Label htmlFor="amount">Số lượng (ETH)</Label>
               <div className="relative">
                 <Input
                   id="amount"
@@ -425,22 +423,23 @@ export default function UserExchange() {
                   placeholder="0.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="pr-16 bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500"
+                  className="pr-16 bg-zinc-950 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-white/20"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <span className="absolute right-3 top-1/2 -tranzinc-y-1/2 text-zinc-500">
                   ETH
                 </span>
               </div>
               {senderBalance && (
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-zinc-500">
                   Khả dụng: {senderBalance.balance_eth.toFixed(4)} ETH
                 </p>
               )}
             </div>
 
             {/* Send Button */}
+            {/* Send Button */}
             <Button
-              className="w-full h-12 text-lg"
+              className="w-full h-12 text-lg bg-white text-black hover:bg-zinc-200 border-none"
               onClick={handleSend}
               disabled={
                 transferMutation.isPending ||
@@ -453,13 +452,13 @@ export default function UserExchange() {
             >
               {transferMutation.isPending ? (
                 <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-900" />
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-black" />
                   Checking...
                 </div>
               ) : (
                 <>
                   <Send className="h-5 w-5 mr-2" />
-                  Send ETH
+                  Gửi ETH
                 </>
               )}
             </Button>
@@ -467,20 +466,20 @@ export default function UserExchange() {
         </Card>
 
         {/* Recent Transactions */}
-        <Card className="glass-card glass-card-hover animate-slide-up stagger-2">
+        <Card className="border-zinc-800 bg-zinc-900/50 backdrop-blur-sm animate-slide-up stagger-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-slate-400" />
-              Recent Transactions
+            <CardTitle className="flex items-center gap-2 text-zinc-100">
+              <Clock className="h-5 w-5 text-zinc-500" />
+              Giao dịch gần đây
             </CardTitle>
           </CardHeader>
           <CardContent>
             {(fromWalletId ? senderTxLoading : txLoading) ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-400" />
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-500" />
               </div>
             ) : (fromWalletId ? senderTransactions : transactions)?.length === 0 ? (
-              <div className="text-center py-8 text-slate-400">
+              <div className="text-center py-8 text-zinc-500">
                 <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No transactions yet</p>
               </div>
@@ -493,14 +492,11 @@ export default function UserExchange() {
                   return (
                     <div
                       key={tx.tx_hash}
-                      className="flex items-center justify-between p-4 rounded-lg bg-slate-800 border border-slate-700"
+                      className="flex items-center justify-between p-4 rounded-lg bg-zinc-950/50 border border-zinc-800"
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className={`p-2 rounded-lg ${isSent
-                            ? "bg-zinc-500/10 border-zinc-500/30"
-                            : "bg-zinc-500/10 border-zinc-500/30"
-                            } border`}
+                          className={`p-2 rounded-lg bg-zinc-500/10 border-zinc-800 border`}
                         >
                           {isSent ? (
                             <ArrowUpRight className="h-5 w-5 text-zinc-400" />
@@ -509,10 +505,10 @@ export default function UserExchange() {
                           )}
                         </div>
                         <div>
-                          <p className="font-medium text-slate-100">
+                          <p className="font-medium text-zinc-100">
                             {isSent ? "Sent" : "Received"}
                           </p>
-                          <p className="text-sm text-slate-400 font-mono">
+                          <p className="text-sm text-zinc-500 font-mono">
                             {isSent
                               ? `To: ${formatAddress(tx.to_address)}`
                               : `From: ${formatAddress(tx.from_address)}`}
@@ -521,13 +517,12 @@ export default function UserExchange() {
                       </div>
                       <div className="text-right">
                         <p
-                          className={`font-bold ${isSent ? "text-zinc-400" : "text-zinc-400"
-                            }`}
+                          className={`font-bold text-zinc-100`}
                         >
                           {isSent ? "-" : "+"}
                           {formatEth(tx.value_wei)} ETH
                         </p>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-zinc-500">
                           {formatDate(tx.timestamp)}
                         </p>
                       </div>
@@ -587,28 +582,28 @@ export default function UserExchange() {
                   <span className="text-3xl font-bold text-zinc-400">
                     {transferResponse?.receiver_risk?.toFixed(0) || 0}
                   </span>
-                  <span className="text-xs text-slate-400">Risk Score</span>
+                  <span className="text-xs text-zinc-400">Risk Score</span>
                 </div>
               </div>
             </div>
 
             {/* Warning Message */}
-            <div className="bg-zinc-500/10 border border-zinc-500/30 rounded-lg p-4">
-              <p className="text-sm text-slate-100">
+            <div className="bg-zinc-500/10 border border-zinc-800 rounded-lg p-4">
+              <p className="text-sm text-zinc-100">
                 {transferResponse?.message}
               </p>
             </div>
 
             {/* Warning Count */}
             <div className="flex items-center justify-center gap-2">
-              <span className="text-sm text-slate-400">Warnings:</span>
+              <span className="text-sm text-zinc-500">Warnings:</span>
               <div className="flex items-center gap-1">
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
                     className={`w-3 h-3 rounded-full ${i <= currentWarnings
                       ? "bg-zinc-400"
-                      : "bg-slate-600"
+                      : "bg-zinc-800"
                       }`}
                   />
                 ))}
@@ -664,15 +659,15 @@ export default function UserExchange() {
             </div>
 
             {/* Block Reason */}
-            <div className="bg-zinc-500/10 border border-zinc-500/30 rounded-lg p-4">
-              <p className="text-sm text-slate-100 text-center">
+            <div className="bg-zinc-500/10 border border-zinc-800 rounded-lg p-4">
+              <p className="text-sm text-zinc-100 text-center">
                 {transferResponse?.message ||
                   "This transfer has been blocked due to high risk."}
               </p>
             </div>
 
             <div className="text-center">
-              <p className="text-slate-400 text-sm">
+              <p className="text-zinc-500 text-sm">
                 The recipient wallet has a critical risk score and has been
                 identified as potentially fraudulent.
               </p>
@@ -713,11 +708,11 @@ export default function UserExchange() {
             </div>
 
             <div className="text-center">
-              <p className="text-slate-100">
+              <p className="text-zinc-100">
                 Your transfer has been processed successfully.
               </p>
               {transferResponse?.tx_hash && (
-                <p className="text-sm text-slate-400 mt-2 font-mono">
+                <p className="text-sm text-zinc-500 mt-2 font-mono">
                   TX: {formatAddress(transferResponse.tx_hash, 10)}
                 </p>
               )}

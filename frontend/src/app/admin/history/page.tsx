@@ -74,7 +74,7 @@ export default function AdminHistory() {
   const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ color: string; name: string; value: number }>; label?: string }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-lg">
+        <div className="bg-zinc-800 border border-zinc-600 rounded-lg p-3 shadow-lg">
           <p className="text-white font-medium mb-2">{label}</p>
           {payload.map((entry, index: number) => (
             <p
@@ -98,14 +98,14 @@ export default function AdminHistory() {
         <h1 className="text-2xl font-semibold text-white">
           Transaction History
         </h1>
-        <p className="text-slate-400 mt-1">
+        <p className="text-zinc-400 mt-1">
           Blocked transfers and money flow analytics
         </p>
       </div>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="border-zinc-700/50 bg-zinc-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
               <Ban className="h-6 w-6 text-zinc-400" />
@@ -114,12 +114,12 @@ export default function AdminHistory() {
               <p className="text-2xl font-semibold text-white">
                 {totalBlocked}
               </p>
-              <p className="text-sm text-slate-400">Total Blocked</p>
+              <p className="text-sm text-zinc-400">Total Blocked</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="border-zinc-700/50 bg-zinc-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
               <AlertOctagon className="h-6 w-6 text-zinc-400" />
@@ -128,12 +128,12 @@ export default function AdminHistory() {
               <p className="text-2xl font-semibold text-white">
                 {totalBlockedValue.toFixed(4)}
               </p>
-              <p className="text-sm text-slate-400">ETH Protected</p>
+              <p className="text-sm text-zinc-400">ETH Protected</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="border-zinc-700/50 bg-zinc-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
               <TrendingUp className="h-6 w-6 text-zinc-400" />
@@ -142,20 +142,20 @@ export default function AdminHistory() {
               <p className="text-2xl font-semibold text-white">
                 {avgRiskScore.toFixed(1)}
               </p>
-              <p className="text-sm text-slate-400">Avg Risk Score</p>
+              <p className="text-sm text-zinc-400">Avg Risk Score</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Flow Chart */}
-      <Card className="border-slate-700/50 bg-slate-800/30">
+      <Card className="border-zinc-700/50 bg-zinc-800/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
             <TrendingUp className="h-5 w-5 text-zinc-400" />
             Money Flow Analysis
           </CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardDescription className="text-zinc-400">
             Daily inflow and outflow volume across monitored wallets
           </CardDescription>
         </CardHeader>
@@ -214,7 +214,7 @@ export default function AdminHistory() {
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-80 flex items-center justify-center text-slate-400">
+            <div className="h-80 flex items-center justify-center text-zinc-400">
               <div className="text-center">
                 <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No flow data available</p>
@@ -225,28 +225,28 @@ export default function AdminHistory() {
       </Card>
 
       {/* Blocked Transfers Table */}
-      <Card className="border-slate-700/50 bg-slate-800/30">
+      <Card className="border-zinc-700/50 bg-zinc-800/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
             <History className="h-5 w-5 text-zinc-400" />
             Blocked Transfers History
           </CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardDescription className="text-zinc-400">
             All transfers that were blocked by the AI protection system
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-700">
-                <TableHead className="text-slate-300">Time</TableHead>
-                <TableHead className="text-slate-300">From</TableHead>
+              <TableRow className="border-zinc-700">
+                <TableHead className="text-zinc-300">Time</TableHead>
+                <TableHead className="text-zinc-300">From</TableHead>
                 <TableHead></TableHead>
-                <TableHead className="text-slate-300">To</TableHead>
-                <TableHead className="text-slate-300">Amount</TableHead>
-                <TableHead className="text-slate-300">Risk Score</TableHead>
-                <TableHead className="text-slate-300">Block Reason</TableHead>
-                <TableHead className="text-slate-300">Warnings</TableHead>
+                <TableHead className="text-zinc-300">To</TableHead>
+                <TableHead className="text-zinc-300">Amount</TableHead>
+                <TableHead className="text-zinc-300">Risk Score</TableHead>
+                <TableHead className="text-zinc-300">Block Reason</TableHead>
+                <TableHead className="text-zinc-300">Warnings</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -260,7 +260,7 @@ export default function AdminHistory() {
                 <TableRow>
                   <TableCell
                     colSpan={8}
-                    className="text-center py-12 text-slate-400"
+                    className="text-center py-12 text-zinc-400"
                   >
                     <Ban className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>No blocked transfers found</p>
@@ -271,22 +271,22 @@ export default function AdminHistory() {
                 </TableRow>
               ) : (
                 blockedTransfers?.map((transfer) => (
-                  <TableRow key={transfer.id} className="border-slate-700/50">
+                  <TableRow key={transfer.id} className="border-zinc-700/50">
                     <TableCell>
-                      <div className="flex items-center gap-2 text-slate-400">
+                      <div className="flex items-center gap-2 text-zinc-400">
                         <Clock className="h-4 w-4" />
                         <span className="text-sm">
                           {formatDate(transfer.blocked_at)}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-sm text-slate-300">
+                    <TableCell className="font-mono text-sm text-zinc-300">
                       {formatAddress(transfer.sender_address)}
                     </TableCell>
                     <TableCell>
                       <ArrowRight className="h-4 w-4 text-zinc-400" />
                     </TableCell>
-                    <TableCell className="font-mono text-sm text-slate-300">
+                    <TableCell className="font-mono text-sm text-zinc-300">
                       {formatAddress(transfer.receiver_address)}
                     </TableCell>
                     <TableCell>
@@ -313,11 +313,11 @@ export default function AdminHistory() {
                             key={i}
                             className={`w-2 h-2 rounded-full ${i <= transfer.user_warning_count
                               ? "bg-zinc-400"
-                              : "bg-slate-600"
+                              : "bg-zinc-600"
                               }`}
                           />
                         ))}
-                        <span className="text-xs text-slate-500 ml-1">
+                        <span className="text-xs text-zinc-500 ml-1">
                           {transfer.user_warning_count}/3
                         </span>
                       </div>

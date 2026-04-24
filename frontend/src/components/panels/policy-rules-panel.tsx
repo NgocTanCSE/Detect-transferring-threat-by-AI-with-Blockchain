@@ -54,9 +54,9 @@ function MetricBlock({
 
   return (
     <div className={`rounded-2xl border p-3 ${toneClass}`}>
-      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">{label}</p>
+      <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-400">{label}</p>
       <p className="mt-2 text-xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-xs text-slate-400">{helper}</p>
+      <p className="mt-1 text-xs text-zinc-400">{helper}</p>
     </div>
   );
 }
@@ -84,7 +84,7 @@ function TablePager({
   const end = Math.min(itemCount, page * pageSize);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400">
       <span>
         Showing {start}-{end} of {itemCount}
       </span>
@@ -93,7 +93,7 @@ function TablePager({
           <select
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
-            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-300 outline-none"
+            className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-300 outline-none"
           >
             {pageSizeOptions.map((size) => (
               <option key={size} value={size}>
@@ -106,7 +106,7 @@ function TablePager({
           type="button"
           onClick={onPrev}
           disabled={page <= 1}
-          className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500"
+          className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-zinc-500"
         >
           Prev
         </button>
@@ -117,7 +117,7 @@ function TablePager({
           type="button"
           onClick={onNext}
           disabled={page >= totalPages}
-          className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500"
+          className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-zinc-500"
         >
           Next
         </button>
@@ -343,7 +343,7 @@ export default function PolicyRulesPanel({
           Add policy
         </button>
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -tranzinc-y-1/2 text-zinc-500" />
           <input
             value={searchTerm}
             onChange={(event) => {
@@ -351,7 +351,7 @@ export default function PolicyRulesPanel({
               setPage(1);
             }}
             placeholder="Search rule name or description"
-            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-zinc-500/50"
+            className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-200 outline-none transition focus:border-zinc-500/50"
           />
         </div>
         <select
@@ -360,7 +360,7 @@ export default function PolicyRulesPanel({
             setActiveFilter(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
+          className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-200 outline-none"
         >
           <option value="all">All policies</option>
           <option value="active">Active only</option>
@@ -368,9 +368,9 @@ export default function PolicyRulesPanel({
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">
                 <button type="button" onClick={() => onSort("rule")} className="hover:text-white">
@@ -396,7 +396,7 @@ export default function PolicyRulesPanel({
               <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {pagedPolicies.map((policy) => (
               <tr key={policy.id}>
                 <td className="px-4 py-3">{policy.rule_name}</td>
@@ -436,7 +436,7 @@ export default function PolicyRulesPanel({
             ))}
             {pagedPolicies.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-zinc-500">
                   No policies match current filters.
                 </td>
               </tr>

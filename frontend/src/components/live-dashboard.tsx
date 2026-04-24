@@ -271,8 +271,8 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
     key: "ai_data_engineer",
     label: "AI Data Engineer",
     shortLabel: "AI",
-    accentClass: "border-slate-400/40 bg-slate-400/10 text-slate-50",
-    highlightClass: "from-slate-400/20 via-slate-500/10 to-transparent",
+    accentClass: "border-zinc-400/40 bg-zinc-400/10 text-zinc-50",
+    highlightClass: "from-zinc-400/20 via-zinc-500/10 to-transparent",
     sidebarFeatures: ["Model State", "Feature State", "Feature Ops", "Model Ops", "Feature Data", "Registry Data"],
   },
   {
@@ -326,7 +326,7 @@ const TONAL_STYLES: Record<string, string> = {
   amber: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
   emerald: "border-zinc-400/20 bg-zinc-400/10 text-zinc-100",
   blue: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
-  slate: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
+  zinc: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
 };
 
 async function fetchJson<T>(path: string, defaultValue: T | null = null): Promise<T> {
@@ -760,7 +760,7 @@ export default function LiveDashboard() {
             description: "Availability, latency, and flow are sourced from live backend metrics.",
             content: (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <div className="rounded-2xl border border-slate-700/70 bg-slate-950/60 p-4">
+                <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/60 p-4">
                   {flowStats.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300} minHeight={300}>
                       <LineChart data={flowChartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
@@ -774,10 +774,10 @@ export default function LiveDashboard() {
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="flex h-[300px] items-center justify-center text-slate-500">
+                    <div className="flex h-[300px] items-center justify-center text-zinc-500">
                       <div className="text-center">
                         <p className="text-sm">No flow data available</p>
-                        <p className="text-xs text-slate-600 mt-2">Data will appear after transactions are processed</p>
+                        <p className="text-xs text-zinc-600 mt-2">Data will appear after transactions are processed</p>
                       </div>
                     </div>
                   )}
@@ -786,9 +786,9 @@ export default function LiveDashboard() {
                   {sloMetrics ? (
                     <>
                       <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper="Healthy / active endpoints" tone="cyan" />
-                      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current period" tone="slate" />
-                      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="slate" />
-                      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="slate" />
+                      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current period" tone="zinc" />
+                      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="zinc" />
+                      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="zinc" />
                     </>
                   ) : null}
                 </div>
@@ -1232,9 +1232,9 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
       >
         Add node endpoint
       </button>
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Provider</th>
               <th className="px-4 py-3 text-left font-medium">Chain</th>
@@ -1243,7 +1243,7 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
               <th className="px-4 py-3 text-left font-medium">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {mutableNodes.map((node) => (
               <tr key={node.id}>
                 <td className="px-4 py-3">{node.provider_name}</td>
@@ -1291,13 +1291,13 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <MetricCard label="Points" value={summary ? formatCompact(summary.total_points) : "-"} hint="Pipeline samples" accentClass="border-slate-700 bg-slate-900/70" />
+        <MetricCard label="Points" value={summary ? formatCompact(summary.total_points) : "-"} hint="Pipeline samples" accentClass="border-zinc-700 bg-zinc-900/70" />
         <MetricCard label="Avg TPS" value={summary?.avg_throughput_tps != null ? summary.avg_throughput_tps.toFixed(1) : "-"} hint="Throughput" accentClass="border-zinc-500/20 bg-zinc-500/10" />
         <MetricCard label="Ingest latency" value={summary?.avg_ingestion_latency_ms != null ? `${summary.avg_ingestion_latency_ms.toFixed(0)} ms` : "-"} hint="Average" accentClass="border-zinc-500/20 bg-zinc-500/10" />
         <MetricCard label="Last block" value={summary?.last_block_number != null ? formatCompact(summary.last_block_number) : "-"} hint="Latest signal" accentClass="border-zinc-500/20 bg-zinc-500/10" />
       </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
           <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Chain</th>
@@ -1307,7 +1307,7 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
               <th className="px-4 py-3 text-left font-medium">Decode</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {metrics.slice(0, 8).map((metric) => (
               <tr key={metric.id}>
                 <td className="px-4 py-3">{metric.chain}</td>
@@ -1460,13 +1460,13 @@ function DiagnosticsLogsPanel({
           type="date"
           value={exportDate}
           onChange={(event) => setExportDate(event.target.value)}
-          className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
+          className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-200 outline-none"
         />
         <button
           type="button"
           disabled={isExporting}
           onClick={() => void handleExport()}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
         >
           <Download className="h-3.5 w-3.5" />
           {isExporting ? "Exporting..." : "Export CSV"}
@@ -1489,7 +1489,7 @@ function DiagnosticsLogsPanel({
           <Archive className="h-3.5 w-3.5" />
           {isArchiving ? "Updating..." : "Unarchive filtered"}
         </button>
-        <label className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300">
+        <label className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-300">
           <input
             type="checkbox"
             checked={includeArchived}
@@ -1502,23 +1502,23 @@ function DiagnosticsLogsPanel({
           />
           Include archived
         </label>
-        {isReloading ? <span className="text-xs text-slate-500">Reloading logs...</span> : null}
+        {isReloading ? <span className="text-xs text-zinc-500">Reloading logs...</span> : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -tranzinc-y-1/2 text-zinc-500" />
           <input
             value={searchFilter}
             onChange={(event) => setSearchFilter(event.target.value)}
             placeholder="Search message or endpoint..."
-            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-zinc-500/50"
+            className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-200 outline-none transition focus:border-zinc-500/50"
           />
         </div>
         <select
           value={typeFilter}
           onChange={(event) => setTypeFilter(event.target.value)}
-          className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
+          className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-200 outline-none"
         >
           <option value="all">All types</option>
           {uniqueTypes.map((type) => (
@@ -1529,9 +1529,9 @@ function DiagnosticsLogsPanel({
         </select>
       </div>
 
-      <div className="overflow-auto rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400 sticky top-0">
+      <div className="overflow-auto rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400 sticky top-0">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Timestamp</th>
               <th className="px-4 py-3 text-left font-medium">Type</th>
@@ -1540,16 +1540,16 @@ function DiagnosticsLogsPanel({
               <th className="px-4 py-3 text-left font-medium">Endpoint</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {filteredLogs.slice(0, 50).map((log, idx) => (
-              <tr key={idx} className="hover:bg-slate-900/30">
-                <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-400">{new Date(log.timestamp).toLocaleTimeString()}</td>
+              <tr key={idx} className="hover:bg-zinc-900/30">
+                <td className="px-4 py-3 whitespace-nowrap text-xs text-zinc-400">{new Date(log.timestamp).toLocaleTimeString()}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-block rounded-lg border px-2 py-1 text-xs font-medium ${logTypeColors[(log.log_type || "").toLowerCase()] || "bg-slate-700/50 text-slate-300"}`}>
+                  <span className={`inline-block rounded-lg border px-2 py-1 text-xs font-medium ${logTypeColors[(log.log_type || "").toLowerCase()] || "bg-zinc-700/50 text-zinc-300"}`}>
                     {(log.log_type || "unknown").toUpperCase()}
                   </span>
                 </td>
-                <td className="px-4 py-3 max-w-sm truncate text-slate-300">{log.message}</td>
+                <td className="px-4 py-3 max-w-sm truncate text-zinc-300">{log.message}</td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   {log.status_code ? (
                     <span
@@ -1557,7 +1557,7 @@ function DiagnosticsLogsPanel({
                         ? "bg-zinc-500/20 text-zinc-300"
                         : log.status_code >= 400
                           ? "bg-zinc-500/20 text-zinc-300"
-                          : "bg-slate-700/20 text-slate-300"
+                          : "bg-zinc-700/20 text-zinc-300"
                         }`}
                     >
                       {log.status_code}
@@ -1566,12 +1566,12 @@ function DiagnosticsLogsPanel({
                     "-"
                   )}
                 </td>
-                <td className="px-4 py-3 max-w-xs truncate text-xs text-slate-400">{log.endpoint || "-"}</td>
+                <td className="px-4 py-3 max-w-xs truncate text-xs text-zinc-400">{log.endpoint || "-"}</td>
               </tr>
             ))}
             {filteredLogs.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">
                   No logs match current filters.
                 </td>
               </tr>
@@ -1580,7 +1580,7 @@ function DiagnosticsLogsPanel({
         </table>
       </div>
 
-      <div className="text-xs text-slate-500">
+      <div className="text-xs text-zinc-500">
         Showing {Math.min(50, filteredLogs.length)} of {filteredLogs.length} logs • Total in system: {mutableLogs.length}
       </div>
     </div>
@@ -1685,11 +1685,11 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
   }
 
   return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+    <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-white">Data integrity controls</p>
-          <p className="mt-1 text-xs text-slate-400">DB-first readiness for role modules and controls</p>
+          <p className="mt-1 text-xs text-zinc-400">DB-first readiness for role modules and controls</p>
         </div>
         <span className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${report.overall_ok ? "border-zinc-500/40 bg-zinc-500/10 text-zinc-200" : "border-zinc-500/40 bg-zinc-500/10 text-zinc-200"}`}>
           {report.overall_ok ? "ALL OK" : `${missing.length} GAPS`}
@@ -1717,7 +1717,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
           type="button"
           onClick={() => void handleExportIntegrity("csv")}
           disabled={isExporting}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
         >
           <Download className="h-3.5 w-3.5" />
           Export integrity CSV
@@ -1726,16 +1726,16 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
           type="button"
           onClick={() => void handleExportIntegrity("json")}
           disabled={isExporting}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
         >
           <Download className="h-3.5 w-3.5" />
           Export integrity JSON
         </button>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Control</th>
               <th className="px-4 py-3 text-left font-medium">Owner role</th>
@@ -1744,7 +1744,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
               <th className="px-4 py-3 text-left font-medium">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {(missing.length ? missing : report.checks.slice(0, 8).map((item) => ({
               key: item.key,
               owner_role: item.owner_role,
@@ -1771,7 +1771,7 @@ className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-w
             ))}
             {missing.length === 0 && report.checks.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No integrity controls were returned.</td>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">No integrity controls were returned.</td>
               </tr>
             ) : null}
           </tbody>
@@ -1905,9 +1905,9 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
       >
         Register model
       </button>
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Model</th>
               <th className="px-4 py-3 text-left font-medium">Version</th>
@@ -1916,7 +1916,7 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
               <th className="px-4 py-3 text-left font-medium">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {mutableModels.slice(0, 50).map((model) => {
               const isActive = model.is_active || activeNames.has(`${model.model_name}:${model.version}`);
               return (
@@ -2044,9 +2044,9 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
       >
         Add feature
       </button>
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Feature</th>
               <th className="px-4 py-3 text-left font-medium">Enabled</th>
@@ -2055,7 +2055,7 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
               <th className="px-4 py-3 text-left font-medium">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {mutableFeatures.slice(0, 50).map((feature) => (
               <tr key={feature.id}>
                 <td className="px-4 py-3">{feature.feature_key}</td>
@@ -2090,7 +2090,7 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+      <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
         <ResponsiveContainer width="100%" height={260}>
           <PieChart>
             <Pie data={data} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={3}>
@@ -2103,7 +2103,7 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+      <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
         <div className="space-y-3">
           <MetricBlock label="Enabled features" value={formatCompact(enabled)} helper="Active feature flags" tone="violet" />
           <MetricBlock label="Disabled features" value={formatCompact(Math.max(0, features.length - enabled))} helper="Risk-free toggles" tone="amber" />
@@ -2128,9 +2128,9 @@ function ModelOperationsPanel({ models, activeModels }: { models: ModelRegistryI
         <MetricBlock label="Frameworks" value={formatCompact(new Set(models.map((item) => item.framework)).size)} helper="Runtime diversity" tone="violet" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Model</th>
               <th className="px-4 py-3 text-left font-medium">Version</th>
@@ -2139,7 +2139,7 @@ function ModelOperationsPanel({ models, activeModels }: { models: ModelRegistryI
               <th className="px-4 py-3 text-left font-medium">By</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {models.slice(0, 50).map((item) => {
               const key = `${item.model_name}:${item.version}`;
               const isServing = item.is_active || activeKey.has(key);
@@ -2174,9 +2174,9 @@ function FeatureDataPanel({ features }: { features: FeatureConfigItem[] }) {
         <MetricBlock label="Updated" value={formatCompact(features.filter((item) => Boolean(item.updated_at)).length)} helper="Fresh metadata" tone="cyan" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Feature key</th>
               <th className="px-4 py-3 text-left font-medium">Expression</th>
@@ -2184,7 +2184,7 @@ function FeatureDataPanel({ features }: { features: FeatureConfigItem[] }) {
               <th className="px-4 py-3 text-left font-medium">Updated</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {features.slice(0, 50).map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.feature_key}</td>
@@ -2214,9 +2214,9 @@ function RegistryDataPanel({ models }: { models: ModelRegistryItem[] }) {
         <MetricBlock label="Missing promoter" value={formatCompact(models.filter((item) => !item.promoted_by).length)} helper="Governance gap" tone="rose" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Model</th>
               <th className="px-4 py-3 text-left font-medium">Version</th>
@@ -2224,7 +2224,7 @@ function RegistryDataPanel({ models }: { models: ModelRegistryItem[] }) {
               <th className="px-4 py-3 text-left font-medium">Created</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {models.slice(0, 50).map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.model_name}</td>
@@ -2309,7 +2309,7 @@ function AlertQueuePanel({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -tranzinc-y-1/2 text-zinc-500" />
             <input
               value={searchTerm}
               onChange={(event) => {
@@ -2317,7 +2317,7 @@ function AlertQueuePanel({
                 setPage(1);
               }}
               placeholder="Search wallet, type, message"
-              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-zinc-500/50"
+              className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-200 outline-none transition focus:border-zinc-500/50"
             />
           </div>
           <select
@@ -2326,7 +2326,7 @@ function AlertQueuePanel({
               setSeverityFilter(event.target.value);
               setPage(1);
             }}
-            className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
+            className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-200 outline-none"
           >
             <option value="all">All severities</option>
             <option value="CRITICAL">CRITICAL</option>
@@ -2336,9 +2336,9 @@ function AlertQueuePanel({
           </select>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-700">
-          <table className="min-w-full divide-y divide-slate-800 text-sm">
-            <thead className="bg-slate-900/80 text-slate-400">
+        <div className="overflow-hidden rounded-2xl border border-zinc-700">
+          <table className="min-w-full divide-y divide-zinc-800 text-sm">
+            <thead className="bg-zinc-900/80 text-zinc-400">
               <tr>
                 <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("wallet")} className="hover:text-white">Wallet</button></th>
                 <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("severity")} className="hover:text-white">Severity</button></th>
@@ -2347,7 +2347,7 @@ function AlertQueuePanel({
                 <th className="px-4 py-3 text-left font-medium">Detail</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
               {pagedAlerts.map((alert) => (
                 <tr key={alert.alert_id}>
                   <td className="px-4 py-3">{formatAddress(alert.wallet_address)}</td>
@@ -2364,7 +2364,7 @@ function AlertQueuePanel({
               ))}
               {pagedAlerts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No alerts match current filters.</td>
+                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">No alerts match current filters.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -2408,7 +2408,7 @@ function AlertSeverityCard({ alertsSummary, alerts }: { alertsSummary: AlertsSum
   ];
 
   return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+    <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
       <p className="text-sm font-semibold text-white">Severity mix</p>
       <div className="mt-3 h-[260px]">
         <ResponsiveContainer width="100%" height="100%">
@@ -2542,7 +2542,7 @@ function CaseQueuePanel({
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -tranzinc-y-1/2 text-zinc-500" />
           <input
             value={searchTerm}
             onChange={(event) => {
@@ -2550,7 +2550,7 @@ function CaseQueuePanel({
               setPage(1);
             }}
             placeholder="Search tx hash or wallet"
-            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-zinc-500/50"
+            className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-200 outline-none transition focus:border-zinc-500/50"
           />
         </div>
         <select
@@ -2559,7 +2559,7 @@ function CaseQueuePanel({
             setStatusFilter(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
+          className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-200 outline-none"
         >
           <option value="all">All statuses</option>
           <option value="PENDING">PENDING</option>
@@ -2569,9 +2569,9 @@ function CaseQueuePanel({
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("tx")} className="hover:text-white">TX Hash</button></th>
               <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("risk")} className="hover:text-white">Risk</button></th>
@@ -2581,7 +2581,7 @@ function CaseQueuePanel({
               <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {pagedCases.map((item) => (
               <tr key={item.tx_hash}>
                 <td className="px-4 py-3 font-mono text-xs">{formatAddress(item.tx_hash)}</td>
@@ -2602,7 +2602,7 @@ function CaseQueuePanel({
                       type="button"
                       disabled={actingTxHash === item.tx_hash}
                       onClick={() => void handleCaseAction(item.tx_hash, "DISMISS")}
-                      className="rounded-md border border-slate-500/40 bg-slate-500/10 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-60"
+                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
                     >
                       Dismiss
                     </button>
@@ -2626,7 +2626,7 @@ className="rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[11px] t
             ))}
             {pagedCases.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">No cases match current filters.</td>
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-zinc-500">No cases match current filters.</td>
               </tr>
             ) : null}
           </tbody>
@@ -2660,7 +2660,7 @@ function CaseActionPanel({ caseSummary }: { caseSummary: CaseSummary | null }) {
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+      <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
         <ResponsiveContainer width="100%" height={280}>
           <PieChart>
             <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={70} outerRadius={100} paddingAngle={4}>
@@ -2703,9 +2703,9 @@ function NotificationTable({ notifications }: { notifications: NotificationItem[
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Channel</th>
               <th className="px-4 py-3 text-left font-medium">Recipient</th>
@@ -2713,7 +2713,7 @@ function NotificationTable({ notifications }: { notifications: NotificationItem[
               <th className="px-4 py-3 text-left font-medium">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {pagedNotifications.map((notification) => (
               <tr key={notification.id}>
                 <td className="px-4 py-3">{notification.channel}</td>
@@ -2752,7 +2752,7 @@ function AlertChartPanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSum
   ];
 
   return (
-    <div className="h-[320px] rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+    <div className="h-[320px] rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
@@ -2794,9 +2794,9 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
         <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="rose" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Tx</th>
               <th className="px-4 py-3 text-left font-medium">Risk</th>
@@ -2805,7 +2805,7 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
               <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {pagedCases.map((item) => (
               <tr key={item.tx_hash}>
                 <td className="px-4 py-3 font-mono text-xs">{formatAddress(item.tx_hash)}</td>
@@ -2822,7 +2822,7 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
             ))}
             {pagedCases.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No cases available.</td>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">No cases available.</td>
               </tr>
             ) : null}
           </tbody>
@@ -2873,9 +2873,9 @@ function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleI
         <MetricBlock label="Blocked total" value={formatCompact(reportingSummary?.kpis.blocked_total ?? 0)} helper="30-day impact" tone="rose" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/80 text-slate-400">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
+        <table className="min-w-full divide-y divide-zinc-800 text-sm">
+          <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Rule</th>
               <th className="px-4 py-3 text-left font-medium">Threshold</th>
@@ -2883,7 +2883,7 @@ function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleI
               <th className="px-4 py-3 text-left font-medium">Notify</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
             {pagedPolicies.map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.rule_name}</td>
@@ -2943,9 +2943,9 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <div className="flex flex-col rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+        <div className="flex flex-col rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
           <p className="text-sm font-semibold text-white">Audit checks</p>
-          <div className="mt-3 flex-grow space-y-2 text-sm text-slate-300">
+          <div className="mt-3 flex-grow space-y-2 text-sm text-zinc-300">
             {pagedChecks.length ? pagedChecks.map((item, idx) => (
               <div key={`${item.action_type}:${idx}`} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2">
                 <span>{item.action_type}</span>
@@ -3018,25 +3018,25 @@ function TablePager({
   const end = Math.min(itemCount, page * pageSize);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400">
       <span>Showing {start}-{end} of {itemCount}</span>
       <div className="flex items-center gap-2">
         {pageSizeOptions && onPageSizeChange ? (
           <select
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
-            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-300 outline-none"
+            className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-300 outline-none"
           >
             {pageSizeOptions.map((size) => (
               <option key={size} value={size}>{size}/page</option>
             ))}
           </select>
         ) : null}
-        <button type="button" onClick={onPrev} disabled={page <= 1} className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500">
+        <button type="button" onClick={onPrev} disabled={page <= 1} className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-zinc-500">
           Prev
         </button>
         <span>Page {page}/{totalPages}</span>
-        <button type="button" onClick={onNext} disabled={page >= totalPages} className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500">
+        <button type="button" onClick={onNext} disabled={page >= totalPages} className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-zinc-500">
           Next
         </button>
       </div>
@@ -3056,7 +3056,7 @@ function AuditPanel({ auditCompleteness, auditGaps }: { auditCompleteness: Audit
         <MetricBlock label="Present actions" value={auditCompleteness ? `${auditCompleteness.present_actions}/${auditCompleteness.required_actions}` : "-"} helper="Audit coverage" tone="cyan" />
         <MetricBlock label="Missing actions" value={auditGaps ? formatCompact(auditGaps.missing_count) : "-"} helper="Gaps needing evidence" tone="rose" />
       </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-700">
+      <div className="overflow-hidden rounded-2xl border border-zinc-700">
         <table className="min-w-full divide-y divide-zinc-800 text-sm">
           <thead className="bg-zinc-900/80 text-zinc-400">
             <tr>
@@ -3092,9 +3092,9 @@ function ControlEffectivenessPanel({ controlEffectiveness, reportingSummary }: {
         <MetricBlock label="Fraud precision" value={formatPercent(controlEffectiveness.metrics.fraud_precision_proxy_pct)} helper="Decision quality proxy" tone="emerald" />
         <MetricBlock label="Decision coverage" value={formatCompact(controlEffectiveness.metrics.decision_coverage)} helper="Resolved cases" tone="violet" />
       </div>
-      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+      <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
         <p className="text-sm font-semibold text-white">Reporting summary</p>
-        <div className="mt-3 space-y-3 text-sm text-slate-300">
+        <div className="mt-3 space-y-3 text-sm text-zinc-300">
           <p>Alerts: {formatCompact(reportingSummary?.kpis.alerts_total ?? 0)}</p>
           <p>Blocked value: {reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-"}</p>
           <p>Notifications failed: {formatCompact(reportingSummary?.kpis.notifications_failed ?? 0)}</p>
@@ -3119,7 +3119,7 @@ function ReportingSummaryPanel({ reportingSummary, controlEffectiveness, auditCo
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+      <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
@@ -3191,11 +3191,11 @@ function MetricBlock({ label, value, helper, tone }: { label: string; value: str
     <div className={`rounded-2xl border p-4 ${TONAL_STYLES[tone]}`}>
       <p className="text-[11px] uppercase tracking-[0.28em] opacity-80">{label}</p>
       <p className="mt-2 text-xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-sm text-slate-300">{helper}</p>
+      <p className="mt-1 text-sm text-zinc-300">{helper}</p>
     </div>
   );
 }
 
 function EmptyState({ message }: { message: string }) {
-  return <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/60 px-4 py-8 text-center text-sm text-slate-400">{message}</div>;
+  return <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/60 px-4 py-8 text-center text-sm text-zinc-400">{message}</div>;
 }

@@ -78,19 +78,18 @@ export default function LoginPage() {
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-slate-300">Username / Email</Label>
+                  <Label htmlFor="username" className="text-zinc-300">Username / Email</Label>
                   <Input
                     id="username"
                     value={username}
                     onChange={(event) => setUsername(event.target.value)}
-                    placeholder="vd: ngoc.tan"
-                    autoComplete="username"
+                    placeholder="Tên đăng nhập hoặc email"
                     className="border-zinc-800 bg-zinc-950 text-zinc-100 focus:border-white/40"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-slate-300">Mật khẩu</Label>
+                  <Label htmlFor="password" className="text-zinc-300">Mật khẩu</Label>
                   <Input
                     id="password"
                     type="password"
@@ -123,11 +122,6 @@ export default function LoginPage() {
               </form>
 
               <div className="mt-4 flex flex-col gap-3 text-sm text-zinc-400">
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3 text-[12px]">
-                  <p className="font-semibold text-zinc-300">Tài khoản mặc định:</p>
-                  <p className="mt-1">Admin: <code className="text-white">admin_security</code> / <code className="text-white">admin123</code></p>
-                  <p>Analyst: <code className="text-white">linh_analyst</code> / <code className="text-white">analyst123</code></p>
-                </div>
                 <p>
                   Chưa có tài khoản?{" "}
                   <Link href="/register" className="text-zinc-100 underline decoration-zinc-700 underline-offset-4 hover:decoration-white transition-all">

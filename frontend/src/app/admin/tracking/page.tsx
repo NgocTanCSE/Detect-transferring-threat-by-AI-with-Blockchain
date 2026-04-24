@@ -105,10 +105,10 @@ export default function AdminTracking() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-slate-100">
+        <h1 className="text-3xl font-bold text-zinc-100">
           Wallet <span className="text-zinc-400">Tracking</span>
         </h1>
-        <p className="text-slate-400 mt-1">
+        <p className="text-zinc-400 mt-1">
           Monitor flagged wallets and their network connections
         </p>
       </div>
@@ -125,7 +125,7 @@ export default function AdminTracking() {
                 {monitoredWallets?.filter((w) => w.account_status === "under_review")
                   .length || 0}
               </p>
-              <p className="text-sm text-slate-400">Under Review</p>
+              <p className="text-sm text-zinc-400">Under Review</p>
             </div>
           </CardContent>
         </Card>
@@ -140,7 +140,7 @@ export default function AdminTracking() {
                 {monitoredWallets?.filter((w) => w.account_status === "suspended")
                   .length || 0}
               </p>
-              <p className="text-sm text-slate-400">Suspended</p>
+              <p className="text-sm text-zinc-400">Suspended</p>
             </div>
           </CardContent>
         </Card>
@@ -154,14 +154,14 @@ export default function AdminTracking() {
               <p className="text-2xl font-bold text-zinc-400">
                 {monitoredWallets?.length || 0}
               </p>
-              <p className="text-sm text-slate-400">Total Monitored</p>
+              <p className="text-sm text-zinc-400">Total Monitored</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Wallet List */}
-      <Card className="border-slate-700">
+      <Card className="border-zinc-700">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Radar className="h-5 w-5 text-zinc-400" />
@@ -174,7 +174,7 @@ export default function AdminTracking() {
               <Radar className="h-8 w-8 animate-spin text-zinc-400" />
             </div>
           ) : monitoredWallets?.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
+            <div className="text-center py-12 text-zinc-400">
               <Eye className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No wallets currently under monitoring</p>
             </div>
@@ -184,18 +184,18 @@ export default function AdminTracking() {
                 <div
                   key={wallet.id}
                   onClick={() => handleWalletClick(wallet)}
-                  className="group cursor-pointer rounded-xl border border-slate-700 bg-slate-800/80 p-4 transition-all duration-300 hover:border-zinc-500/50 hover:shadow-[0_0_25px_rgba(6,182,212,0.2)] hover:bg-slate-800"
+                  className="group cursor-pointer rounded-xl border border-zinc-700 bg-zinc-800/80 p-4 transition-all duration-300 hover:border-zinc-500/50 hover:shadow-[0_0_25px_rgba(6,182,212,0.2)] hover:bg-zinc-800"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-lg bg-slate-700 border border-slate-600 group-hover:border-zinc-500/30">
+                      <div className="p-2 rounded-lg bg-zinc-700 border border-zinc-600 group-hover:border-zinc-500/30">
                         <WalletIcon className="h-4 w-4 text-zinc-400" />
                       </div>
                       <div>
-                        <p className="font-mono text-sm text-slate-100 group-hover:text-zinc-400 transition-colors">
+                        <p className="font-mono text-sm text-zinc-100 group-hover:text-zinc-400 transition-colors">
                           {formatAddress(wallet.address)}
                         </p>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-zinc-400">
                           {wallet.label || wallet.entity_type}
                         </p>
                       </div>
@@ -207,7 +207,7 @@ export default function AdminTracking() {
 
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <div>
-                      <p className="text-xs text-slate-400">Risk Score</p>
+                      <p className="text-xs text-zinc-400">Risk Score</p>
                       <p
                         className={`text-lg font-bold ${getRiskColor(
                           wallet.risk_score
@@ -217,14 +217,14 @@ export default function AdminTracking() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-400">Transactions</p>
-                      <p className="text-lg font-bold text-slate-100">
+                      <p className="text-xs text-zinc-400">Transactions</p>
+                      <p className="text-lg font-bold text-zinc-100">
                         {wallet.total_transactions || 0}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-slate-400">
+                  <div className="flex items-center justify-between text-xs text-zinc-400">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       {formatDate(wallet.last_activity_at)}
@@ -259,8 +259,8 @@ export default function AdminTracking() {
               <div className="mt-6 space-y-6">
                 {/* Wallet Stats */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
-                    <p className="text-xs text-slate-400 mb-1">Risk Score</p>
+                  <div className="rounded-lg border border-zinc-700 bg-zinc-800 p-4">
+                    <p className="text-xs text-zinc-400 mb-1">Risk Score</p>
                     <p
                       className={`text-3xl font-bold ${getRiskColor(
                         selectedWallet.risk_score
@@ -282,8 +282,8 @@ export default function AdminTracking() {
                     </Badge>
                   </div>
 
-                  <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
-                    <p className="text-xs text-slate-400 mb-1">Status</p>
+                  <div className="rounded-lg border border-zinc-700 bg-zinc-800 p-4">
+                    <p className="text-xs text-zinc-400 mb-1">Status</p>
                     <Badge
                       className={`text-lg px-3 py-1 ${getStatusColor(
                         selectedWallet.account_status
@@ -291,7 +291,7 @@ export default function AdminTracking() {
                     >
                       {selectedWallet.account_status.replace("_", " ")}
                     </Badge>
-                    <p className="text-xs text-slate-400 mt-2">
+                    <p className="text-xs text-zinc-400 mt-2">
                       Type: {selectedWallet.entity_type}
                     </p>
                   </div>
@@ -299,26 +299,26 @@ export default function AdminTracking() {
 
                 {/* Transaction Stats */}
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="rounded-lg border border-slate-700 bg-slate-800 p-3 text-center">
+                  <div className="rounded-lg border border-zinc-700 bg-zinc-800 p-3 text-center">
                     <Activity className="h-5 w-5 mx-auto mb-1 text-zinc-400" />
-                    <p className="text-lg font-bold text-slate-100">
+                    <p className="text-lg font-bold text-zinc-100">
                       {walletStats?.total_transactions ?? selectedWallet.total_transactions ?? 0}
                     </p>
-                    <p className="text-xs text-slate-400">Transactions</p>
+                    <p className="text-xs text-zinc-400">Transactions</p>
                   </div>
-                  <div className="rounded-lg border border-slate-700 bg-slate-800 p-3 text-center">
+                  <div className="rounded-lg border border-zinc-700 bg-zinc-800 p-3 text-center">
                     <ArrowUpRight className="h-5 w-5 mx-auto mb-1 text-zinc-400" />
                     <p className="text-lg font-bold text-zinc-400">
                       {statsLoading ? "..." : walletStats?.eth_sent?.toFixed(4) ?? "0"} ETH
                     </p>
-                    <p className="text-xs text-slate-400">ETH Sent ({walletStats?.sent_count ?? 0} txs)</p>
+                    <p className="text-xs text-zinc-400">ETH Sent ({walletStats?.sent_count ?? 0} txs)</p>
                   </div>
-                  <div className="rounded-lg border border-slate-700 bg-slate-800 p-3 text-center">
+                  <div className="rounded-lg border border-zinc-700 bg-zinc-800 p-3 text-center">
                     <ArrowDownLeft className="h-5 w-5 mx-auto mb-1 text-zinc-400" />
                     <p className="text-lg font-bold text-zinc-400">
                       {statsLoading ? "..." : walletStats?.eth_received?.toFixed(4) ?? "0"} ETH
                     </p>
-                    <p className="text-xs text-slate-400">ETH Received ({walletStats?.received_count ?? 0} txs)</p>
+                    <p className="text-xs text-zinc-400">ETH Received ({walletStats?.received_count ?? 0} txs)</p>
                   </div>
                 </div>
 
@@ -343,7 +343,7 @@ export default function AdminTracking() {
 
                   {/* All Connections Tab */}
                   <TabsContent value="connections" className="mt-4">
-                    <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
                       <Link2 className="h-5 w-5 text-zinc-400" />
                       Network Connections
                       {connections && (
@@ -358,7 +358,7 @@ export default function AdminTracking() {
                         <Radar className="h-6 w-6 animate-spin text-zinc-400" />
                       </div>
                     ) : connections?.connections.length === 0 ? (
-                      <p className="text-center py-8 text-slate-400">
+                      <p className="text-center py-8 text-zinc-400">
                         No connections found
                       </p>
                     ) : (
@@ -370,7 +370,7 @@ export default function AdminTracking() {
                               ? "border-zinc-500/30 bg-zinc-500/5"
                               : conn.risk_score >= 50
                                 ? "border-zinc-500/30 bg-zinc-500/5"
-                                : "border-slate-700 bg-slate-800"
+                                : "border-zinc-700 bg-zinc-800"
                               }`}
                           >
                             <div className="flex items-center gap-3">
@@ -392,11 +392,11 @@ export default function AdminTracking() {
                                 )}
                               </div>
                               <div>
-                                <p className="font-mono text-sm text-slate-100">
+                                <p className="font-mono text-sm text-zinc-100">
                                   {formatAddress(conn.address)}
                                 </p>
                                 <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-xs text-slate-400">
+                                  <span className="text-xs text-zinc-400">
                                     {conn.label || conn.entity_type}
                                   </span>
                                   <Badge
@@ -416,7 +416,7 @@ export default function AdminTracking() {
                               >
                                 Risk: {conn.risk_score.toFixed(0)}
                               </p>
-                              <p className="text-xs text-slate-400">
+                              <p className="text-xs text-zinc-400">
                                 {conn.tx_count} txs • {conn.total_value_eth.toFixed(2)}{" "}
                                 ETH
                               </p>
@@ -429,7 +429,7 @@ export default function AdminTracking() {
 
                   {/* Incoming Transfers Tab */}
                   <TabsContent value="incoming" className="mt-4">
-                    <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
                       <TrendingDown className="h-5 w-5 text-zinc-400" />
                       Wallets That Sent To This Account
                       <Badge variant="secondary">{incomingConnections.length} sources</Badge>
@@ -440,24 +440,24 @@ export default function AdminTracking() {
                         <Radar className="h-6 w-6 animate-spin text-zinc-400" />
                       </div>
                     ) : incomingConnections.length === 0 ? (
-                      <p className="text-center py-8 text-slate-400">
+                      <p className="text-center py-8 text-zinc-400">
                         No incoming transfers found
                       </p>
                     ) : (
                       <>
                         {/* Summary Bar Chart */}
-                        <div className="mb-4 p-4 rounded-lg border border-slate-700 bg-slate-800">
-                          <p className="text-sm text-slate-400 mb-3">Incoming ETH by Source</p>
+                        <div className="mb-4 p-4 rounded-lg border border-zinc-700 bg-zinc-800">
+                          <p className="text-sm text-zinc-400 mb-3">Incoming ETH by Source</p>
                           <div className="space-y-2">
                             {incomingConnections.slice(0, 5).map((conn, idx) => {
                               const maxEth = Math.max(...incomingConnections.map(c => c.total_value_eth));
                               const widthPercent = maxEth > 0 ? (conn.total_value_eth / maxEth) * 100 : 0;
                               return (
                                 <div key={idx} className="flex items-center gap-2">
-                                  <span className="text-xs font-mono text-slate-400 w-24 truncate">
+                                  <span className="text-xs font-mono text-zinc-400 w-24 truncate">
                                     {formatAddress(conn.address)}
                                   </span>
-                                  <div className="flex-1 h-4 bg-slate-700 rounded overflow-hidden">
+                                  <div className="flex-1 h-4 bg-zinc-700 rounded overflow-hidden">
                                     <div
                                       className="h-full bg-zinc-500/60 rounded"
                                       style={{ width: `${widthPercent}%` }}
@@ -487,10 +487,10 @@ export default function AdminTracking() {
                                   <ArrowDownLeft className="h-4 w-4 text-zinc-400" />
                                 </div>
                                 <div>
-                                  <p className="font-mono text-sm text-slate-100">
+                                  <p className="font-mono text-sm text-zinc-100">
                                     {formatAddress(conn.address)}
                                   </p>
-                                  <p className="text-xs text-slate-400">
+                                  <p className="text-xs text-zinc-400">
                                     {conn.label || conn.entity_type}
                                   </p>
                                 </div>
@@ -499,7 +499,7 @@ export default function AdminTracking() {
                                 <p className="text-sm font-bold text-zinc-400">
                                   +{conn.total_value_eth.toFixed(4)} ETH
                                 </p>
-                                <p className="text-xs text-slate-400">
+                                <p className="text-xs text-zinc-400">
                                   {conn.tx_count} transactions
                                 </p>
                               </div>
@@ -512,7 +512,7 @@ export default function AdminTracking() {
 
                   {/* Transaction History Tab */}
                   <TabsContent value="history" className="mt-4">
-                    <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
                       <History className="h-5 w-5 text-zinc-400" />
                       Transaction History
                       <Badge variant="secondary">{transactions?.length ?? 0} transactions</Badge>
@@ -523,7 +523,7 @@ export default function AdminTracking() {
                         <Radar className="h-6 w-6 animate-spin text-zinc-400" />
                       </div>
                     ) : !transactions || transactions.length === 0 ? (
-                      <p className="text-center py-8 text-slate-400">
+                      <p className="text-center py-8 text-zinc-400">
                         No transactions found
                       </p>
                     ) : (
@@ -533,7 +533,7 @@ export default function AdminTracking() {
                             key={tx.tx_hash || idx}
                             className={`flex items-center justify-between p-3 rounded-lg border ${tx.is_flagged
                               ? "border-zinc-500/30 bg-zinc-500/5"
-                              : "border-slate-700 bg-slate-800"
+                              : "border-zinc-700 bg-zinc-800"
                               }`}
                           >
                             <div className="flex items-center gap-3">
@@ -551,7 +551,7 @@ export default function AdminTracking() {
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <p className="font-mono text-sm text-slate-100">
+                                  <p className="font-mono text-sm text-zinc-100">
                                     {tx.direction === "sent" ? "To: " : "From: "}
                                     {formatAddress(tx.counterparty)}
                                   </p>
@@ -561,7 +561,7 @@ export default function AdminTracking() {
                                     </Badge>
                                   )}
                                 </div>
-                                <p className="text-xs text-slate-400">
+                                <p className="text-xs text-zinc-400">
                                   {tx.timestamp ? formatDate(tx.timestamp) : "Unknown date"}
                                   {tx.is_flagged && (
                                     <span className="text-zinc-400 ml-2">
@@ -581,7 +581,7 @@ export default function AdminTracking() {
                                 {tx.direction === "sent" ? "-" : "+"}
                                 {tx.value_eth.toFixed(4)} ETH
                               </p>
-                              <p className="text-xs font-mono text-slate-400 truncate max-w-[100px]">
+                              <p className="text-xs font-mono text-zinc-400 truncate max-w-[100px]">
                                 {tx.tx_hash ? `${tx.tx_hash.slice(0, 10)}...` : ""}
                               </p>
                             </div>

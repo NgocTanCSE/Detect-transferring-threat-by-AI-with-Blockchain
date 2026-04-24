@@ -3,7 +3,7 @@ import LiveDashboard from "@/components/live-dashboard";
 
 function DashboardFallback() {
   return (
-    <div className="min-h-screen bg-[#050816] p-6 text-slate-300">
+    <div className="min-h-screen bg-[#050816] p-6 text-zinc-300">
       Loading dashboard...
     </div>
   );

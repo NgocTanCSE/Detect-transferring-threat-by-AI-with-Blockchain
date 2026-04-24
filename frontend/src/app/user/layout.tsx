@@ -54,9 +54,16 @@ export default function UserLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#08080a]">
+    <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
+      {/* Dynamic Background Overlay */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-zinc-500/5 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-zinc-500/5 blur-[120px]" />
+        <div className="absolute top-1/2 left-1/2 -tranzinc-x-1/2 -tranzinc-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_0%,transparent_70%)]" />
+      </div>
+
       {/* Header */}
-      <header className="fixed left-0 right-0 top-0 z-40 h-16 border-b border-zinc-800/50 bg-zinc-950/95 backdrop-blur-sm">
+      <header className="fixed left-0 right-0 top-0 z-40 h-16 border-b border-zinc-800/50 bg-zinc-950/90 backdrop-blur-md">
         <div className="flex h-full items-center justify-between px-6">
           {/* Logo */}
           <div className="flex items-center gap-4">

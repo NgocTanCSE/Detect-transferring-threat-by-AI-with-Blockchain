@@ -80,7 +80,7 @@ export default function UserHistoryPage() {
           <h1 className="text-2xl font-semibold text-white">
             Transaction History
           </h1>
-          <p className="text-slate-400 mt-1">
+          <p className="text-zinc-400 mt-1">
             View your transaction history and blocked transfers
           </p>
         </div>
@@ -96,7 +96,7 @@ export default function UserHistoryPage() {
       </div>
 
       {/* Wallet Search */}
-      <Card className="border-slate-700/50 bg-slate-800/30">
+      <Card className="border-zinc-700/50 bg-zinc-800/30">
         <CardContent className="pt-4">
           <div className="flex gap-3">
             <Input
@@ -110,18 +110,18 @@ export default function UserHistoryPage() {
             </Button>
           </div>
           <div className="flex items-center justify-between mt-3">
-            <p className="text-xs text-slate-500">
-              Currently viewing: <span className="font-mono text-slate-400">{formatAddress(walletAddress)}</span>
+            <p className="text-xs text-zinc-500">
+              Currently viewing: <span className="font-mono text-zinc-400">{formatAddress(walletAddress)}</span>
             </p>
             {balanceLoading ? (
-              <div className="flex items-center gap-2 text-slate-400 text-sm">
+              <div className="flex items-center gap-2 text-zinc-400 text-sm">
                 <RefreshCw className="h-4 w-4 animate-spin" />
                 <span>Loading balance...</span>
               </div>
             ) : balance ? (
               <div className="flex items-center gap-2 bg-zinc-500/10 border border-zinc-500/30 rounded-lg px-3 py-1.5">
                 <Wallet className="h-4 w-4 text-zinc-400" />
-                <span className="text-sm font-semibold text-slate-100">
+                <span className="text-sm font-semibold text-zinc-100">
                   {balance.balance_eth.toFixed(4)} ETH
                 </span>
               </div>
@@ -132,7 +132,7 @@ export default function UserHistoryPage() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="border-zinc-700/50 bg-zinc-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
               <CheckCircle2 className="h-5 w-5 text-zinc-400" />
@@ -141,12 +141,12 @@ export default function UserHistoryPage() {
               <p className="text-2xl font-semibold text-white">
                 {history?.summary?.total_transactions || 0}
               </p>
-              <p className="text-sm text-slate-400">Total Transactions</p>
+              <p className="text-sm text-zinc-400">Total Transactions</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="border-zinc-700/50 bg-zinc-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
               <Ban className="h-5 w-5 text-zinc-400" />
@@ -155,12 +155,12 @@ export default function UserHistoryPage() {
               <p className="text-2xl font-semibold text-white">
                 {history?.summary?.total_blocked || 0}
               </p>
-              <p className="text-sm text-slate-400">Blocked Transfers</p>
+              <p className="text-sm text-zinc-400">Blocked Transfers</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="border-zinc-700/50 bg-zinc-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
               <AlertTriangle className="h-5 w-5 text-zinc-400" />
@@ -169,12 +169,12 @@ export default function UserHistoryPage() {
               <p className="text-2xl font-semibold text-white">
                 {history?.summary?.total_warnings || 0}
               </p>
-              <p className="text-sm text-slate-400">Warnings Received</p>
+              <p className="text-sm text-zinc-400">Warnings Received</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-700/50 bg-slate-800/30">
+        <Card className="border-zinc-700/50 bg-zinc-800/30">
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="p-3 rounded-lg bg-zinc-500/10 border border-zinc-500/20">
               <Shield className="h-5 w-5 text-zinc-400" />
@@ -183,7 +183,7 @@ export default function UserHistoryPage() {
               <p className="text-2xl font-semibold text-white">
                 {3 - (history?.summary?.warning_count || 0)}/3
               </p>
-              <p className="text-sm text-slate-400">Warnings Left</p>
+              <p className="text-sm text-zinc-400">Warnings Left</p>
             </div>
           </CardContent>
         </Card>
@@ -191,16 +191,16 @@ export default function UserHistoryPage() {
 
       {/* Tabs for different history views */}
       <Tabs defaultValue="transactions" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-slate-800/50">
-          <TabsTrigger value="transactions" className="data-[state=active]:bg-slate-700">
+        <TabsList className="grid w-full grid-cols-3 bg-zinc-800/50">
+          <TabsTrigger value="transactions" className="data-[state=active]:bg-zinc-700">
             <CheckCircle2 className="h-4 w-4 mr-2" />
             Transactions
           </TabsTrigger>
-          <TabsTrigger value="blocked" className="data-[state=active]:bg-slate-700">
+          <TabsTrigger value="blocked" className="data-[state=active]:bg-zinc-700">
             <Ban className="h-4 w-4 mr-2" />
             Blocked
           </TabsTrigger>
-          <TabsTrigger value="warnings" className="data-[state=active]:bg-slate-700">
+          <TabsTrigger value="warnings" className="data-[state=active]:bg-zinc-700">
             <AlertTriangle className="h-4 w-4 mr-2" />
             Warnings
           </TabsTrigger>
@@ -208,13 +208,13 @@ export default function UserHistoryPage() {
 
         {/* Transactions Tab */}
         <TabsContent value="transactions">
-          <Card className="border-slate-700/50 bg-slate-800/30">
+          <Card className="border-zinc-700/50 bg-zinc-800/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-white">
                 <History className="h-5 w-5 text-zinc-400" />
                 Transaction History
               </CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardDescription className="text-zinc-400">
                 All successful transactions for this wallet
               </CardDescription>
             </CardHeader>
@@ -224,7 +224,7 @@ export default function UserHistoryPage() {
                   <RefreshCw className="h-8 w-8 animate-spin text-zinc-400" />
                 </div>
               ) : history?.successful_transactions?.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
+                <div className="text-center py-12 text-zinc-400">
                   <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No transactions found</p>
                 </div>
@@ -233,7 +233,7 @@ export default function UserHistoryPage() {
                   {history?.successful_transactions?.map((tx: any) => (
                     <div
                       key={tx.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-slate-800/50 border border-slate-700/50"
+                      className="flex items-center justify-between p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50"
                     >
                       <div className="flex items-center gap-4">
                         <div
@@ -252,7 +252,7 @@ export default function UserHistoryPage() {
                           <p className="font-medium text-white">
                             {tx.direction === "sent" ? "Sent" : "Received"}
                           </p>
-                          <p className="text-sm text-slate-400 font-mono">
+                          <p className="text-sm text-zinc-400 font-mono">
                             {tx.direction === "sent"
                               ? `To: ${formatAddress(tx.to_address)}`
                               : `From: ${formatAddress(tx.from_address)}`}
@@ -267,7 +267,7 @@ export default function UserHistoryPage() {
                           {tx.direction === "sent" ? "-" : "+"}
                           {tx.value_eth?.toFixed(4) || "0.0000"} ETH
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-zinc-500">
                           {tx.timestamp ? formatDate(tx.timestamp) : "Pending"}
                         </p>
                       </div>
@@ -286,13 +286,13 @@ export default function UserHistoryPage() {
 
         {/* Blocked Transfers Tab */}
         <TabsContent value="blocked">
-          <Card className="border-slate-700/50 bg-slate-800/30">
+          <Card className="border-zinc-700/50 bg-zinc-800/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-white">
                 <Ban className="h-5 w-5 text-zinc-400" />
                 Blocked Transfers
               </CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardDescription className="text-zinc-400">
                 Transfers that were blocked by the AI protection system
               </CardDescription>
             </CardHeader>
@@ -302,7 +302,7 @@ export default function UserHistoryPage() {
                   <RefreshCw className="h-8 w-8 animate-spin text-zinc-400" />
                 </div>
               ) : history?.blocked_transfers?.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
+                <div className="text-center py-12 text-zinc-400">
                   <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No blocked transfers</p>
                   <p className="text-sm mt-1">Your transfers are safe!</p>
@@ -310,26 +310,26 @@ export default function UserHistoryPage() {
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-slate-700">
-                      <TableHead className="text-slate-300">Time</TableHead>
-                      <TableHead className="text-slate-300">To Address</TableHead>
-                      <TableHead className="text-slate-300">Amount</TableHead>
-                      <TableHead className="text-slate-300">Risk Score</TableHead>
-                      <TableHead className="text-slate-300">Reason</TableHead>
+                    <TableRow className="border-zinc-700">
+                      <TableHead className="text-zinc-300">Time</TableHead>
+                      <TableHead className="text-zinc-300">To Address</TableHead>
+                      <TableHead className="text-zinc-300">Amount</TableHead>
+                      <TableHead className="text-zinc-300">Risk Score</TableHead>
+                      <TableHead className="text-zinc-300">Reason</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {history?.blocked_transfers?.map((transfer: any) => (
-                      <TableRow key={transfer.id} className="border-slate-700/50">
-                        <TableCell className="text-slate-300">
+                      <TableRow key={transfer.id} className="border-zinc-700/50">
+                        <TableCell className="text-zinc-300">
                           <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-slate-500" />
+                            <Clock className="h-4 w-4 text-zinc-500" />
                             <span className="text-sm">
                               {formatDate(transfer.blocked_at)}
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono text-sm text-slate-300">
+                        <TableCell className="font-mono text-sm text-zinc-300">
                           {formatAddress(transfer.receiver_address)}
                         </TableCell>
                         <TableCell className="text-white font-medium">
@@ -356,13 +356,13 @@ export default function UserHistoryPage() {
 
         {/* Warnings Tab */}
         <TabsContent value="warnings">
-          <Card className="border-slate-700/50 bg-slate-800/30">
+          <Card className="border-zinc-700/50 bg-zinc-800/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-white">
                 <AlertTriangle className="h-5 w-5 text-zinc-400" />
                 Risk Warnings
               </CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardDescription className="text-zinc-400">
                 Warnings received when attempting risky transfers (3 strikes = suspension)
               </CardDescription>
             </CardHeader>
@@ -372,7 +372,7 @@ export default function UserHistoryPage() {
                   <RefreshCw className="h-8 w-8 animate-spin text-zinc-400" />
                 </div>
               ) : history?.warnings?.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
+                <div className="text-center py-12 text-zinc-400">
                   <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-zinc-400 opacity-50" />
                   <p>No warnings on record</p>
                   <p className="text-sm mt-1">You have a clean record!</p>
@@ -382,7 +382,7 @@ export default function UserHistoryPage() {
                   {history?.warnings?.map((warning: any) => (
                     <div
                       key={warning.id}
-                      className="p-4 rounded-lg bg-slate-800/50 border border-zinc-500/20"
+                      className="p-4 rounded-lg bg-zinc-800/50 border border-zinc-500/20"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
@@ -393,11 +393,11 @@ export default function UserHistoryPage() {
                             <p className="font-medium text-white">
                               Warning #{warning.warning_number}: {warning.warning_type?.replace(/_/g, " ")}
                             </p>
-                            <p className="text-sm text-slate-400 mt-1">
+                            <p className="text-sm text-zinc-400 mt-1">
                               Attempted transfer to:{" "}
                               <span className="font-mono">{formatAddress(warning.target_address)}</span>
                             </p>
-                            <p className="text-sm text-slate-500 mt-1">
+                            <p className="text-sm text-zinc-500 mt-1">
                               Risk Score: <span className={getRiskColor(warning.risk_score)}>{warning.risk_score}%</span>
                             </p>
                           </div>
@@ -409,7 +409,7 @@ export default function UserHistoryPage() {
                           >
                             {warning.user_action === "cancelled" ? "Cancelled" : "Ignored"}
                           </Badge>
-                          <p className="text-xs text-slate-500 mt-2">
+                          <p className="text-xs text-zinc-500 mt-2">
                             {formatDate(warning.created_at)}
                           </p>
                         </div>

@@ -200,7 +200,7 @@ export default function AdminDiagnosticsDashboard() {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {Object.entries(systemStatus.seed_data).map(([key, count]) => (
-                  <div key={key} className="p-3 bg-slate-900 rounded border border-zinc-500/20">
+                  <div key={key} className="p-3 bg-zinc-900 rounded border border-zinc-500/20">
                     <p className="text-xs text-gray-400 capitalize">{key.replace(/_/g, " ")}</p>
                     <p className="text-2xl font-bold text-zinc-400">{count}</p>
                   </div>
@@ -226,7 +226,7 @@ export default function AdminDiagnosticsDashboard() {
             <CardContent>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {Object.entries(systemStatus.endpoints).map(([endpoint, stats]) => (
-                  <div key={endpoint} className="p-3 bg-slate-900 rounded border border-zinc-500/20">
+                  <div key={endpoint} className="p-3 bg-zinc-900 rounded border border-zinc-500/20">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <p className="text-sm font-mono text-zinc-400">{endpoint}</p>

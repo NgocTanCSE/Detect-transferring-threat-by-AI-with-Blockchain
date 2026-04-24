@@ -59,8 +59,15 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#08080a] p-4">
-      <div className="mx-auto flex min-h-screen w-full max-w-lg items-center">
+    <div className="min-h-screen bg-zinc-950 relative overflow-hidden p-4">
+      {/* Dynamic Background Overlay */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-zinc-500/5 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-zinc-500/5 blur-[120px]" />
+        <div className="absolute top-1/2 left-1/2 -tranzinc-x-1/2 -tranzinc-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_0%,transparent_70%)]" />
+      </div>
+
+      <div className="mx-auto relative z-10 flex min-h-screen w-full max-w-lg items-center">
         <div className="w-full">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-200 to-zinc-500 shadow-lg shadow-white/10">
@@ -78,7 +85,7 @@ export default function RegisterPage() {
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-slate-300">Username</Label>
+                  <Label htmlFor="username" className="text-zinc-300">Username</Label>
                   <Input
                     id="username"
                     value={username}
@@ -89,7 +96,7 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-slate-300">Email</Label>
+                  <Label htmlFor="email" className="text-zinc-300">Email</Label>
                   <Input
                     id="email"
                     type="email"
@@ -101,7 +108,7 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-slate-300">Mật khẩu</Label>
+                  <Label htmlFor="password" className="text-zinc-300">Mật khẩu</Label>
                   <Input
                     id="password"
                     type="password"
