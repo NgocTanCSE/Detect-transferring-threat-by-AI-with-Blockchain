@@ -303,42 +303,40 @@ CÂU HỎI TỪ NGƯỜI DÙNG:
         transaction_summary: Dict[str, Any]
     ) -> str:
         """
-        Build a high-quality prompt for the security analyst LLM.
+        Build a high-quality prompt for the security analyst LLM with XAI and Actions.
         """
 
         # Summary of detections
         reasons = []
         for agent, result in detections.items():
-            if result.get('detected'):
+            if isinstance(result, dict) and result.get('detected'):
                 reasons.extend(result.get('reasons', []))
 
-        reasons_text = "\n- ".join(reasons) if reasons else "No specific heuristic patterns detected."
+        reasons_text = "\n- ".join(reasons) if reasons else "Không phát hiện mẫu hành vi bất thường cụ thể."
 
         ml_score = detections.get('ml_prediction', {}).get('ml_score', 0)
         ml_reason = detections.get('ml_prediction', {}).get('ml_reason', 'N/A')
+        heuristic_score = risk_score # Simplified for explanation
 
-        prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+        return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
-You are a Senior Blockchain Security Analyst specializing in Ethereum fraud detection.
-Your goal is to explain complex transaction patterns to users in a clear, professional, and helpful way.
-You must provide your analysis in Vietnamese (Tiếng Việt) but keep technical terms like 'Mixer', 'Wash Trading', 'Honeypot' when appropriate.
+{self.persona}
 
-Provide:
-1. A summary of the threat.
-2. Why the specific patterns found are dangerous.
-3. A clear recommendation for the user.
+NHIỆM VỤ: Phân tích chi tiết rủi ro cho ví blockchain và đưa ra giải thích chuyên sâu (XAI).
 
-Keep the tone professional and security-focused.<|eot_id|><|start_header_id|>user<|end_header_id|>
+YÊU CẦU PHẢN HỒI (XAI & Actions):
+1. Giải thích con số: Sử dụng công thức Score = w_ML * S_ML + w_H * S_H để giải thích tại sao ví có số điểm {risk_score}.
+2. Phân tích hành vi: Tại sao các dấu hiệu Heuristic và ML lại dẫn đến kết luận này.
+3. Đề xuất hành động: Nếu rủi ro > 70, hãy thêm tag [ACTION: BLOCK_WALLET]. Nếu rủi ro từ 40-70, thêm tag [ACTION: WATCHLIST].
+4. Ngôn ngữ: Tiếng Việt chuyên nghiệp, súc tích.
 
-HÃY PHÂN TÍCH RỦI RO CHO VÍ SAU:
-- Wallet Address: {wallet_address}
-- Risk Score: {risk_score}/100
-- Risk Level: {risk_level}
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+THÔNG TIN VÍ:
+- Địa chỉ: {wallet_address}
+- Điểm rủi ro tổng hợp: {risk_score}/100 ({risk_level})
+- Điểm từ mô hình ML (S_ML): {ml_score}
+- Các dấu hiệu Heuristic: 
+{reasons_text}
 
-CÁC DẤU HIỆU PHÁT HIỆN:
-- {reasons_text}
-- ML Model Prediction: {ml_reason} (Score: {ml_score})
-
-GÓC NHÌN CHUYÊN GIA (AI ANALYST INSIGHT):<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
-
-        return prompt
+HÃY ĐƯA RA PHÂN TÍCH CHUYÊN SÂU:
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""

@@ -1210,6 +1210,7 @@ def analyze_wallet_risk(
             "risk_level": risk_analysis["risk_level"],
             "details": risk_analysis["breakdown"],
             "ai_insight": risk_analysis.get("ai_insight", "No analysis available."),
+            "suggested_actions": risk_analysis.get("suggested_actions", []),
             "detection_count": risk_analysis["detection_count"],
             "model": risk_analysis["model"],
             "cached": False,

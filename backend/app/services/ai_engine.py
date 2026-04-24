@@ -244,6 +244,16 @@ class MultiAgentDetectionEngine:
         )
 
         # Step 5: Advanced AI Analyst Reasoning (using Gemini API)
+        final_risk['suggested_actions'] = []
+        deep_scan_results = None
+        
+        # Trigger deep scan if risk is significant
+        if final_risk['total_score'] >= 40 or final_risk['detection_count'] > 0:
+            from app.services.deep_scan_service import DeepScanService
+            deep_scanner = DeepScanService()
+            deep_scan_results = deep_scanner.perform_deep_scan(transactions, normalized_address)
+            final_risk['deep_scan'] = deep_scan_results
+
         if final_risk['total_score'] >= 20 or final_risk['detection_count'] > 0:
             logger.info(f"Calling Gemini AI Analyst for {normalized_address[:10]}...")
             ai_insight = self.ai_analyst.analyze_threat(
@@ -253,16 +263,25 @@ class MultiAgentDetectionEngine:
                 detections=final_risk['breakdown'],
                 transaction_summary={
                     "count": len(transactions),
-                    "age_days": wallet_age_days
+                    "age_days": wallet_age_days,
+                    "deep_scan": deep_scan_results
                 }
             )
-            final_risk['ai_insight'] = ai_insight
+            
+            # Parse actions from AI insight (e.g., [ACTION: BLOCK_WALLET])
+            import re
+            actions = re.findall(r"\[ACTION:\s*([A-Z_]+)\]", ai_insight)
+            final_risk['suggested_actions'] = list(set(actions))
+            
+            # Clean up the insight text (optional, but keeps it pretty)
+            cleaned_insight = re.sub(r"\[ACTION:\s*[A-Z_]+\]", "", ai_insight).strip()
+            final_risk['ai_insight'] = cleaned_insight
         else:
             final_risk['ai_insight'] = "Vòng ngoài chưa phát hiện dấu hiệu rủi ro đáng kể. Ví có vẻ an toàn."
 
         logger.info(
             f"Risk analysis complete for {normalized_address[:10]}... "
-            f"Score: {final_risk['total_score']} (ML: {ml_prediction.get('ml_score', 0):.1f})"
+            f"Score: {final_risk['total_score']} | Actions: {final_risk['suggested_actions']}"
         )
 
         return final_risk
