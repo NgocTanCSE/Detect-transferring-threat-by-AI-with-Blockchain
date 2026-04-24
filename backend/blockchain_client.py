@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class BlockchainClient(ABC):
     """Abstract base class for blockchain data clients."""
-    
+
     @abstractmethod
     def fetch_wallet_history(self, wallet_address: str, max_count: int = 1000) -> List[Dict[str, Any]]:
         pass
@@ -95,7 +95,7 @@ class AlchemyClient(BlockchainClient):
             tx_hash = transfer.get("tx_hash")
             if tx_hash:
                 dedup_map[tx_hash] = transfer
-        
+
         sorted_transfers = sorted(dedup_map.values(), key=lambda x: x.get("block_number", 0), reverse=True)
         return list(sorted_transfers)[:max_count]
 
@@ -123,7 +123,7 @@ class AlchemyClient(BlockchainClient):
         metadata = raw_transfer.get("metadata", {})
         block_num = raw_transfer.get("blockNum", "0x0")
         block_number = int(block_num, 16) if isinstance(block_num, str) else block_num
-        
+
         timestamp_str = metadata.get("blockTimestamp")
         if timestamp_str:
             timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
@@ -145,22 +145,53 @@ class AlchemyClient(BlockchainClient):
             "chain": self.chain_name
         }
 
+
+class EthereumAlchemyClient(AlchemyClient):
+    """Ethereum-specific Alchemy client."""
+
+    def __init__(self):
+        super().__init__(ALCHEMY_ETH_RPC_URL, "ethereum")
+
+
+class BSCAlchemyClient(AlchemyClient):
+    """BSC-specific Alchemy client."""
+
+    def __init__(self):
+        super().__init__(ALCHEMY_BSC_RPC_URL, "bsc")
+
 class BlockchainClientFactory:
     """Factory for creating blockchain clients based on chain ID or name."""
-    
+
     _clients: Dict[str, BlockchainClient] = {}
+    _aliases: Dict[str, str] = {
+        "ethereum": "ethereum",
+        "eth": "ethereum",
+        "1": "ethereum",
+        "bsc": "bsc",
+        "binance": "bsc",
+        "bnb": "bsc",
+        "56": "bsc",
+    }
+
+    @classmethod
+    def _resolve_chain(cls, chain: str) -> str:
+        key = str(chain or "ethereum").strip().lower()
+        canonical_chain = cls._aliases.get(key)
+        if canonical_chain:
+            return canonical_chain
+        raise ValueError(f"Unsupported blockchain: {chain}")
 
     @classmethod
     def get_client(cls, chain: str = "ethereum") -> BlockchainClient:
-        chain = chain.lower()
-        if chain not in cls._clients:
-            if chain == "ethereum" or chain == "eth" or chain == "1":
-                cls._clients[chain] = AlchemyClient(ALCHEMY_ETH_RPC_URL, "ethereum")
-            elif chain == "bsc" or chain == "binance" or chain == "56":
-                cls._clients[chain] = AlchemyClient(ALCHEMY_BSC_RPC_URL, "bsc")
-            else:
-                raise ValueError(f"Unsupported blockchain: {chain}")
-        return cls._clients[chain]
+        canonical_chain = cls._resolve_chain(chain)
+
+        if canonical_chain not in cls._clients:
+            if canonical_chain == "ethereum":
+                cls._clients[canonical_chain] = EthereumAlchemyClient()
+            elif canonical_chain == "bsc":
+                cls._clients[canonical_chain] = BSCAlchemyClient()
+
+        return cls._clients[canonical_chain]
 
 def fetch_wallet_history(wallet_address: str, chain: str = "ethereum", max_count: int = 100) -> List[Dict[str, Any]]:
     """Convenience function using the factory."""

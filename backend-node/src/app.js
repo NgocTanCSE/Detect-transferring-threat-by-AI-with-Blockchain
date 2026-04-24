@@ -2,15 +2,15 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const axios = require('axios');
-require('dotenv').config();
+const { port, frontendUrl } = require('./config/env');
+const { forwardRequest } = require('./services/upstreamProxyService');
+const alertMonitorService = require('./services/alertMonitorService');
 
 const app = express();
 const server = http.createServer(app);
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://backend:8000';
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: frontendUrl,
     methods: ["GET", "POST"]
   }
 });
@@ -45,29 +45,7 @@ const transactionRoutes = require('./routes/transactionRoutes');
 app.use('/ops/compliance', transactionRoutes);
 app.use('/api/ops/compliance', transactionRoutes);
 
-function toUpstreamPath(originalPath) {
-  if (!originalPath) {
-    return '/';
-  }
-
-  if (originalPath === '/api') {
-    return '/';
-  }
-
-  if (originalPath.startsWith('/api/')) {
-    return originalPath.slice(4);
-  }
-
-  return originalPath;
-}
-
-function getForwardHeaders(headers) {
-  const filtered = { ...headers };
-  delete filtered.host;
-  delete filtered.connection;
-  delete filtered['content-length'];
-  return filtered;
-}
+alertMonitorService.start(io);
 
 // Fallback proxy: forward all unhandled routes to Python backend.
 app.use(async (req, res) => {
@@ -75,20 +53,8 @@ app.use(async (req, res) => {
     return res.status(404).json({ error: 'Not found' });
   }
 
-  const upstreamPath = toUpstreamPath(req.path);
-  const query = new URLSearchParams(req.query || {}).toString();
-  const upstreamUrl = `${AI_SERVICE_URL}${upstreamPath}${query ? `?${query}` : ''}`;
-
   try {
-    const response = await axios({
-      method: req.method,
-      url: upstreamUrl,
-      headers: getForwardHeaders(req.headers),
-      data: ['GET', 'DELETE'].includes(req.method.toUpperCase()) ? undefined : req.body,
-      responseType: 'arraybuffer',
-      validateStatus: () => true,
-      timeout: 30000,
-    });
+    const response = await forwardRequest(req);
 
     const contentType = response.headers['content-type'];
     if (contentType) {
@@ -102,7 +68,14 @@ app.use(async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 8001;
-server.listen(PORT, () => {
-  console.log(`Node.js Orchestrator running on port ${PORT}`);
+server.listen(port, () => {
+  console.log(`Node.js Orchestrator running on port ${port}`);
 });
+
+const shutdown = () => {
+  alertMonitorService.stop();
+  process.exit(0);
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
