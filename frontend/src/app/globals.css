@@ -306,8 +306,8 @@
 
   /* Loading skeleton */
   .skeleton {
-    @apply bg-slate-800 rounded;
-    background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+    @apply bg-zinc-800 rounded;
+    background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
@@ -325,8 +325,8 @@
   }
 
   .table-row-hover:hover {
-    @apply bg-slate-800/50;
-    box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.1);
+    @apply bg-zinc-800/50;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   }
 
   /* ====================== */
@@ -363,7 +363,7 @@
   }
 
   .card-hover {
-    @apply transition-all duration-200 hover:bg-slate-800/60;
+    @apply transition-all duration-200 hover:bg-zinc-800/60;
   }
 
   .card-glow-hover {
@@ -371,7 +371,7 @@
   }
 
   .card-glow-hover:hover {
-    box-shadow: 0 0 20px rgba(6, 182, 212, 0.2), 0 8px 30px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.1), 0 8px 30px rgba(0, 0, 0, 0.4);
   }
 
   .status-card-amber {
@@ -380,18 +380,18 @@
   }
 
   .status-card-orange {
-    @apply border-orange-500/30 bg-orange-500/5;
-    box-shadow: inset 0 0 30px rgba(249, 115, 22, 0.05);
+    @apply border-zinc-500/30 bg-zinc-500/5;
+    box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.02);
   }
 
   .status-card-cyan {
     @apply border-zinc-500/30 bg-zinc-500/5;
-    box-shadow: inset 0 0 30px rgba(6, 182, 212, 0.05);
+    box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.02);
   }
 
   .status-card-red {
-    @apply border-red-500/30 bg-red-500/5;
-    box-shadow: inset 0 0 30px rgba(239, 68, 68, 0.05);
+    @apply border-zinc-500/30 bg-zinc-500/5;
+    box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.02);
   }
 
   .pulse-glow {

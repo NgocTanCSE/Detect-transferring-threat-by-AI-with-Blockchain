@@ -10,22 +10,22 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-cyber-neon-cyan text-cyber-bg-dark hover:bg-cyber-neon-cyan/90 shadow-neon-cyan",
+          "bg-white text-black hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.1)]",
         destructive:
-          "bg-cyber-neon-red text-white hover:bg-cyber-neon-red/90 shadow-neon-red",
+          "bg-zinc-800 text-white hover:bg-zinc-700 shadow-none",
         outline:
-          "border border-cyber-border bg-transparent hover:bg-cyber-bg-elevated hover:border-cyber-neon-cyan/50 hover:text-cyber-neon-cyan",
+          "border border-zinc-700 bg-transparent hover:bg-zinc-800 hover:border-zinc-500 hover:text-white",
         secondary:
-          "bg-cyber-bg-elevated text-cyber-text-primary hover:bg-cyber-bg-card border border-cyber-border",
+          "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-700",
         ghost:
-          "hover:bg-cyber-bg-elevated hover:text-cyber-neon-cyan",
-        link: "text-cyber-neon-cyan underline-offset-4 hover:underline",
+          "hover:bg-zinc-800 hover:text-white",
+        link: "text-zinc-100 underline-offset-4 hover:underline",
         neon:
-          "bg-transparent border-2 border-cyber-neon-cyan text-cyber-neon-cyan hover:bg-cyber-neon-cyan/10 hover:shadow-neon-cyan transition-all duration-300",
+          "bg-transparent border-2 border-zinc-100 text-zinc-100 hover:bg-zinc-100/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-all duration-300",
         "neon-red":
-          "bg-transparent border-2 border-cyber-neon-red text-cyber-neon-red hover:bg-cyber-neon-red/10 hover:shadow-neon-red transition-all duration-300",
+          "bg-transparent border-2 border-zinc-400 text-zinc-400 hover:bg-zinc-400/10 shadow-none transition-all duration-300",
         "neon-green":
-          "bg-transparent border-2 border-cyber-neon-green text-cyber-neon-green hover:bg-cyber-neon-green/10 hover:shadow-neon-green transition-all duration-300",
+          "bg-transparent border-2 border-zinc-200 text-zinc-200 hover:bg-zinc-200/10 shadow-none transition-all duration-300",
       },
       size: {
         default: "h-10 px-4 py-2",
