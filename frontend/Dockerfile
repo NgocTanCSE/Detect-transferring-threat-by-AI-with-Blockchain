@@ -1,6 +1,5 @@
 # Dependencies stage
-FROM node:lts-alpine AS deps
-RUN apk add --no-cache libc6-compat
+FROM node:18 AS deps
 WORKDIR /app
 
 # Copy package files
@@ -8,17 +7,18 @@ COPY package.json package-lock.json* ./
 RUN npm install
 
 # Builder stage
-FROM node:lts-alpine AS builder
+FROM node:18 AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build Next.js app
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
 
 # Production stage
-FROM node:lts-alpine AS runner
+FROM node:18-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

@@ -1,72 +1,342 @@
 version: '3.8'
 
 services:
-  backend:
-    build: ./backend
-    container_name: blockchain_backend
-    restart: unless-stopped
+  # Message Queue
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: blockchain_rabbitmq
+    ports:
+      - "5672:5672" # AMQP
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # PostgreSQL - Main Database (auth, wallet, compliance, etc.)
+  postgres_main:
+    image: postgres:16-alpine
+    container_name: blockchain_postgres_main
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: blockchain
+      POSTGRES_PASSWORD: blockchain123
+      POSTGRES_DB: blockchain_main
+    volumes:
+      - postgres_main_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U blockchain" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # PostgreSQL - Alert Database
+  postgres_alerts:
+    image: postgres:16-alpine
+    container_name: blockchain_postgres_alerts
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: blockchain
+      POSTGRES_PASSWORD: blockchain123
+      POSTGRES_DB: blockchain_alerts
+    volumes:
+      - postgres_alerts_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U blockchain" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # PostgreSQL - Transfer Database
+  postgres_transfers:
+    image: postgres:16-alpine
+    container_name: blockchain_postgres_transfers
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: blockchain
+      POSTGRES_PASSWORD: blockchain123
+      POSTGRES_DB: blockchain_transfers
+    volumes:
+      - postgres_transfers_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U blockchain" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # API Gateway (port 8001) - Smart routing + Authentication + Rate limiting
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: blockchain_api_gateway
+    ports:
+      - "8001:8001"
+    depends_on:
+      - auth-service
+      - alert-service
+      - wallet-service
+      - transfer-service
+      - analytics-service
+      - compliance-service
+      - event-service
+      - ai-service
+    environment:
+      NODE_ENV: development
+      PORT: 8001
+      JWT_SECRET: your_jwt_secret_key_here_change_in_production
+      JWT_ALGORITHM: HS256
+      AUTH_SERVICE_URL: http://auth-service:3001
+      ALERT_SERVICE_URL: http://alert-service:3003
+      WALLET_SERVICE_URL: http://wallet-service:3002
+      TRANSFER_SERVICE_URL: http://transfer-service:3004
+      ANALYTICS_SERVICE_URL: http://analytics-service:3005
+      COMPLIANCE_SERVICE_URL: http://compliance-service:3006
+      EVENT_SERVICE_URL: http://event-service:3007
+      AI_SERVICE_URL: http://ai-service:8000
+    healthcheck:
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:8001/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # Auth Service (port 3001)
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: blockchain_auth_service
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres_main:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      JWT_SECRET: your_jwt_secret_key_here_change_in_production
+      JWT_EXPIRY: 7d
+    healthcheck:
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3001/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # Alert Service (port 3003)
+  alert-service:
+    build:
+      context: ./services/alert-service
+      dockerfile: Dockerfile
+    container_name: blockchain_alert_service
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres_alerts:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3003
+      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_alerts:5432/blockchain_alerts
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+    healthcheck:
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3003/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # Wallet Service (port 3002)
+  wallet-service:
+    build:
+      context: ./services/wallet-service
+      dockerfile: Dockerfile
+    container_name: blockchain_wallet_service
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres_main:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3002/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # Transfer Service (port 3004)
+  transfer-service:
+    build:
+      context: ./services/transfer-service
+      dockerfile: Dockerfile
+    container_name: blockchain_transfer_service
+    ports:
+      - "3004:3004"
+    depends_on:
+      postgres_transfers:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3004
+      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+      ANALYTICS_SERVICE_URL: http://analytics-service:3005
+      ALERT_SERVICE_URL: http://alert-service:3003
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3004/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # Analytics Service (port 3005) - Python (AI engines)
+  analytics-service:
+    build:
+      context: ./services/analytics-service
+      dockerfile: Dockerfile
+    container_name: blockchain_analytics_service
+    ports:
+      - "3005:3005"
+    depends_on:
+      postgres_main:
+        condition: service_healthy
+    environment:
+      PYTHONUNBUFFERED: 1
+      PORT: 3005
+      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      ALCHEMY_API_KEY: ${ALCHEMY_API_KEY}
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3005/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # Compliance Service (port 3006)
+  compliance-service:
+    build:
+      context: ./services/compliance-service
+      dockerfile: Dockerfile
+    container_name: blockchain_compliance_service
+    ports:
+      - "3006:3006"
+    depends_on:
+      postgres_main:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3006
+      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3006/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # Event Service (port 3007) - WebSocket + Event broadcasting
+  event-service:
+    build:
+      context: ./services/event-service
+      dockerfile: Dockerfile
+    container_name: blockchain_event_service
+    ports:
+      - "3007:3007"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3007
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3007/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # Scanner Service - Autonomous threat detection
+  scanner:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blockchain_scanner_micro
+    restart: always
+    command: python scanner.py
+    environment:
+      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      - ALERT_SERVICE_URL=http://alert-service:3003
+      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
+    depends_on:
+      postgres_main:
+        condition: service_healthy
+      alert-service:
+        condition: service_healthy
+    networks:
+      - blockchain_network
+
+  # AI Service (port 8000) - Core Python Backend
+  ai-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blockchain_ai_service
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/blockchain_db
-      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY:-}
-      - DEMO_FUNDED_ADDRESS=${DEMO_FUNDED_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
-      - DEMO_INITIAL_BALANCE_ETH=${DEMO_INITIAL_BALANCE_ETH:-1000}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-blockchain-sentinel-change-me-in-production}
-    volumes:
-      - ./backend:/app
+      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
     depends_on:
-      db:
+      postgres_main:
         condition: service_healthy
-    networks:
-      - app_network
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/" ]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  scanner:
-    build: ./backend
-    container_name: blockchain_scanner
-    restart: always
-    command: python scanner.py
-    environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/blockchain_db
-      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY:-}
-      - DEMO_FUNDED_ADDRESS=${DEMO_FUNDED_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
-      - DEMO_INITIAL_BALANCE_ETH=${DEMO_INITIAL_BALANCE_ETH:-1000}
-    volumes:
-      - ./backend:/app
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
-      - app_network
+      - blockchain_network
 
-  backend-node:
-    build: ./backend-node
-    container_name: blockchain_orchestrator
-    restart: unless-stopped
-    ports:
-      - "8001:8001"
-    environment:
-      - PORT=8001
-      - AI_SERVICE_URL=http://backend:8000
-      - DATABASE_URL=postgresql://user:password@db:5432/blockchain_db
-    depends_on:
-      backend:
-        condition: service_healthy
-      db:
-        condition: service_healthy
-    networks:
-      - app_network
-    healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8001/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
+  # Frontend Web UI
   frontend:
     build: ./frontend
     container_name: blockchain_frontend
@@ -79,36 +349,16 @@ services:
       - NEXT_PUBLIC_SENDER_ADDRESS=${NEXT_PUBLIC_SENDER_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
       - BACKEND_URL=http://api-gateway:8001
     depends_on:
-      - backend-node
+      - api-gateway
     networks:
-      - app_network
-
-  db:
-    image: postgres:16-alpine
-    container_name: blockchain_db
-    restart: unless-stopped
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: blockchain_db
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - app_network
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U user -d blockchain_db" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-networks:
-  app_network:
-    driver: bridge
-    name: blockchain_network
+      - blockchain_network
 
 volumes:
-  postgres_data:
-    name: blockchain_postgres_data
+  postgres_main_data:
+  postgres_alerts_data:
+  postgres_transfers_data:
+  rabbitmq_data:
+
+networks:
+  blockchain_network:
+    driver: bridge
