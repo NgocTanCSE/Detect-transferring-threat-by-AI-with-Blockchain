@@ -55,6 +55,8 @@ export default function UserExchange() {
   const [toAddress, setToAddress] = useState("");
   const [amount, setAmount] = useState("");
   const [copied, setCopied] = useState(false);
+  const [selectedChain, setSelectedChain] = useState("ethereum");
+  const [selectedAsset, setSelectedAsset] = useState("ETH");
 
   // Auto-fill sender wallet from authenticated user
   useEffect(() => {
@@ -196,7 +198,9 @@ export default function UserExchange() {
         fromWalletId,
         toWalletId,
         parseFloat(amount),
-        params.confirmRisk
+        params.confirmRisk,
+        selectedChain,
+        selectedAsset
       ),
     onSuccess: (response) => {
       setTransferResponse(response);
@@ -255,16 +259,32 @@ export default function UserExchange() {
         {/* Send Form */}
         <Card className="border-zinc-800 bg-zinc-900/50 backdrop-blur-sm animate-slide-up">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-zinc-400" />
-              Send ETH
-              <div className="ml-auto flex items-center gap-2 bg-zinc-500/10 border border-zinc-500/30 rounded-full px-3 py-1.5">
-                <ShieldCheck className="h-4 w-4 text-zinc-400" />
-                <span className="text-sm text-zinc-400 font-medium">
-                  AI Protected
-                </span>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5 text-zinc-400" />
+                Send {selectedAsset}
+                <div className="ml-auto flex items-center gap-2 bg-zinc-500/10 border border-zinc-500/30 rounded-full px-3 py-1.5">
+                  <ShieldCheck className="h-4 w-4 text-zinc-400" />
+                  <span className="text-sm text-zinc-400 font-medium">
+                    AI Protected
+                  </span>
+                </div>
+              </CardTitle>
+              <div className="ml-4">
+                <select
+                  value={selectedChain}
+                  onChange={(e) => {
+                    const chain = e.target.value;
+                    setSelectedChain(chain);
+                    setSelectedAsset(chain === "bsc" ? "BNB" : "ETH");
+                  }}
+                  className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-100 text-sm font-medium hover:border-zinc-700 focus:outline-none focus:border-white/20"
+                >
+                  <option value="ethereum">Ethereum (ETH)</option>
+                  <option value="bsc">BSC (BNB)</option>
+                </select>
               </div>
-            </CardTitle>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Security Notice */}
@@ -276,7 +296,7 @@ export default function UserExchange() {
                     Hệ thống bảo vệ AI đang hoạt động
                   </p>
                   <p className="text-xs text-zinc-400 mt-1">
-                    Mọi giao dịch đều được kiểm tra qua hệ thống phát hiện gian lận AI. 
+                    Mọi giao dịch đều được kiểm tra qua hệ thống phát hiện gian lận AI.
                     Giao dịch tới các ví có rủi ro cao (score &gt; 80) sẽ bị chặn tự động.
                   </p>
                 </div>
@@ -317,7 +337,7 @@ export default function UserExchange() {
                       <span className="text-lg font-bold text-white">
                         {senderBalance.balance_eth.toFixed(4)}
                       </span>
-                      <span className="text-sm text-zinc-500">ETH</span>
+                      <span className="text-sm text-zinc-500">{selectedAsset}</span>
                     </div>
                   </div>
                 </div>
@@ -413,7 +433,7 @@ export default function UserExchange() {
 
             {/* Amount */}
             <div className="space-y-2">
-              <Label htmlFor="amount">Số lượng (ETH)</Label>
+              <Label htmlFor="amount">Số lượng ({selectedAsset})</Label>
               <div className="relative">
                 <Input
                   id="amount"
@@ -426,12 +446,12 @@ export default function UserExchange() {
                   className="pr-16 bg-zinc-950 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-white/20"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
-                  ETH
+                  {selectedAsset}
                 </span>
               </div>
               {senderBalance && (
                 <p className="text-xs text-zinc-500">
-                  Khả dụng: {senderBalance.balance_eth.toFixed(4)} ETH
+                  Khả dụng: {senderBalance.balance_eth.toFixed(4)} {selectedAsset}
                 </p>
               )}
             </div>
@@ -458,7 +478,7 @@ export default function UserExchange() {
               ) : (
                 <>
                   <Send className="h-5 w-5 mr-2" />
-                  Gửi ETH
+                  Gửi {selectedAsset}
                 </>
               )}
             </Button>

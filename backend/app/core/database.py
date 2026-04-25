@@ -443,6 +443,42 @@ def ensure_schema() -> None:
             connection.execute(text("UPDATE transactions SET chain_id = 'ethereum' WHERE chain_id IS NULL"))
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_chain_id ON transactions (chain_id)"))
 
+            # Alerts chain_id column
+            alerts_chain_id_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'alerts'
+                      AND column_name = 'chain_id'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if not alerts_chain_id_exists:
+                logger.warning("Applying schema fix: adding alerts.chain_id")
+                connection.execute(text("ALTER TABLE alerts ADD COLUMN chain_id VARCHAR(50) DEFAULT 'ethereum'"))
+            connection.execute(text("UPDATE alerts SET chain_id = 'ethereum' WHERE chain_id IS NULL"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_alerts_chain_id ON alerts (chain_id)"))
+
+            # BlockedTransfers chain_id column
+            blocked_chain_id_exists = connection.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'blocked_transfers'
+                      AND column_name = 'chain_id'
+                    LIMIT 1
+                    """
+                )
+            ).scalar()
+            if not blocked_chain_id_exists:
+                logger.warning("Applying schema fix: adding blocked_transfers.chain_id")
+                connection.execute(text("ALTER TABLE blocked_transfers ADD COLUMN chain_id VARCHAR(50) DEFAULT 'ethereum'"))
+            connection.execute(text("UPDATE blocked_transfers SET chain_id = 'ethereum' WHERE chain_id IS NULL"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_blocked_transfers_chain_id ON blocked_transfers (chain_id)"))
+
             # Case-management constraints and indexes
             connection.execute(
                 text(

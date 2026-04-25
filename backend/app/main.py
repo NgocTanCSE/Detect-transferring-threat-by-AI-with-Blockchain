@@ -53,6 +53,19 @@ def _wei_from_eth(amount_eth: float) -> int:
 def _eth_from_wei(amount_wei: int) -> float:
     return float(amount_wei) / 10**18
 
+
+def _normalize_chain_name(chain: str) -> str:
+    """Normalize chain alias to canonical name (ethereum or bsc)."""
+    chain = chain.lower().strip()
+
+    if chain in ["ethereum", "eth", "1"]:
+        return "ethereum"
+    elif chain in ["bsc", "binance", "bnb", "56"]:
+        return "bsc"
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid chain: {chain}. Supported: ethereum, eth, 1, bsc, bnb, binance, 56")
+
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -1242,6 +1255,7 @@ def get_recent_alerts(
     limit: int = 50,
     severity: str | None = None,
     search: str | None = None,
+    chain: str = Query(default="ethereum"),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -1258,7 +1272,16 @@ def get_recent_alerts(
     """
     from datetime import timedelta
 
+    # Normalize chain parameter
+    try:
+        canonical_chain = _normalize_chain_name(chain)
+    except HTTPException as e:
+        raise e
+
     query = database_session.query(Alert).order_by(Alert.detected_at.desc())
+
+    # Apply chain filter
+    query = query.filter(Alert.chain_id == canonical_chain)
 
     # Apply severity filter
     if severity and severity.upper() != "ALL":
@@ -2356,6 +2379,7 @@ def get_blocked_transfers(
     limit: int = 100,
     search: str | None = None,
     min_risk: float | None = None,
+    chain: str = Query(default="ethereum"),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -2369,9 +2393,18 @@ def get_blocked_transfers(
     limit = max(1, min(int(limit or 100), 500))
 
     try:
+        # Normalize chain parameter
+        try:
+            canonical_chain = _normalize_chain_name(chain)
+        except HTTPException as e:
+            raise e
+
         query = database_session.query(BlockedTransfer).order_by(
             BlockedTransfer.blocked_at.desc()
         )
+
+        # Apply chain filter
+        query = query.filter(BlockedTransfer.chain_id == canonical_chain)
 
         # Apply search filter
         if search:
@@ -2519,13 +2552,24 @@ def get_cases(
 
 @app.get("/statistics/dashboard", tags=["Admin - Dashboard"])
 def get_dashboard_statistics(
+    chain: str = Query(default="ethereum"),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
-    Get comprehensive statistics for admin dashboard cards.
+    Get comprehensive statistics for admin dashboard cards, filtered by chain.
     """
-    wallets = database_session.query(Wallet.risk_category, Wallet.risk_score).all()
-    alerts = database_session.query(Alert.alert_type, Alert.severity).all()
+    # Normalize chain parameter
+    try:
+        canonical_chain = _normalize_chain_name(chain)
+    except HTTPException as e:
+        raise e
+
+    wallets = database_session.query(Wallet.risk_category, Wallet.risk_score).filter(
+        Wallet.chain_id == canonical_chain
+    ).all()
+    alerts = database_session.query(Alert.alert_type, Alert.severity).filter(
+        Alert.chain_id == canonical_chain
+    ).all()
 
     ml_wallets = 0
     manip_wallets = 0
@@ -2569,11 +2613,11 @@ def get_dashboard_statistics(
         else:
             ml_alerts += 1
 
-    # General stats
-    total_wallets = database_session.query(Wallet).count()
-    total_alerts = database_session.query(Alert).count()
-    critical_alerts = database_session.query(Alert).filter(Alert.severity == 'CRITICAL').count()
-    total_blocked = database_session.query(BlockedTransfer).count()
+    # General stats (filtered by chain)
+    total_wallets = database_session.query(Wallet).filter(Wallet.chain_id == canonical_chain).count()
+    total_alerts = database_session.query(Alert).filter(Alert.chain_id == canonical_chain).count()
+    critical_alerts = database_session.query(Alert).filter(Alert.chain_id == canonical_chain, Alert.severity == 'CRITICAL').count()
+    total_blocked = database_session.query(BlockedTransfer).filter(BlockedTransfer.chain_id == canonical_chain).count()
 
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     alerts_today = database_session.query(Alert).filter(Alert.detected_at >= today_start).count()
@@ -2611,13 +2655,20 @@ def get_dashboard_statistics(
 def get_money_flow_statistics(
     wallet_address: str = None,
     days: int = 7,
+    chain: str = Query(default="ethereum"),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
-    Get money flow statistics (in/out) for charts.
+    Get money flow statistics (in/out) for charts, filtered by chain.
     Shows daily aggregate flows for specified wallet or network-wide.
     """
     from datetime import timedelta
+
+    # Normalize chain parameter
+    try:
+        canonical_chain = _normalize_chain_name(chain)
+    except HTTPException as e:
+        raise e
 
     days = max(1, min(int(days or 7), 365))
     normalized_wallet = (wallet_address or "").lower().strip() or None
@@ -2642,6 +2693,7 @@ def get_money_flow_statistics(
                     )
                 ).label('outflow')
             ).filter(
+                Transaction.chain_id == canonical_chain,
                 Transaction.timestamp >= start_date,
                 (Transaction.from_address == normalized_wallet) | (Transaction.to_address == normalized_wallet)
             )
@@ -2662,6 +2714,7 @@ def get_money_flow_statistics(
                     )
                 ).label('outflow')
             ).filter(
+                Transaction.chain_id == canonical_chain,
                 Transaction.timestamp >= start_date
             )
 

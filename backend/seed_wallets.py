@@ -194,11 +194,42 @@ def _build_seed_users(user_count: int, rng: random.Random, now: datetime) -> lis
             _eth(95),
             _eth(2),
         ),
+        # BSC demo wallets
+        (
+            "Dave BSC Trader",
+            "0xbbb1111111111111111111111111111111111bbb",
+            32.1,
+            None,
+            15,
+            _eth(5.5),
+            _eth(8.2),
+        ),
+        (
+            "Eve BSC Bot",
+            "0xccc2222222222222222222222222222222222ccc",
+            67.8,
+            "manipulation",
+            28,
+            _eth(12),
+            _eth(3),
+        ),
+        (
+            "Frank BSC Mixer",
+            "0xfff3333333333333333333333333333333333fff",
+            81.5,
+            "scam",
+            45,
+            _eth(25),
+            _eth(1.5),
+        ),
     ]
 
     seed_rows: list[SeedUser] = []
 
     for index in range(user_count):
+        # Determine which wallet config to use
+        canonical_index = index % len(canonical_wallets)
+        is_bsc_wallet = canonical_index >= 4  # BSC wallets start at index 4
         if index < len(canonical_wallets):
             label, address, risk_score, risk_category, total_transactions, total_sent, total_received = canonical_wallets[index]
         else:
@@ -247,6 +278,7 @@ def _build_seed_users(user_count: int, rng: random.Random, now: datetime) -> lis
             flagged_at=now - timedelta(days=7) if risk_score >= 85 else None,
             flagged_by="seed_bot" if risk_score >= 85 else None,
             notes="Seeded demo wallet" if index >= len(canonical_wallets) else f"{label} seeded for local demo",
+            chain_id="bsc" if is_bsc_wallet else "ethereum",
         )
 
         seed_rows.append(SeedUser(user=user, wallet=wallet))
@@ -280,12 +312,12 @@ def _build_transactions(seed_rows: list[SeedUser], tx_per_user: int, rng: random
             tx_hash = f"0x{uuid.uuid5(uuid.NAMESPACE_DNS, f'tx::{source}::{tx_index}').hex}{uuid.uuid5(uuid.NAMESPACE_DNS, f'tx::{index}::{tx_index}').hex[:32]}"
             risk_score = round(min(0.99, max(0.03, seed.wallet.risk_score / 100)), 2)
             value = _eth(rng.uniform(0.05, 6.0))
-            
+
             # More varied case status distribution for the Analyst dashboard
             case_status_opts = ["PENDING", "VERIFIED", "FRAUD", "IGNORED"]
             status_seed = (index + tx_index) % 4
             case_status = case_status_opts[status_seed]
-            
+
             # Demonstrate assigned cases (Analyst ID from DB audit)
             ANALYST_ID_STR = "7e46beb1-7c03-5ecf-8f8c-a5fb363f73d2"
             assigned_to = None
@@ -339,9 +371,9 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
     try:
         tables_to_clear = [
-            "alerts", "audit_logs", "blocked_transfers", "diagnostic_events", 
-            "feature_store_configs", "model_registry", "node_endpoints", 
-            "notification_events", "pipeline_metrics", "policy_rules", 
+            "alerts", "audit_logs", "blocked_transfers", "diagnostic_events",
+            "feature_store_configs", "model_registry", "node_endpoints",
+            "notification_events", "pipeline_metrics", "policy_rules",
             "transaction_cases", "transactions", "wallets", "users", "token_transfers",
             "risk_assessments", "user_warnings", "blacklist", "feedback_labels"
         ]
@@ -461,7 +493,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             "Audit Large Value Transfers", "Review Fast Hop Transactions", "Escalate Blacklist Affinity",
             "Quarantine New Tokens", "Monitor Stablecoin Volume", "Check Geographic Consistency"
         ]
-        
+
         policy_rules = []
         for index in range(120):
             rule_base = _pick(policy_rule_templates, index)
@@ -486,12 +518,12 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
         policy_rules = [rule for rule in policy_rules if rule.rule_name not in existing_policy_rules]
 
         model_registry_base_names = [
-            "risk_detector", "fraud_classifier", "wallet_scorer", 
+            "risk_detector", "fraud_classifier", "wallet_scorer",
             "anomaly_analyzer", "tx_velocity_model", "contract_risk_engine",
             "hop_distance_analyzer", "pattern_matcher"
         ]
         frameworks = ["pkl", "onnx", "pt", "tf", "sklearn"]
-        
+
         model_registry: list[ModelRegistry] = []
         for index in range(55):
             name = _pick(model_registry_base_names, index)
@@ -500,7 +532,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             version = f"v{v_seq + 1}.{(index % 3) + 1}.0"
             framework = _pick(frameworks, index)
             is_active = (index % 12 == 0)
-            
+
             promoted_at = None
             promoted_by = None
             if index % 3 == 0:
@@ -533,12 +565,12 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
         risky_wallets = [seed for seed in seed_rows if seed.wallet.risk_score >= 60]
         alert_types = [
-            "Risk Spike", "Flash Loan Detected", "Mixer Interaction", 
-            "Layer 2 Bridge Anomaly", "High-Frequency Wash Trade", 
+            "Risk Spike", "Flash Loan Detected", "Mixer Interaction",
+            "Layer 2 Bridge Anomaly", "High-Frequency Wash Trade",
             "Wallet Drainer Pattern", "Sanctioned Entity Proximity"
         ]
         severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
-        
+
         for index in range(1200):
             seed = _pick(seed_rows, index)
             alerts.append(
@@ -587,7 +619,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             tx = _pick(transactions_to_add, index)
             # Assign 40% to the specific analyst user
             assigned_user = ANALYST_ID_STR if (index % 10 < 4) else (users_to_add[index % len(users_to_add)].id if users_to_add else None)
-            
+
             transaction_cases.append(
                 TransactionCase(
                     id=_make_uuid("case", index),
@@ -646,7 +678,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             "blacklist_affinity_score", "new_account_flag", "stablecoin_volume_sum",
             "mixer_interaction_event", "large_transfer_count"
         ]
-        
+
         for index in range(110):
             base_key = _pick(feature_keys_templates, index)
             # Ensure uniqueness by appending index if template doesn't have placeholders
@@ -655,7 +687,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
                 feature_key = base_key.replace("{d}", str(d_val)).replace("{h}", str(d_val * 2))
             else:
                 feature_key = f"{base_key}_{index:03d}"
-            
+
             expressions = [
                 f"SUM(value) / {d_val}",
                 f"COUNT(DISTINCT counterparty) > {index % 10}",
@@ -682,7 +714,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             status = _pick(["healthy", "healthy", "healthy", "degraded", "down", "healthy"], index)
             providers = ["Alchemy", "Infura", "QuickNode", "Ankr", "Lava", "Blast", "Bware", "Chainstack"]
             chains = ["ethereum", "polygon", "arbitrum", "optimism", "base", "bsc"]
-            
+
             node_endpoints.append(
                 NodeEndpoint(
                     id=_make_uuid("node", index),
@@ -749,7 +781,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
         for index in range(250):
             log_template = _pick(log_messages, index)
             typ, source, endpoint, status_code, msg_tpl = log_template
-            
+
             message = msg_tpl.format(
                 uuid=_make_uuid("session", index).hex[:8],
                 block=18000000 + index,

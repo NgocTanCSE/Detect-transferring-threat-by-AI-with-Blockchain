@@ -9,7 +9,24 @@ pinned: false
 
 # 🛡️ Blockchain AI Security | Anti-Fraud Detection System
 
-> Multi-agent AI system for real-time Ethereum fraud detection with Cyberpunk-themed admin dashboard
+> Multi-agent AI system for real-time blockchain fraud detection across **Ethereum & BSC** with Cyberpunk-themed admin dashboard
+
+## 🌐 Multi-Chain Support
+
+✅ **Ethereum** (ETH) - Full support
+✅ **Binance Smart Chain** (BNB) - Full support
+⏳ **Polygon, Avalanche** - Coming soon
+
+**Features:**
+- Dashboard filtering by chain
+- Multi-asset exchange transfers (ETH ↔ BNB)
+- Real-time WebSocket alerts with chain context
+- Database isolation with chain_id indexing
+- Backward compatible API (v1/v2)
+
+See [docs/CHAIN_ASSET_MATRIX.md](./docs/CHAIN_ASSET_MATRIX.md) for details.
+
+---
 
 ## 🚀 Tech Stack
 
@@ -126,6 +143,23 @@ blockchain-ai-project/
 ├── .env.example         # Environment template
 └── .gitignore          # Git ignore rules
 ```
+
+---
+
+## 📚 Documentation
+
+Complete technical documentation is available in the [**docs/**](./docs) folder:
+
+### Quick Links
+- **[docs/INDEX.md](./docs/INDEX.md)** - Documentation index & navigation
+- **[docs/PHASE_2_SUMMARY.md](./docs/PHASE_2_SUMMARY.md)** - Multi-chain implementation overview
+- **[docs/SMOKE_TESTS.md](./docs/SMOKE_TESTS.md)** - Testing procedures
+- **[docs/DEPLOY_HF_FINAL.md](./docs/DEPLOY_HF_FINAL.md)** - Deployment guide
+- **[docs/CHAIN_ASSET_MATRIX.md](./docs/CHAIN_ASSET_MATRIX.md)** - Chain/asset architecture
+- **[docs/ROLLBACK.md](./docs/ROLLBACK.md)** - Emergency procedures
+
+### All Documentation
+See [docs/INDEX.md](./docs/INDEX.md) for complete documentation index with 12+ reference documents.
 
 ---
 

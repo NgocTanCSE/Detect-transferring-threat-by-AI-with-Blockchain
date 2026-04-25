@@ -387,7 +387,9 @@ export async function sendProtectedTransfer(
   fromAddress: string,
   toAddress: string,
   amountEth: number,
-  confirmRisk = false
+  confirmRisk = false,
+  chain = "ethereum",
+  asset = "ETH"
 ): Promise<TransferResponse> {
   const res = await fetch(`${API_BASE}/transfer/protected`, {
     method: "POST",
@@ -396,9 +398,12 @@ export async function sendProtectedTransfer(
       from_wallet_id: fromAddress,
       to_wallet_id: toAddress,
       to_address: toAddress,
+      amount: amountEth,
       amount_eth: amountEth,
+      chain: chain,
+      asset: asset,
       confirm_risk: confirmRisk,
-    }),
+    })
   });
   if (!res.ok) throw new Error("Failed to send transfer");
   const payload = await res.json();
