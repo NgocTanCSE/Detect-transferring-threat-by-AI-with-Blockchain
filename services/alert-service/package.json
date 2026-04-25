@@ -1,13 +1,15 @@
 ﻿{
-    "main":  "src/index.js",
-    "name":  "alert-service",
-    "version":  "1.0.0",
-    "dependencies":  {
-                         "pg":  "^8.11.3",
-                         "express":  "^4.18.2",
-                         "amqplib":  "^0.10.3"
-                     },
-    "scripts":  {
-                    "start":  "node src/index.js"
-                }
+  "main": "src/index.js",
+  "name": "alert-service",
+  "version": "1.0.0",
+  "dependencies": {
+    "pg": "^8.11.3",
+    "express": "^4.18.2",
+    "amqplib": "^0.10.3",
+    "dotenv": "^16.4.5"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js"
+  }
 }

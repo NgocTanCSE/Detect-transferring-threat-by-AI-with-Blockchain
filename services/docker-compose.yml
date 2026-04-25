@@ -159,7 +159,7 @@ services:
       DATABASE_URL: postgresql://blockchain:blockchain123@postgres_alerts:5432/blockchain_alerts
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:3003/health" ]
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3003/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
       timeout: 5s
       retries: 5
