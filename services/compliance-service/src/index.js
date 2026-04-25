@@ -22,6 +22,8 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+const queue = require('./services/queue');
+
 // ==========================================
 // ROUTES
 // ==========================================
@@ -92,7 +94,18 @@ app.post('/compliance', async (req, res) => {
         created_by || null
       ]
     );
-    res.status(201).json(result.rows[0]);
+    const newRule = result.rows[0];
+
+    // Publish event
+    await queue.publishEvent('policy.rule.created', {
+      event_type: 'POLICY_RULE_CREATED',
+      rule_id: newRule.id,
+      rule_name: newRule.rule_name,
+      priority: newRule.priority,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(201).json(newRule);
   } catch (error) {
     console.error('Error creating policy rule:', error);
     if (error.code === '23505') {
@@ -173,6 +186,8 @@ app.delete('/compliance/:id', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Compliance Service running on port ${PORT}`);
-});
+queue.connect().then(() => {
+  app.listen(PORT, () => {
+    console.log(`🚀 Compliance Service running on port ${PORT}`);
+  });
+}).catch(console.error);

@@ -22,6 +22,8 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+const queue = require('./services/queue');
+
 // ==========================================
 // ROUTES
 // ==========================================
@@ -138,9 +140,21 @@ app.put('/wallets/:address/status', async (req, res) => {
       return res.status(404).json({ error: 'Wallet not found' });
     }
 
+    const updatedWallet = result.rows[0];
+
+    // Publish event
+    await queue.publishEvent('wallet.status.changed', {
+      event_type: 'WALLET_STATUS_CHANGED',
+      wallet_address: address,
+      new_status: status,
+      reason: reason || '',
+      admin_id: admin_id || 'system',
+      timestamp: new Date().toISOString()
+    });
+
     res.json({
       message: 'Wallet status updated',
-      wallet: result.rows[0]
+      wallet: updatedWallet
     });
   } catch (error) {
     console.error('Error updating wallet status:', error);
@@ -193,6 +207,8 @@ app.get('/wallets/:address/stats', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Wallet Service running on port ${PORT}`);
-});
+queue.connect().then(() => {
+  app.listen(PORT, () => {
+    console.log(`🚀 Wallet Service running on port ${PORT}`);
+  });
+}).catch(console.error);
