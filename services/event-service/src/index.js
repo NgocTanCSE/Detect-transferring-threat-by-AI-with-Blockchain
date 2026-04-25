@@ -1,5 +1,71 @@
-﻿const express = require('express');
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const queue = require('./services/queue');
+require('dotenv').config();
+
 const app = express();
-const PORT = 3007;
-app.get('/health', (req, res) => res.json({ status: 'ok', service: 'event-service' }));
-app.listen(PORT, () => console.log('event-service running on port ' + PORT));
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*', // In production, restrict to frontend URL
+    methods: ['GET', 'POST']
+  }
+});
+
+const PORT = process.env.PORT || 3007;
+
+app.use(cors());
+app.use(express.json());
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    service: 'event-service', 
+    clients: io.engine.clientsCount 
+  });
+});
+
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  console.log(`🔌 Client connected: ${socket.id}`);
+  
+  // Example: Client joining a specific chain room
+  socket.on('join-chain', (chain) => {
+    socket.join(`chain:${chain}`);
+    console.log(`👤 Client ${socket.id} joined room: chain:${chain}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`🔌 Client disconnected: ${socket.id}`);
+  });
+});
+
+/**
+ * Handle incoming events from RabbitMQ
+ */
+const handleMQEvent = (routingKey, data) => {
+  // Broadcast to all clients
+  io.emit('new-alert', data);
+  
+  // Also broadcast to specific chain room if chain_id exists
+  if (data.chain_id) {
+    io.to(`chain:${data.chain_id}`).emit('new-alert', data);
+  }
+  
+  console.log(`📢 Broadcasted event ${routingKey} to ${io.engine.clientsCount} clients`);
+};
+
+// Initialize
+const start = async () => {
+  // Start consuming from RabbitMQ
+  await queue.startConsuming(handleMQEvent);
+
+  server.listen(PORT, () => {
+    console.log(`🚀 Event Service (WebSocket) running on port ${PORT}`);
+  });
+};
+
+start();

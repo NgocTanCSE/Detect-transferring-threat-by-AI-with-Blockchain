@@ -33,6 +33,7 @@ const SERVICES = {
   analytics: process.env.ANALYTICS_SERVICE_URL || 'http://analytics-service:3005',
   compliance: process.env.COMPLIANCE_SERVICE_URL || 'http://compliance-service:3006',
   event: process.env.EVENT_SERVICE_URL || 'http://event-service:3007',
+  ai: process.env.AI_SERVICE_URL || 'http://ai-service:8000',
 };
 
 // Proxy instances
@@ -142,6 +143,11 @@ const ROUTE_MAP = {
 
   // Event Service (3007)
   '/events': 'event',
+
+  // AI Service (8000) - Assistant, Ops, Case Management
+  '/assistant': 'ai',
+  '/ops': 'ai',
+  '/api': 'ai',
 };
 
 // Find service for route

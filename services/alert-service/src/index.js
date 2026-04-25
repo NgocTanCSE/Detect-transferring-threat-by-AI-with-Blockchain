@@ -1,5 +1,6 @@
-﻿const express = require('express');
+const express = require('express');
 const { Pool } = require('pg');
+const queue = require('./services/queue');
 require('dotenv').config();
 
 const app = express();
@@ -264,6 +265,48 @@ app.get('/alerts/summary', async (_req, res) => {
   }
 });
 
+// Create new alert
+app.post('/alerts', async (req, res) => {
+  const { wallet_address, alert_type, severity, message, risk_score, meta, chain_id } = req.body;
+
+  if (!alert_type || !message) {
+    return res.status(400).json({ error: 'alert_type and message are required' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `
+        INSERT INTO alerts (
+          wallet_address, alert_type, severity, message, 
+          risk_score, meta, chain_id, detected_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        RETURNING id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, detected_at
+      `,
+      [
+        wallet_address,
+        alert_type,
+        severity || 'MEDIUM',
+        message,
+        risk_score || 0,
+        meta ? JSON.stringify(meta) : null,
+        chain_id || 'ethereum'
+      ]
+    );
+
+    const newAlert = rows[0];
+
+    // Publish to MQ
+    await queue.publishAlert({
+      ...newAlert,
+      event_type: 'ALERT_CREATED'
+    });
+
+    res.status(201).json(newAlert);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/alerts/:id/acknowledge', async (req, res) => {
   const id = Number.parseInt(req.params.id, 10);
   if (!Number.isInteger(id) || id <= 0) {
@@ -285,14 +328,25 @@ app.post('/alerts/:id/acknowledge', async (req, res) => {
       return res.status(404).json({ error: 'Alert not found' });
     }
 
-    res.json({ message: 'Alert acknowledged', alert: rows[0] });
+    const alert = rows[0];
+    
+    // Publish acknowledgement event
+    await queue.publishAlert({
+      ...alert,
+      event_type: 'ALERT_ACKNOWLEDGED'
+    });
+
+    res.json({ message: 'Alert acknowledged', alert });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 ensureSchema()
-  .then(() => {
+  .then(async () => {
+    // Connect to RabbitMQ
+    await queue.connect();
+    
     app.listen(PORT, () => {
       console.log(`alert-service running on port ${PORT}`);
     });

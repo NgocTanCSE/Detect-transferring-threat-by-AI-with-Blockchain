@@ -95,6 +95,7 @@ services:
       - analytics-service
       - compliance-service
       - event-service
+      - ai-service
     environment:
       NODE_ENV: development
       PORT: 8001
@@ -107,6 +108,7 @@ services:
       ANALYTICS_SERVICE_URL: http://analytics-service:3005
       COMPLIANCE_SERVICE_URL: http://compliance-service:3006
       EVENT_SERVICE_URL: http://event-service:3007
+      AI_SERVICE_URL: http://ai-service:8000
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:8001/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
@@ -163,6 +165,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    volumes:
+      - ./alert-service:/app
+      - /app/node_modules
     networks:
       - blockchain_network
 
@@ -205,7 +210,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3004
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_transfers:5432/blockchain_transfers
+      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
       ANALYTICS_SERVICE_URL: http://analytics-service:3005
       ALERT_SERVICE_URL: http://alert-service:3003
@@ -287,6 +292,50 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    volumes:
+      - ./event-service:/app
+    networks:
+      - blockchain_network
+
+  # Scanner Service - Autonomous threat detection
+  scanner:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: blockchain_scanner_micro
+    restart: always
+    command: python scanner.py
+    environment:
+      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      - ALERT_SERVICE_URL=http://alert-service:3003
+      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
+    depends_on:
+      postgres_main:
+        condition: service_healthy
+      alert-service:
+        condition: service_healthy
+    networks:
+      - blockchain_network
+
+  # AI Service (port 8000) - Core Python Backend
+  ai-service:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: blockchain_ai_service
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
+    depends_on:
+      postgres_main:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - blockchain_network
 

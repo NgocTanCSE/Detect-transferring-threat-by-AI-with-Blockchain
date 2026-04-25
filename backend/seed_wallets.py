@@ -48,6 +48,7 @@ DEFAULT_ALERTS = int(os.getenv("LOCAL_DEMO_ALERT_COUNT", "150"))
 DEFAULT_BLOCKED = int(os.getenv("LOCAL_DEMO_BLOCKED_COUNT", "60"))
 DEFAULT_CASES = int(os.getenv("LOCAL_DEMO_CASE_COUNT", "100"))
 RANDOM_SEED = int(os.getenv("LOCAL_DEMO_SEED", "1337"))
+RESET_DB = os.getenv("RESET_DB", "false").lower() == "true"
 
 ROOT_ADDRESS = "0x0000000000000000000000000000000000000000"
 
@@ -96,8 +97,10 @@ def _make_address(rng: random.Random, index: int) -> str:
     return f"0x{index:040x}" if index < 16 else "0x" + "".join(rng.choice("0123456789abcdef") for _ in range(40))
 
 
-def _make_uuid(prefix: str, index: int) -> uuid.UUID:
-    return uuid.uuid5(uuid.NAMESPACE_DNS, f"blockchain-ai::{prefix}::{index}")
+def _make_id(prefix: str, index: int) -> int:
+    import hashlib
+    s = f"blockchain-ai::{prefix}::{index}"
+    return int(hashlib.md5(s.encode()).hexdigest()[:14], 16)
 
 
 def _pick(sequence, index: int):
@@ -117,10 +120,6 @@ def _create_test_accounts(now: datetime) -> list[tuple[str, str, str, str, str, 
     ]
 
     return test_accounts
-
-
-def _pick(sequence, index: int):
-    return sequence[index % len(sequence)]
 
 
 def _role_for_index(index: int) -> str:
@@ -249,7 +248,7 @@ def _build_seed_users(user_count: int, rng: random.Random, now: datetime) -> lis
         password_hash = "demo123"
 
         user = User(
-            id=_make_uuid("user", index),
+            id=_make_id("user", index),
             username=f"demo_user_{index:05d}",
             email=f"demo_user_{index:05d}@local.test",
             password_hash=password_hash,
@@ -263,7 +262,7 @@ def _build_seed_users(user_count: int, rng: random.Random, now: datetime) -> lis
         )
 
         wallet = Wallet(
-            id=_make_uuid("wallet", index),
+            id=_make_id("wallet", index),
             address=address,
             label=label,
             entity_type="User",
@@ -319,16 +318,16 @@ def _build_transactions(seed_rows: list[SeedUser], tx_per_user: int, rng: random
             case_status = case_status_opts[status_seed]
 
             # Demonstrate assigned cases (Analyst ID from DB audit)
-            ANALYST_ID_STR = "7e46beb1-7c03-5ecf-8f8c-a5fb363f73d2"
+            ANALYST_ID = _make_id("user_test", hash("analyst") % 1000)
             assigned_to = None
             if index % 7 == 0:
-                assigned_to = ANALYST_ID_STR
+                assigned_to = ANALYST_ID
             elif index % 13 == 0:
                 assigned_to = seed.user.id
 
             transactions.append(
                 Transaction(
-                    id=_make_uuid("tx", index * tx_per_user + tx_index),
+                    id=_make_id("tx", index * tx_per_user + tx_index),
                     tx_hash=tx_hash[:66],
                     from_address=source,
                     to_address=target,
@@ -363,6 +362,23 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             engine.dispose()
             _cleanup_sqlite_files(sqlite_path)
 
+    if RESET_DB:
+        print("⚠ RESET_DB is TRUE. Performing deep clean of the database...")
+        with engine.connect() as conn:
+            # We use CASCADE to drop tables that might have foreign keys from other services
+            conn.execute(text("DROP SCHEMA public CASCADE"))
+            conn.execute(text("CREATE SCHEMA public"))
+            conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
+            # Ensure the database user has permissions (usually it does as owner, but for safety)
+            user = DATABASE_URL.split(":")[1].replace("//", "")
+            if "@" in user: # Handle postgresql://user:pass@host...
+                 user = DATABASE_URL.split("//")[1].split(":")[0]
+            
+            # Note: In many local setups, 'public' is enough, but some envs might need explicit grants
+            # conn.execute(text(f"GRANT ALL ON SCHEMA public TO {user}"))
+            conn.commit()
+        print("✓ Database schema wiped and recreated.")
+
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
@@ -370,22 +386,25 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
     rng = random.Random(RANDOM_SEED)
 
     try:
-        tables_to_clear = [
-            "alerts", "audit_logs", "blocked_transfers", "diagnostic_events",
-            "feature_store_configs", "model_registry", "node_endpoints",
-            "notification_events", "pipeline_metrics", "policy_rules",
-            "transaction_cases", "transactions", "wallets", "users", "token_transfers",
-            "risk_assessments", "user_warnings", "blacklist", "feedback_labels"
-        ]
-        db.commit() # Ensure clean state
-        for table in tables_to_clear:
-            try:
-                db.execute(text(f"DELETE FROM {table}"))
-                db.commit()
-                print(f"✓ Cleared {table}")
-            except Exception as e:
-                db.rollback()
-                print(f"⚠ Could not clear {table}: {e}")
+        if RESET_DB:
+            # We already dropped and recreated, but let's keep the logging for consistency
+            print("✓ Database schema recreated.")
+            tables_to_clear = [
+                "alerts", "audit_logs", "blocked_transfers", "diagnostic_events",
+                "feature_store_configs", "model_registry", "node_endpoints",
+                "notification_events", "pipeline_metrics", "policy_rules",
+                "transaction_cases", "transactions", "wallets", "users", "token_transfers",
+                "risk_assessments", "user_warnings", "blacklist", "feedback_labels"
+            ]
+            db.commit() # Ensure clean state
+            for table in tables_to_clear:
+                try:
+                    db.execute(text(f"DELETE FROM {table}"))
+                    db.commit()
+                    print(f"✓ Cleared {table}")
+                except Exception as e:
+                    db.rollback()
+                    print(f"⚠ Could not clear {table}: {e}")
 
         existing_wallets = set()
         existing_users = set()
@@ -422,7 +441,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
         for username, email, password_hash, role, wallet_address, password_plain in test_accounts:
             if username not in existing_users:
                 test_user = User(
-                    id=_make_uuid("user_test", hash(username) % 1000),
+                    id=_make_id("user_test", hash(username) % 1000),
                     username=username,
                     email=email,
                     password_hash=password_hash,
@@ -435,7 +454,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
                     updated_at=now,
                 )
                 test_wallet = Wallet(
-                    id=_make_uuid("wallet_test", hash(username) % 1000),
+                    id=_make_id("wallet_test", hash(username) % 1000),
                     address=wallet_address,
                     label=f"Test {role.title()} Wallet",
                     entity_type="User",
@@ -465,8 +484,8 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
             funding_transactions.append(
                 Transaction(
-                    id=uuid.uuid4(),
-                    tx_hash=f"0xfund{uuid.uuid4().hex[:58]}"[:66],
+                    id=_make_id("funding", hash(username) % 1000),
+                    tx_hash=f"0xfund{hash(username) % 1000000000000000}"[:66],
                     from_address="0x0000000000000000000000000000000000000000",
                     to_address=wallet_address,
                     value=_eth(virtual_eth),
@@ -500,7 +519,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             rule_name = f"{rule_base} ({index})" if index >= len(policy_rule_templates) else rule_base
             policy_rules.append(
                 PolicyRule(
-                    id=_make_uuid("policy", index),
+                    id=_make_id("policy", index),
                     rule_name=rule_name,
                     description=f"Auto-generated policy rule for: {rule_name}",
                     min_risk_score=float(25.0 + (index % 70)),
@@ -541,13 +560,13 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
             model_registry.append(
                 ModelRegistry(
-                    id=_make_uuid("model", index),
+                    id=_make_id("model", index),
                     model_name=name,
                     version=version,
                     artifact_uri=f"s3://production-models/{name}/{version}.{framework}",
                     framework=framework,
                     is_active=is_active,
-                    promoted_by=promoted_by,
+                    promoted_by=None,
                     promoted_at=promoted_at,
                     created_at=now - timedelta(days=60 - index),
                 )
@@ -575,7 +594,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             seed = _pick(seed_rows, index)
             alerts.append(
                 Alert(
-                    id=_make_uuid("alert", index),
+                    id=_make_id("alert", index),
                     wallet_address=seed.wallet.address,
                     alert_type=_pick(alert_types, index),
                     severity=_pick(severities, index // 2), # Weight towards higher severities
@@ -596,7 +615,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             receiver = _pick(seed_rows, index + 7).wallet.address
             blocked_transfers.append(
                 BlockedTransfer(
-                    id=_make_uuid("blocked", index),
+                    id=_make_id("blocked", index),
                     sender_address=seed.wallet.address,
                     receiver_address=receiver,
                     amount=_eth(0.75 + (index % 8) * 0.5),
@@ -610,19 +629,19 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
             blocked_transfers = [blocked for blocked in blocked_transfers if blocked.id not in existing_blocked_ids]
 
-        # Use the specific analyst UUID to show 'Assigned to me' features
-        ANALYST_ID_STR = "7e46beb1-7c03-5ecf-8f8c-a5fb363f73d2"
+        # Use the specific analyst ID to show 'Assigned to me' features
+        ANALYST_ID = _make_id("user_test", hash("analyst") % 1000)
         case_states = ["PENDING", "VERIFIED", "FRAUD", "IGNORED"]
         case_actions = ["ASSIGN", "CONFIRM_FRAUD", "DISMISS", "ESCALATE"]
 
         for index in range(650):
             tx = _pick(transactions_to_add, index)
             # Assign 40% to the specific analyst user
-            assigned_user = ANALYST_ID_STR if (index % 10 < 4) else (users_to_add[index % len(users_to_add)].id if users_to_add else None)
+            assigned_user = ANALYST_ID if (index % 10 < 4) else (users_to_add[index % len(users_to_add)].id if users_to_add else None)
 
             transaction_cases.append(
                 TransactionCase(
-                    id=_make_uuid("case", index),
+                    id=_make_id("case", index),
                     tx_hash=tx.tx_hash,
                     analyst_id=assigned_user,
                     action=_pick(case_actions, index),
@@ -641,10 +660,10 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             entity_type = _pick(["wallet", "transaction", "policy", "user", "alert"], index)
             audit_logs.append(
                 AuditLog(
-                    id=_make_uuid("audit", index),
+                    id=_make_id("audit", index),
                     action_type=action_type,
                     entity_type=entity_type,
-                    entity_id=seed.wallet.id if entity_type == "wallet" else f"entity_{index}",
+                    entity_id=_make_id("wallet", index) if entity_type == "wallet" else index,
                     user_identifier=seed.user.username,
                     ip_address=f"10.0.{index % 16}.{(index % 200) + 1}",
                     details={"action": action_type, "target": entity_type, "risk": seed.wallet.risk_score},
@@ -658,7 +677,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             seed = _pick(seed_rows, index)
             notifications.append(
                 NotificationEvent(
-                    id=_make_uuid("notification", index),
+                    id=_make_id("notification", index),
                     channel=_pick(["slack", "email", "webhook", "telegram"], index),
                     recipient=f"security-ops-{index:03d}@local.test",
                     severity=_pick(["LOW", "MEDIUM", "HIGH", "CRITICAL"], index),
@@ -698,7 +717,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
             feature_configs.append(
                 FeatureStoreConfig(
-                    id=_make_uuid("feature", index),
+                    id=_make_id("feature", index),
                     feature_key=feature_key,
                     enabled=index % 5 != 0,
                     expression=_pick(expressions, index),
@@ -717,7 +736,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
             node_endpoints.append(
                 NodeEndpoint(
-                    id=_make_uuid("node", index),
+                    id=_make_id("node", index),
                     provider_name=_pick(providers, index),
                     chain=_pick(chains, index),
                     endpoint_url=f"https://{_pick(chains, index)}-{index}.local-mesh.io/rpc",
@@ -783,9 +802,9 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             typ, source, endpoint, status_code, msg_tpl = log_template
 
             message = msg_tpl.format(
-                uuid=_make_uuid("session", index).hex[:8],
+                uuid=_make_id("session", index),
                 block=18000000 + index,
-                tx=f"0x{_make_uuid('tx_log', index).hex[:10]}",
+                tx=f"0x{_make_id('tx_log', index):x}"[:10],
                 count=rng.randint(1, 15),
                 size=rng.randint(100, 2500),
                 model=f"v{rng.randint(1, 3)}.{rng.randint(0, 9)}",
@@ -793,7 +812,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
 
             diagnostic_events.append(
                 DiagnosticEvent(
-                    id=_make_uuid("diag", index),
+                    id=_make_id("diag", index),
                     log_type=typ,
                     message=message,
                     details={"source": source, "index": index, "env": "local-demo"},
@@ -825,7 +844,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
         if not existing_blacklist:
             db.add(
                 Blacklist(
-                    id=_make_uuid("blacklist", 1),
+                    id=_make_id("blacklist", 1),
                     address="0xdead1000000000000000000000000000000dead",
                     category="scam",
                     source="Internal Detection",

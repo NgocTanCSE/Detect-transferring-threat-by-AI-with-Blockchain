@@ -1,14 +1,21 @@
-﻿{
-    "main":  "src/index.js",
-    "name":  "transfer-service",
-    "version":  "1.0.0",
-    "dependencies":  {
-                         "pg":  "^8.11.3",
-                         "axios":  "^1.6.2",
-                         "express":  "^4.18.2",
-                         "amqplib":  "^0.10.3"
-                     },
-    "scripts":  {
-                    "start":  "node src/index.js"
-                }
+{
+  "name": "@blockchain-ai/transfer-service",
+  "version": "1.0.0",
+  "description": "Transfer Service - Protected transaction processing and risk prevention",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.10.0",
+    "dotenv": "^16.0.3",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
 }

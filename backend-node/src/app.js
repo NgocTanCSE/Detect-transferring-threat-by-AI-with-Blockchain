@@ -4,7 +4,6 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const { port, frontendUrl } = require('./config/env');
 const { forwardRequest } = require('./services/upstreamProxyService');
-const alertMonitorService = require('./services/alertMonitorService');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,20 +43,10 @@ connectDb();
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
-const alertRoutes = require('./routes/alertRoutes');
-const complianceRoutes = require('./routes/complianceRoutes');
 
 // Orchestrated routes (support both with and without /api prefix).
 app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/ops/compliance', complianceRoutes);
-app.use('/api/ops/compliance', complianceRoutes);
-app.use('/alerts', alertRoutes);
-app.use('/api/alerts', alertRoutes);
-app.use('/ops/security/alerts-summary', alertRoutes); // Alias for compatibility
-app.use('/api/ops/security/alerts-summary', alertRoutes);
-
-alertMonitorService.start(io);
 
 // Fallback proxy: forward all unhandled routes to Python backend.
 app.use(async (req, res) => {
@@ -85,7 +74,6 @@ server.listen(port, () => {
 });
 
 const shutdown = () => {
-  alertMonitorService.stop();
   process.exit(0);
 };
 

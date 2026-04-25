@@ -1,13 +1,20 @@
-﻿{
-    "main":  "src/index.js",
-    "name":  "compliance-service",
-    "version":  "1.0.0",
-    "dependencies":  {
-                         "pg":  "^8.11.3",
-                         "express":  "^4.18.2",
-                         "amqplib":  "^0.10.3"
-                     },
-    "scripts":  {
-                    "start":  "node src/index.js"
-                }
+{
+  "name": "@blockchain-ai/compliance-service",
+  "version": "1.0.0",
+  "description": "Compliance Service - Governance and AML Policy Management",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.11.3",
+    "dotenv": "^16.0.3",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
 }

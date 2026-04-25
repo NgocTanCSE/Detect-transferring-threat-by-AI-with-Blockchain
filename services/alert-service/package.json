@@ -1,4 +1,4 @@
-﻿{
+{
   "main": "src/index.js",
   "name": "alert-service",
   "version": "1.0.0",
@@ -10,6 +10,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node src/index.js"
+    "dev": "node src/index.js",
+    "seed": "node src/seed.js"
   }
 }

@@ -1,12 +1,14 @@
-﻿{
+{
     "main":  "src/index.js",
     "name":  "event-service",
     "version":  "1.0.0",
-    "dependencies":  {
-                         "express":  "^4.18.2",
-                         "socket.io":  "^4.7.2",
-                         "amqplib":  "^0.10.3"
-                     },
+    "dependencies": {
+        "express": "^4.18.2",
+        "socket.io": "^4.7.2",
+        "amqplib": "^0.10.3",
+        "dotenv": "^16.4.5",
+        "cors": "^2.8.5"
+    },
     "scripts":  {
                     "start":  "node src/index.js"
                 }

@@ -1,5 +1,178 @@
-﻿const express = require('express');
+/**
+ * Blockchain AI - Compliance Service
+ * Microservice for governance and AML policy management
+ */
+
+const express = require('express');
+const { Pool } = require('pg');
+const cors = require('cors');
+const helmet = require('helmet');
+require('dotenv').config();
+
 const app = express();
-const PORT = 3006;
-app.get('/health', (req, res) => res.json({ status: 'ok', service: 'compliance-service' }));
-app.listen(PORT, () => console.log('compliance-service running on port ' + PORT));
+const PORT = process.env.PORT || 3006;
+
+// Database connection
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
+
+// ==========================================
+// ROUTES
+// ==========================================
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'compliance-service', timestamp: new Date() });
+});
+
+// Ready check
+app.get('/ready', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ready', service: 'compliance-service' });
+  } catch (error) {
+    res.status(503).json({ status: 'not ready', error: error.message });
+  }
+});
+
+// Get all policy rules
+app.get('/compliance', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM policy_rules ORDER BY priority ASC, created_at DESC'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching policy rules:', error);
+    res.status(500).json({ error: 'Failed to fetch policy rules' });
+  }
+});
+
+// Create new policy rule
+app.post('/compliance', async (req, res) => {
+  const {
+    rule_name,
+    description,
+    min_risk_score,
+    block_blacklisted,
+    block_suspended,
+    notify_on_block,
+    priority,
+    is_active,
+    created_by
+  } = req.body;
+
+  if (!rule_name) {
+    return res.status(400).json({ error: 'rule_name is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO policy_rules (
+        rule_name, description, min_risk_score, block_blacklisted, 
+        block_suspended, notify_on_block, priority, is_active, 
+        created_by, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+      RETURNING *`,
+      [
+        rule_name,
+        description || '',
+        min_risk_score || 80.0,
+        block_blacklisted !== false,
+        block_suspended !== false,
+        notify_on_block !== false,
+        priority || 10,
+        is_active !== false,
+        created_by || null
+      ]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating policy rule:', error);
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Policy rule name already exists' });
+    }
+    res.status(500).json({ error: 'Failed to create policy rule' });
+  }
+});
+
+// Update policy rule
+app.put('/compliance/:id', async (req, res) => {
+  const { id } = req.params;
+  const {
+    rule_name,
+    description,
+    min_risk_score,
+    block_blacklisted,
+    block_suspended,
+    notify_on_block,
+    priority,
+    is_active
+  } = req.body;
+
+  try {
+    // Check if exists
+    const checkResult = await pool.query('SELECT * FROM policy_rules WHERE id = $1', [id]);
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Policy rule not found' });
+    }
+
+    const current = checkResult.rows[0];
+
+    const result = await pool.query(
+      `UPDATE policy_rules SET
+        rule_name = $1,
+        description = $2,
+        min_risk_score = $3,
+        block_blacklisted = $4,
+        block_suspended = $5,
+        notify_on_block = $6,
+        priority = $7,
+        is_active = $8,
+        updated_at = NOW()
+      WHERE id = $9
+      RETURNING *`,
+      [
+        rule_name || current.rule_name,
+        description !== undefined ? description : current.description,
+        min_risk_score !== undefined ? min_risk_score : current.min_risk_score,
+        block_blacklisted !== undefined ? block_blacklisted : current.block_blacklisted,
+        block_suspended !== undefined ? block_suspended : current.block_suspended,
+        notify_on_block !== undefined ? notify_on_block : current.notify_on_block,
+        priority !== undefined ? priority : current.priority,
+        is_active !== undefined ? is_active : current.is_active,
+        id
+      ]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating policy rule:', error);
+    res.status(500).json({ error: 'Failed to update policy rule' });
+  }
+});
+
+// Delete policy rule
+app.delete('/compliance/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM policy_rules WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Policy rule not found' });
+    }
+    res.json({ message: 'Policy rule deleted', id });
+  } catch (error) {
+    console.error('Error deleting policy rule:', error);
+    res.status(500).json({ error: 'Failed to delete policy rule' });
+  }
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Compliance Service running on port ${PORT}`);
+});

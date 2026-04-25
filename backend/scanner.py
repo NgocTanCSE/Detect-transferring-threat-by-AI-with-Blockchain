@@ -24,6 +24,8 @@ from app.models.models import Wallet, Blacklist, Alert
 from app.services.ai_engine import MultiAgentDetectionEngine
 from app.services.persistence import persist_transactions
 from blockchain_client import fetch_wallet_history
+import requests
+import os
 
 # Structured logging configuration
 logging.basicConfig(
@@ -39,6 +41,9 @@ ALERT_RISK_THRESHOLD = 80
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 1.0
 MAX_RETRY_DELAY = 30.0
+
+# Microservice URLs
+ALERT_SERVICE_URL = os.getenv("ALERT_SERVICE_URL", "http://alert-service:3003")
 
 # Graceful shutdown flag
 _shutdown_requested = False
@@ -167,7 +172,32 @@ def create_alert(session: Session, wallet_address: str, risk_score: float, risk_
             logger.info(f"WALLET_REVIEW | address={wallet_address} | risk={risk_score}%")
 
     session.commit()
-    logger.warning(f"ALERT_CREATED | address={wallet_address} | risk={risk_score}% | level={risk_level}")
+    logger.warning(f"ALERT_CREATED_LOCAL | address={wallet_address} | risk={risk_score}% | level={risk_level}")
+
+    # PUSH TO MICROSERVICE
+    try:
+        alert_payload = {
+            "wallet_address": wallet_address,
+            "alert_type": "HIGH_RISK_DETECTION",
+            "severity": risk_level,
+            "message": f"Scanner detected suspicious activity from wallet {wallet_address}",
+            "risk_score": float(risk_score),
+            "chain_id": "ethereum"  # Default for this scanner
+        }
+        
+        response = requests.post(
+            f"{ALERT_SERVICE_URL}/alerts",
+            json=alert_payload,
+            timeout=5
+        )
+        
+        if response.status_code == 201:
+            logger.info(f"ALERT_SYNC_SUCCESS | alert_service received the alert")
+        else:
+            logger.error(f"ALERT_SYNC_FAILED | status={response.status_code} | msg={response.text}")
+            
+    except Exception as e:
+        logger.error(f"ALERT_SYNC_ERROR | could not connect to alert-service: {e}")
 
 
 @retry_with_backoff(max_retries=2, exceptions=(Exception,))

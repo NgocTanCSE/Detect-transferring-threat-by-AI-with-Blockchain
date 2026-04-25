@@ -25,7 +25,7 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     username = Column(String(100), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
@@ -48,7 +48,7 @@ class TokenTransfer(Base):
 
     __tablename__ = "token_transfers"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     transaction_hash = Column(String(66), nullable=False, index=True)
     block_number = Column(BigInteger, nullable=False)
     log_index = Column(BigInteger, nullable=False)
@@ -73,7 +73,7 @@ class Wallet(Base):
 
     __tablename__ = "wallets"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     address = Column(String(255), unique=True, index=True, nullable=False)
     label = Column(String(255), nullable=True)
     entity_type = Column(String(50), default='Unknown')
@@ -103,7 +103,7 @@ class Transaction(Base):
 
     __tablename__ = "transactions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     tx_hash = Column(String(66), unique=True, index=True, nullable=False)
     from_address = Column(String(255), index=True, nullable=False)
     to_address = Column(String(255), index=True, nullable=True)
@@ -116,7 +116,7 @@ class Transaction(Base):
     status = Column(SmallInteger, default=1)  # 1=success, 0=failed
     normalized_risk_score = Column(DECIMAL(3, 2), nullable=True)  # 0.00 - 1.00
     case_status = Column(String(20), nullable=False, default='PENDING', index=True)
-    assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    assigned_to = Column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_flagged = Column(Boolean, default=False)
     flag_reason = Column(String(100), nullable=True)
@@ -132,8 +132,8 @@ class RiskAssessment(Base):
 
     __tablename__ = "risk_assessments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    wallet_id = Column(UUID(as_uuid=True), ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
+    wallet_id = Column(BigInteger, ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False, index=True)
     score = Column(Float, nullable=False)
     risk_level = Column(String(20), nullable=False)
     details = Column(JSONB, nullable=True)
@@ -151,7 +151,7 @@ class Blacklist(Base):
 
     __tablename__ = "blacklist"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     address = Column(String(255), unique=True, index=True, nullable=False)
     category = Column(String(100), nullable=True)
     source = Column(String(255), nullable=True)
@@ -171,7 +171,7 @@ class Alert(Base):
 
     __tablename__ = "alerts"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     wallet_address = Column(String(255), index=True, nullable=False)
     alert_type = Column(String(100), nullable=False)
     severity = Column(String(20), nullable=False)
@@ -193,7 +193,7 @@ class BlockedTransfer(Base):
 
     __tablename__ = "blocked_transfers"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     sender_address = Column(String(255), nullable=False, index=True)
     receiver_address = Column(String(255), nullable=False, index=True)
     amount = Column(DECIMAL(78, 0), nullable=False)
@@ -201,7 +201,7 @@ class BlockedTransfer(Base):
     block_reason = Column(String(100), nullable=False)
     chain_id = Column(String(50), default='ethereum', index=True)
     user_warning_count = Column(Integer, default=0)
-    sender_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    sender_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)
     blocked_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     def __repr__(self) -> str:
@@ -213,8 +213,8 @@ class UserWarning(Base):
 
     __tablename__ = "user_warnings"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
     wallet_address = Column(String(255), nullable=False, index=True)
     target_address = Column(String(255), nullable=False)
     warning_type = Column(String(50), nullable=False)
@@ -234,10 +234,10 @@ class AuditLog(Base):
 
     __tablename__ = "audit_logs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     action_type = Column(String(50), nullable=False, index=True)
     entity_type = Column(String(50), nullable=False)
-    entity_id = Column(UUID(as_uuid=True), nullable=True)
+    entity_id = Column(BigInteger, nullable=True)
     user_identifier = Column(String(255), nullable=True)
     ip_address = Column(INET, nullable=True)
     details = Column(JSONB, nullable=True)
@@ -257,7 +257,7 @@ class FeedbackLabel(Base):
 
     __tablename__ = "feedback_labels"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     wallet_address = Column(String(255), nullable=False, index=True)
 
     # AI prediction at time of feedback
@@ -285,10 +285,10 @@ class TransactionCase(Base):
 
     __tablename__ = "transaction_cases"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     # Avoid FK to partitioned transactions table, which does not expose a compatible unique key for tx_hash.
     tx_hash = Column(String(66), nullable=False, index=True)
-    analyst_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    analyst_id = Column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
     action = Column(String(20), nullable=False)  # ASSIGN, CONFIRM_FRAUD, DISMISS, ESCALATE
     state = Column(String(20), nullable=False, default='PENDING')  # PENDING, VERIFIED, FRAUD, IGNORED
     note = Column(Text, nullable=True)
@@ -304,7 +304,7 @@ class NodeEndpoint(Base):
 
     __tablename__ = "node_endpoints"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     provider_name = Column(String(100), nullable=False, index=True)
     chain = Column(String(50), nullable=False, index=True)
     endpoint_url = Column(String(1024), nullable=False)
@@ -326,7 +326,7 @@ class PipelineMetric(Base):
 
     __tablename__ = "pipeline_metrics"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     chain = Column(String(50), nullable=False, index=True)
     block_number = Column(BigInteger, nullable=True, index=True)
     throughput_tps = Column(DECIMAL(10, 2), nullable=True)
@@ -343,11 +343,11 @@ class FeatureStoreConfig(Base):
 
     __tablename__ = "feature_store_configs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     feature_key = Column(String(100), nullable=False, unique=True, index=True)
     enabled = Column(Boolean, default=True, index=True)
     expression = Column(Text, nullable=True)
-    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    owner_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -360,13 +360,13 @@ class ModelRegistry(Base):
 
     __tablename__ = "model_registry"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     model_name = Column(String(100), nullable=False, index=True)
     version = Column(String(50), nullable=False, index=True)
     artifact_uri = Column(String(1024), nullable=False)
     framework = Column(String(20), nullable=False, default='pkl')  # pkl, onnx, pt
     is_active = Column(Boolean, default=False, index=True)
-    promoted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    promoted_by = Column(BigInteger, ForeignKey("users.id"), nullable=True)
     promoted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -379,7 +379,7 @@ class PolicyRule(Base):
 
     __tablename__ = "policy_rules"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     rule_name = Column(String(120), nullable=False, unique=True, index=True)
     description = Column(Text, nullable=True)
     min_risk_score = Column(Float, nullable=False, default=80.0)
@@ -388,7 +388,7 @@ class PolicyRule(Base):
     notify_on_block = Column(Boolean, default=True)
     priority = Column(Integer, nullable=False, default=100)
     is_active = Column(Boolean, default=True, index=True)
-    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_by = Column(BigInteger, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -401,7 +401,7 @@ class NotificationEvent(Base):
 
     __tablename__ = "notification_events"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     channel = Column(String(30), nullable=False, index=True)  # slack, telegram, email, webhook
     recipient = Column(String(255), nullable=False)
     severity = Column(String(20), nullable=False, default="MEDIUM", index=True)
@@ -420,7 +420,7 @@ class DiagnosticEvent(Base):
 
     __tablename__ = "diagnostic_events"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(BigInteger, primary_key=True, index=True)
     log_type = Column(String(30), nullable=False, index=True)
     message = Column(Text, nullable=False)
     details = Column(JSONB, nullable=True)
