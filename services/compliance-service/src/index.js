@@ -7,6 +7,10 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const helmet = require('helmet');
+const helmet = require('helmet');
+const { v4: uuidv4 } = require('uuid');
+const morgan = require('morgan');
+const logger = require('./utils/logger');
 require('dotenv').config();
 
 const app = express();
@@ -16,11 +20,24 @@ const PORT = process.env.PORT || 3006;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
-
-// Middleware
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+// Correlation ID Middleware
+app.use((req, res, next) => {
+  const correlationId = req.headers['x-correlation-id'] || uuidv4();
+  req.correlationId = correlationId;
+  res.setHeader('x-correlation-id', correlationId);
+  next();
+});
+
+// Logging middleware (Morgan)
+app.use(morgan(':method :url :status :res[content-length] - :response-time ms', {
+  stream: {
+    write: (message) => logger.info(message.trim())
+  }
+}));
 
 const queue = require('./services/queue');
 

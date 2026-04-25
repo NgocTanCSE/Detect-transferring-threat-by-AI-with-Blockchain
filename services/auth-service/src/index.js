@@ -14,6 +14,11 @@ const express = require('express');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcryptjs = require('bcryptjs');
+const helmet = require('helmet');
+const cors = require('cors');
+const { v4: uuidv4 } = require('uuid');
+const morgan = require('morgan');
+const logger = require('./utils/logger');
 require('dotenv').config();
 
 const PORT = process.env.PORT || 3001;
@@ -22,6 +27,26 @@ const PORT = process.env.PORT || 3001;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
+
+const authApp = express();
+authApp.use(helmet());
+authApp.use(cors());
+authApp.use(express.json());
+
+// Correlation ID Middleware
+authApp.use((req, res, next) => {
+  const correlationId = req.headers['x-correlation-id'] || uuidv4();
+  req.correlationId = correlationId;
+  res.setHeader('x-correlation-id', correlationId);
+  next();
+});
+
+// Logging middleware (Morgan)
+authApp.use(morgan(':method :url :status :res[content-length] - :response-time ms', {
+  stream: {
+    write: (message) => logger.info(message.trim())
+  }
+}));
 
 // ==========================================
 // CONSTANTS
@@ -267,13 +292,24 @@ function createApp(dbPool = pool) {
 
       // Create user
       const result = await dbPool.query(
-        `INSERT INTO users (username, email, password_hash, wallet_address, created_at)
-       VALUES ($1, $2, $3, $4, NOW())
+        `INSERT INTO users (username, email, password_hash, wallet_address, role, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
        RETURNING id, username, email, wallet_address, created_at`,
-        [username, email, passwordHash, wallet_address || null]
+        [username, email, passwordHash, wallet_address || null, 'user']
       );
 
       const user = result.rows[0];
+
+      // Also create a wallet entry for the user if wallet_address is provided
+      if (user.wallet_address) {
+        await dbPool.query(
+          `INSERT INTO wallets (address, account_status, risk_score, created_at)
+           VALUES ($1, 'active', 0, NOW())
+           ON CONFLICT (address) DO NOTHING`,
+          [user.wallet_address.toLowerCase()]
+        );
+      }
+
       const response = new UserResponse(
         user.id,
         user.username,
