@@ -4,6 +4,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
+const morgan = require('morgan');
+const logger = require('./utils/logger');
 require('dotenv').config();
 
 const app = express();
@@ -15,6 +18,14 @@ const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
 app.use(helmet());
 app.use(cors());
 
+// Correlation ID Middleware
+app.use((req, res, next) => {
+  const correlationId = req.headers['x-correlation-id'] || uuidv4();
+  req.correlationId = correlationId;
+  res.setHeader('x-correlation-id', correlationId);
+  next();
+});
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -23,6 +34,13 @@ const limiter = rateLimit({
 });
 
 app.use(limiter);
+
+// Logging middleware (Morgan)
+app.use(morgan(':method :url :status :res[content-length] - :response-time ms', {
+  stream: {
+    write: (message) => logger.info(message.trim())
+  }
+}));
 
 // Service URLs
 const SERVICES = {
@@ -36,16 +54,17 @@ const SERVICES = {
   ai: process.env.AI_SERVICE_URL || 'http://ai-service:8000',
 };
 
-// Proxy instances
+// Proxy instances with correlation ID forwarding
 const proxies = {};
 Object.entries(SERVICES).forEach(([key, url]) => {
   proxies[key] = httpProxy.createProxyServer({ target: url });
-});
-
-// Logging middleware
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  next();
+  
+  // Forward correlation ID to downstream services
+  proxies[key].on('proxyReq', (proxyReq, req) => {
+    if (req.correlationId) {
+      proxyReq.setHeader('x-correlation-id', req.correlationId);
+    }
+  });
 });
 
 // Health check
