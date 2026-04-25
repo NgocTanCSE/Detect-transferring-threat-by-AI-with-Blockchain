@@ -1,81 +1,57 @@
+/**
+ * ⚠️ DEPRECATED - Monolith Orchestrator
+ * 
+ * This service has been fully decomposed into microservices.
+ * All traffic should be routed through the API Gateway (port 8001).
+ * 
+ * Service map:
+ *   Auth       → auth-service:3001
+ *   Wallets    → wallet-service:3002
+ *   Alerts     → alert-service:3003
+ *   Transfers  → transfer-service:3004
+ *   Analytics  → analytics-service:3005
+ *   Compliance → compliance-service:3006
+ *   Events     → event-service:3007
+ *   AI/Core    → ai-service:8000
+ * 
+ * This stub remains only for backward compatibility during transition.
+ * It will be removed in the next release.
+ */
+
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-const { port, frontendUrl } = require('./config/env');
-const { forwardRequest } = require('./services/upstreamProxyService');
-
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: frontendUrl,
-    methods: ["GET", "POST"]
-  }
-});
+const PORT = process.env.PORT || 8001;
 
-app.use(cors());
 app.use(express.json());
 
-// Socket.io connection handling
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'deprecated',
+    message: 'This monolith orchestrator is deprecated. Use API Gateway at port 8001.',
+    service_map: {
+      gateway: 'http://api-gateway:8001',
+      auth: 'http://auth-service:3001',
+      wallet: 'http://wallet-service:3002',
+      alert: 'http://alert-service:3003',
+      transfer: 'http://transfer-service:3004',
+      analytics: 'http://analytics-service:3005',
+      compliance: 'http://compliance-service:3006',
+      event: 'http://event-service:3007',
+      ai: 'http://ai-service:8000',
+    },
+    timestamp: new Date().toISOString(),
   });
 });
 
-// Middleware to attach io to req for controllers
-app.use((req, res, next) => {
-  req.io = io;
-  next();
+// Catch-all: return deprecation notice for any route
+app.all('*', (req, res) => {
+  res.status(410).json({
+    error: 'Gone',
+    message: `This endpoint has been migrated. Use the API Gateway at port 8001.`,
+    path: req.path,
+  });
 });
 
-// Basic health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'Node.js Backend is healthy', timestamp: new Date() });
+app.listen(PORT, () => {
+  console.log(`⚠️  Deprecated Orchestrator stub on port ${PORT} — Use API Gateway instead`);
 });
-
-// Database connection
-const { connectDb } = require('./config/database');
-connectDb();
-
-// Routes
-const authRoutes = require('./routes/authRoutes');
-
-// Orchestrated routes (support both with and without /api prefix).
-app.use('/auth', authRoutes);
-app.use('/api/auth', authRoutes);
-
-// Fallback proxy: forward all unhandled routes to Python backend.
-app.use(async (req, res) => {
-  if (req.path === '/health') {
-    return res.status(404).json({ error: 'Not found' });
-  }
-
-  try {
-    const response = await forwardRequest(req);
-
-    const contentType = response.headers['content-type'];
-    if (contentType) {
-      res.setHeader('content-type', contentType);
-    }
-
-    return res.status(response.status).send(response.data);
-  } catch (error) {
-    console.error('Proxy forwarding failed:', error.message);
-    return res.status(502).json({ error: 'Upstream AI service unavailable' });
-  }
-});
-
-server.listen(port, () => {
-  console.log(`Node.js Orchestrator running on port ${port}`);
-});
-
-const shutdown = () => {
-  process.exit(0);
-};
-
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
