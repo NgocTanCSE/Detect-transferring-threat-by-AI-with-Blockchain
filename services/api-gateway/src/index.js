@@ -14,7 +14,6 @@ const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
 // Middleware
 app.use(helmet());
 app.use(cors());
-app.use(express.json());
 
 // Rate limiting
 const limiter = rateLimit({
