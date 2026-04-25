@@ -186,7 +186,7 @@ services:
       PORT: 3002
       DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:3002/health" ]
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3002/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -214,7 +214,7 @@ services:
       ANALYTICS_SERVICE_URL: http://analytics-service:3005
       ALERT_SERVICE_URL: http://alert-service:3003
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:3004/health" ]
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3004/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -238,7 +238,7 @@ services:
       DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
       ALCHEMY_API_KEY: ${ALCHEMY_API_KEY}
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:3005/health" ]
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3005/health || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -264,7 +264,7 @@ services:
       DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:3006/health" ]
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3006/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -287,7 +287,7 @@ services:
       PORT: 3007
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:3007/health" ]
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3007/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
       timeout: 5s
       retries: 5

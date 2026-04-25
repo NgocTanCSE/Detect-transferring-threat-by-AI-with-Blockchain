@@ -8,11 +8,32 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const helmet = require('helmet');
 const axios = require('axios');
+const CircuitBreaker = require('opossum');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3004;
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://backend-python:8000';
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://ai-service:8000';
+
+// Circuit Breaker options
+const breakerOptions = {
+  timeout: 3000, // If the name server takes longer than 3 seconds, trigger a failure
+  errorThresholdPercentage: 50, // When 50% of requests fail, open the circuit
+  resetTimeout: 10000 // After 10 seconds, try again
+};
+
+// Function to call AI service
+const analyzeAddress = async (address) => {
+  const response = await axios.get(`${AI_SERVICE_URL}/analyze/${address}`);
+  return response.data;
+};
+
+// Create the breaker
+const aiBreaker = new CircuitBreaker(analyzeAddress, breakerOptions);
+aiBreaker.fallback((address) => {
+  console.warn(`Circuit open or AI service failed for ${address}. Using default low risk.`);
+  return { risk_score: 0.0, account_status: 'active', ai_insight: 'AI Analysis unavailable (Circuit Breaker)' };
+});
 
 // Database connection
 const pool = new Pool({
@@ -94,14 +115,14 @@ app.post('/protected-transfer', async (req, res) => {
       receiverRisk = parseFloat(receiverRes.rows[0].risk_score || 0);
       receiverStatus = receiverRes.rows[0].account_status;
     } else {
-      // Fallback: Ask AI service to analyze if not in DB
+      // 3.1 Use AI service with Circuit Breaker for unknown wallets
       try {
-        // We'll simulate or call the AI engine if available
-        // For now, let's assume unknown wallets are low risk (0) to avoid blocking everything
-        // unless we want to call the real AI service.
-        // receiverRisk = 0.0; 
+        const aiData = await aiBreaker.fire(normalizedReceiver);
+        receiverRisk = parseFloat(aiData.risk_score || 0);
+        receiverStatus = aiData.account_status || 'unknown';
       } catch (e) {
-        console.error('AI analysis failed:', e);
+        console.error('AI analysis via breaker failed:', e.message);
+        // Risk remains 0.0 as initialized
       }
     }
 
