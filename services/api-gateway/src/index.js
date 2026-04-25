@@ -8,6 +8,8 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 8001;
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key_here_change_in_production';
+const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
 
 // Middleware
 app.use(helmet());
@@ -78,10 +80,22 @@ app.get('/ready', async (req, res) => {
 
 // Auth middleware
 const verifyToken = (req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   const token = req.headers['authorization']?.split(' ')[1];
 
   // Public routes
-  const publicRoutes = ['/auth/register', '/auth/login'];
+  const publicRoutes = [
+    '/health',
+    '/ready',
+    '/auth/register',
+    '/auth/login',
+    '/auth/validate',
+    '/auth/health',
+    '/auth/ready',
+  ];
   if (publicRoutes.some((route) => req.path.startsWith(route))) {
     return next();
   }
@@ -91,8 +105,7 @@ const verifyToken = (req, res, next) => {
   }
 
   try {
-    // Verify token with API Gateway
-    const decoded = jwt.decode(token); // In production, verify with secret
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
     req.user = decoded;
     next();
   } catch (error) {
@@ -106,8 +119,6 @@ app.use(verifyToken);
 const ROUTE_MAP = {
   // Auth Service (3001)
   '/auth': 'auth',
-  '/register': 'auth',
-  '/login': 'auth',
 
   // Wallet Service (3002)
   '/wallets': 'wallet',
@@ -157,6 +168,12 @@ app.all('*', (req, res) => {
 
   const proxy = proxies[service];
   const target = SERVICES[service];
+
+  // Auth service uses internal paths like /register and /login.
+  // Gateway exposes them as /auth/register and /auth/login.
+  if (service === 'auth' && req.url.startsWith('/auth')) {
+    req.url = req.url.replace(/^\/auth/, '') || '/';
+  }
 
   console.log(`→ Proxying ${req.method} ${req.path} to ${service} (${target})`);
 

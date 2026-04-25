@@ -16,15 +16,12 @@ const jwt = require('jsonwebtoken');
 const bcryptjs = require('bcryptjs');
 require('dotenv').config();
 
-const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
-
-app.use(express.json());
 
 // ==========================================
 // CONSTANTS
@@ -209,186 +206,202 @@ async function requireAuth(req, res, next) {
   next();
 }
 
-// ==========================================
-// ENDPOINTS
-// ==========================================
+function createApp(dbPool = pool) {
+  const authApp = express();
+  authApp.use(express.json());
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'auth-service' });
-});
+  // ==========================================
+  // ENDPOINTS
+  // ==========================================
 
-// Ready check - verify database connection
-app.get('/ready', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({ status: 'ready', service: 'auth-service' });
-  } catch (error) {
-    res.status(503).json({ status: 'not ready', error: error.message });
-  }
-});
+  // Health check
+  authApp.get('/health', (req, res) => {
+    res.json({ status: 'ok', service: 'auth-service' });
+  });
 
-// Register endpoint
-app.post('/register', async (req, res) => {
-  try {
-    const { username, email, password, wallet_address } = req.body;
-
-    // Validation
-    if (!username || !email || !password) {
-      return res.status(400).json({ error: 'Username, email, and password are required' });
+  // Ready check - verify database connection
+  authApp.get('/ready', async (req, res) => {
+    try {
+      await dbPool.query('SELECT 1');
+      res.json({ status: 'ready', service: 'auth-service' });
+    } catch (error) {
+      res.status(503).json({ status: 'not ready', error: error.message });
     }
+  });
 
-    // Spam detection
-    const usernameCheck = checkUsername(username);
-    if (usernameCheck.suspicious) {
-      return res.status(400).json({ error: usernameCheck.reason });
-    }
+  // Register endpoint
+  authApp.post('/register', async (req, res) => {
+    try {
+      const { username, email, password, wallet_address } = req.body;
 
-    const emailCheck = checkEmail(email);
-    if (emailCheck.suspicious) {
-      return res.status(400).json({ error: emailCheck.reason });
-    }
+      // Validation
+      if (!username || !email || !password) {
+        return res.status(400).json({ error: 'Username, email, and password are required' });
+      }
 
-    // Check username uniqueness
-    const existingUsername = await getUserByUsername(pool, username);
-    if (existingUsername) {
-      return res.status(409).json({ error: 'Username already exists' });
-    }
+      // Spam detection
+      const usernameCheck = checkUsername(username);
+      if (usernameCheck.suspicious) {
+        return res.status(400).json({ error: usernameCheck.reason });
+      }
 
-    // Check email uniqueness
-    const existingEmail = await getUserByEmail(pool, email);
-    if (existingEmail) {
-      return res.status(409).json({ error: 'Email already registered' });
-    }
+      const emailCheck = checkEmail(email);
+      if (emailCheck.suspicious) {
+        return res.status(400).json({ error: emailCheck.reason });
+      }
 
-    // Hash password
-    const passwordHash = await hashPassword(password);
+      // Check username uniqueness
+      const existingUsername = await getUserByUsername(dbPool, username);
+      if (existingUsername) {
+        return res.status(409).json({ error: 'Username already exists' });
+      }
 
-    // Create user
-    const result = await pool.query(
-      `INSERT INTO users (username, email, password_hash, wallet_address, created_at)
+      // Check email uniqueness
+      const existingEmail = await getUserByEmail(dbPool, email);
+      if (existingEmail) {
+        return res.status(409).json({ error: 'Email already registered' });
+      }
+
+      // Hash password
+      const passwordHash = await hashPassword(password);
+
+      // Create user
+      const result = await dbPool.query(
+        `INSERT INTO users (username, email, password_hash, wallet_address, created_at)
        VALUES ($1, $2, $3, $4, NOW())
        RETURNING id, username, email, wallet_address, created_at`,
-      [username, email, passwordHash, wallet_address || null]
-    );
+        [username, email, passwordHash, wallet_address || null]
+      );
 
-    const user = result.rows[0];
-    const response = new UserResponse(
-      user.id,
-      user.username,
-      user.email,
-      user.wallet_address,
-      user.created_at
-    );
+      const user = result.rows[0];
+      const response = new UserResponse(
+        user.id,
+        user.username,
+        user.email,
+        user.wallet_address,
+        user.created_at
+      );
 
-    res.status(201).json(response);
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Registration failed', detail: error.message });
-  }
-});
-
-// Login endpoint
-app.post('/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required' });
+      res.status(201).json(response);
+    } catch (error) {
+      console.error('Registration error:', error);
+      res.status(500).json({ error: 'Registration failed', detail: error.message });
     }
-
-    // Get user
-    const user = await getUserByUsername(pool, username);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Verify password
-    const passwordValid = await verifyPassword(password, user.password_hash);
-    if (!passwordValid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Generate token
-    const token = generateToken(user.id, user.username, user.email);
-
-    res.json(new TokenResponse(token, 'bearer'));
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed', detail: error.message });
-  }
-});
-
-// Get current user profile
-app.get('/profile', requireAuth, async (req, res) => {
-  try {
-    const user = await getUserById(pool, req.user.sub);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json(new UserResponse(user.id, user.username, user.email, user.wallet_address, user.created_at));
-  } catch (error) {
-    console.error('Profile error:', error);
-    res.status(500).json({ error: 'Failed to get profile', detail: error.message });
-  }
-});
-
-// Refresh token
-app.post('/refresh', requireAuth, async (req, res) => {
-  try {
-    const user = await getUserById(pool, req.user.sub);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const token = generateToken(user.id, user.username, user.email);
-    res.json(new TokenResponse(token, 'bearer'));
-  } catch (error) {
-    console.error('Refresh error:', error);
-    res.status(500).json({ error: 'Token refresh failed', detail: error.message });
-  }
-});
-
-// Validate token
-app.post('/validate', (req, res) => {
-  try {
-    const token = extractToken(req);
-    if (!token) {
-      return res.status(401).json({ valid: false, error: 'No token provided' });
-    }
-
-    const { valid, payload, error } = verifyToken(token);
-
-    if (!valid) {
-      return res.json({ valid: false, error });
-    }
-
-    res.json({ valid: true, user: payload });
-  } catch (error) {
-    res.status(500).json({ valid: false, error: error.message });
-  }
-});
-
-// Logout (optional - for token blacklisting in future)
-app.post('/logout', requireAuth, (req, res) => {
-  // In production, add token to blacklist/revocation list
-  res.json({ message: 'Logged out successfully' });
-});
-
-// Error handling
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
   });
-});
+
+  // Login endpoint
+  authApp.post('/login', async (req, res) => {
+    try {
+      const { username, password } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password are required' });
+      }
+
+      // Get user
+      const user = await getUserByUsername(dbPool, username);
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      // Verify password
+      const passwordValid = await verifyPassword(password, user.password_hash);
+      if (!passwordValid) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      // Generate token
+      const token = generateToken(user.id, user.username, user.email);
+
+      res.json(new TokenResponse(token, 'bearer'));
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).json({ error: 'Login failed', detail: error.message });
+    }
+  });
+
+  // Get current user profile
+  authApp.get('/profile', requireAuth, async (req, res) => {
+    try {
+      const user = await getUserById(dbPool, req.user.sub);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      res.json(new UserResponse(user.id, user.username, user.email, user.wallet_address, user.created_at));
+    } catch (error) {
+      console.error('Profile error:', error);
+      res.status(500).json({ error: 'Failed to get profile', detail: error.message });
+    }
+  });
+
+  // Refresh token
+  authApp.post('/refresh', requireAuth, async (req, res) => {
+    try {
+      const user = await getUserById(dbPool, req.user.sub);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const token = generateToken(user.id, user.username, user.email);
+      res.json(new TokenResponse(token, 'bearer'));
+    } catch (error) {
+      console.error('Refresh error:', error);
+      res.status(500).json({ error: 'Token refresh failed', detail: error.message });
+    }
+  });
+
+  // Validate token
+  authApp.post('/validate', (req, res) => {
+    try {
+      const token = extractToken(req);
+      if (!token) {
+        return res.status(401).json({ valid: false, error: 'No token provided' });
+      }
+
+      const { valid, payload, error } = verifyToken(token);
+
+      if (!valid) {
+        return res.json({ valid: false, error });
+      }
+
+      res.json({ valid: true, user: payload });
+    } catch (error) {
+      res.status(500).json({ valid: false, error: error.message });
+    }
+  });
+
+  // Logout (optional - for token blacklisting in future)
+  authApp.post('/logout', requireAuth, (req, res) => {
+    // In production, add token to blacklist/revocation list
+    res.json({ message: 'Logged out successfully' });
+  });
+
+  // Error handling
+  authApp.use((err, req, res, next) => {
+    console.error('Error:', err);
+    res.status(err.status || 500).json({
+      error: err.message || 'Internal Server Error',
+    });
+  });
+
+  return authApp;
+}
+
+const runtimeApp = createApp(pool);
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`✓ Auth Service running on port ${PORT}`);
-  console.log(`  JWT Algorithm: ${JWT_ALGORITHM}`);
-  console.log(`  JWT Expiry: ${JWT_EXPIRY}`);
-});
+if (require.main === module) {
+  runtimeApp.listen(PORT, () => {
+    console.log(`Auth Service running on port ${PORT}`);
+    console.log(`  JWT Algorithm: ${JWT_ALGORITHM}`);
+    console.log(`  JWT Expiry: ${JWT_EXPIRY}`);
+  });
+}
 
-module.exports = app;
+module.exports = {
+  app: runtimeApp,
+  createApp,
+  verifyToken,
+  generateToken,
+};
