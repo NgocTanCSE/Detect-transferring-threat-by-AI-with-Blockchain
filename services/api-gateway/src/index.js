@@ -105,7 +105,7 @@ const verifyToken = (req, res, next) => {
 
   const token = req.headers['authorization']?.split(' ')[1];
 
-  // Public routes
+  // Public routes that don't require auth
   const publicRoutes = [
     '/health',
     '/ready',
@@ -115,7 +115,18 @@ const verifyToken = (req, res, next) => {
     '/auth/health',
     '/auth/ready',
   ];
+  // Routes where auth header is forwarded to downstream service (auth service handles its own verification)
+  const authPassthroughRoutes = [
+    '/auth/me',
+    '/auth/profile',
+    '/auth/refresh',
+    '/auth/logout',
+  ];
   if (publicRoutes.some((route) => req.path.startsWith(route))) {
+    return next();
+  }
+  // For auth passthrough routes, forward the request as-is (let the auth service verify the token)
+  if (authPassthroughRoutes.some((route) => req.path.startsWith(route))) {
     return next();
   }
 

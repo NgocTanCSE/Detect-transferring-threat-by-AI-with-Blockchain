@@ -153,11 +153,12 @@ async function verifyPassword(password, hash) {
   return bcryptjs.compare(password, hash);
 }
 
-function generateToken(userId, username, email) {
+function generateToken(userId, username, email, role) {
   const payload = {
     sub: userId,
     username,
     email,
+    role: role || 'user',
     iat: Math.floor(Date.now() / 1000),
   };
 
@@ -188,7 +189,7 @@ async function getUserById(db, userId) {
 
 async function getUserByUsername(db, username) {
   const result = await db.query(
-    'SELECT id, username, email, wallet_address, password_hash, created_at FROM users WHERE LOWER(username) = LOWER($1)',
+    'SELECT id, username, email, wallet_address, password_hash, role, is_active, warning_count, created_at FROM users WHERE LOWER(username) = LOWER($1)',
     [username]
   );
   return result.rows[0];
@@ -234,6 +235,7 @@ async function requireAuth(req, res, next) {
 function createApp(dbPool = pool) {
   const authApp = express();
   authApp.use(express.json());
+  authApp.use(express.urlencoded({ extended: true }));
 
   // ==========================================
   // ENDPOINTS
@@ -346,40 +348,69 @@ function createApp(dbPool = pool) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      // Generate token
-      const token = generateToken(user.id, user.username, user.email);
+      // Generate token (include role)
+      const token = generateToken(user.id, user.username, user.email, user.role);
 
-      res.json(new TokenResponse(token, 'bearer'));
+      res.json({
+        access_token: token,
+        token_type: 'bearer',
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          wallet_address: user.wallet_address,
+          warning_count: user.warning_count || 0,
+          is_active: user.is_active !== false,
+          created_at: user.created_at,
+        },
+      });
     } catch (error) {
       console.error('Login error:', error);
       res.status(500).json({ error: 'Login failed', detail: error.message });
     }
   });
 
-  // Get current user profile
-  authApp.get('/profile', requireAuth, async (req, res) => {
+  // Get current user profile (supports both /profile and /me)
+  const profileHandler = async (req, res) => {
     try {
-      const user = await getUserById(dbPool, req.user.sub);
+      const result = await dbPool.query(
+        'SELECT id, username, email, role, wallet_address, is_active, warning_count, created_at FROM users WHERE id = $1',
+        [req.user.sub]
+      );
+      const user = result.rows[0];
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      res.json(new UserResponse(user.id, user.username, user.email, user.wallet_address, user.created_at));
+      res.json({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        wallet_address: user.wallet_address,
+        warning_count: user.warning_count || 0,
+        is_active: user.is_active !== false,
+        created_at: user.created_at,
+      });
     } catch (error) {
       console.error('Profile error:', error);
       res.status(500).json({ error: 'Failed to get profile', detail: error.message });
     }
-  });
+  };
+  authApp.get('/profile', requireAuth, profileHandler);
+  authApp.get('/me', requireAuth, profileHandler);
 
   // Refresh token
   authApp.post('/refresh', requireAuth, async (req, res) => {
     try {
-      const user = await getUserById(dbPool, req.user.sub);
+      const result = await dbPool.query('SELECT id, username, email, role FROM users WHERE id = $1', [req.user.sub]);
+      const user = result.rows[0];
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      const token = generateToken(user.id, user.username, user.email);
+      const token = generateToken(user.id, user.username, user.email, user.role);
       res.json(new TokenResponse(token, 'bearer'));
     } catch (error) {
       console.error('Refresh error:', error);
