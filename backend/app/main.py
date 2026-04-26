@@ -191,6 +191,36 @@ def _is_account_support_question(question: str) -> bool:
     return any(term in text for term in support_terms)
 
 
+def _is_system_component_question(question: str) -> bool:
+    text = (question or "").lower()
+    system_terms = [
+        "thành phần", "thanh phan",
+        "hệ thống", "he thong",
+        "cấu trúc", "cau truc",
+        "architecture", "component",
+        "hoạt động", "hoat dong",
+        "frontend", "backend",
+        "ai engine", "công nghệ", "cong nghe"
+    ]
+    return any(term in text for term in system_terms)
+
+
+def _build_system_component_answer(question: str) -> str:
+    return (
+        "1) Giải thích các thành phần chính\n"
+        "- Frontend (Next.js): Giao diện người dùng hiện đại, sử dụng Tailwind CSS và Recharts để trực quan hóa dữ liệu rủi ro.\n"
+        "- Backend (FastAPI): Hệ thống xử lý trung tâm, quản lý dữ liệu blockchain, chạy các mô hình AI và tạo báo cáo.\n"
+        "- AI Detection Engine: Hệ thống đa tác vụ (Multi-agent) giúp phát hiện Rửa tiền, Thao túng thị trường và Lừa đảo.\n"
+        "- Database: Lưu trữ lịch sử giao dịch, cảnh báo và các bản chụp (snapshots) để báo cáo KPI.\n\n"
+        "2) Nhận định về cấu trúc vận hành\n"
+        "- Hệ thống hoạt động theo cơ chế Phân quyền (RBAC) với 4 vai trò: Admin hệ thống, AI Data Engineer, Security Analyst và Compliance Manager.\n"
+        "- Dữ liệu được tổng hợp theo thời gian thực từ blockchain và được AI chấm điểm rủi ro từ 0 đến 100.\n\n"
+        "3) Hành động đề xuất cho người dùng\n"
+        "- Bạn có thể vào mục 'Insights' để xem chi tiết từng ví hoặc mục 'Reporting' để xem hiệu quả kiểm soát.\n"
+        "- Nếu muốn thử nghiệm dữ liệu mới, bạn có thể chạy script `seed_wallets.py` trong backend."
+    )
+
+
 def _is_dashboard_analytics_question(question: str) -> bool:
     text = (question or "").lower()
     analytics_terms = [
@@ -893,9 +923,12 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         )
         normalized_answer = _normalize_assistant_answer(answer)
         if _is_low_quality_answer(normalized_answer):
-            normalized_answer = _build_account_support_answer(message) if _is_account_support_question(message) else (
-                "Mình chưa có đủ dữ liệu để trả lời chính xác câu hỏi này. Hãy cho mình biết bạn đang hỏi về đăng ký tài khoản, lỗi giao diện, hay dashboard vận hành để mình trả lời đúng hơn."
-            )
+            if _is_account_support_question(message):
+                normalized_answer = _build_account_support_answer(message)
+            elif _is_system_component_question(message):
+                normalized_answer = _build_system_component_answer(message)
+            else:
+                normalized_answer = "Mình chưa có đủ dữ liệu để trả lời chính xác câu hỏi này. Hãy cho mình biết bạn đang hỏi về các thành phần hệ thống, đăng ký tài khoản, hay dashboard vận hành để mình trả lời đúng hơn."
 
         raw_knowledge_sources = [
             {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}

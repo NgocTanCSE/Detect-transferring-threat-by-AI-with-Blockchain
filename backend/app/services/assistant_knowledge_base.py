@@ -54,6 +54,7 @@ def _chunk_text(text: str, max_chars: int = 900) -> List[str]:
 @lru_cache(maxsize=1)
 def _load_knowledge_base() -> List[KnowledgeSnippet]:
     documents = {
+        "SYSTEM_COMPONENTS.md": _read_text_file("SYSTEM_COMPONENTS.md"),
         "README.md": _read_text_file("README.md"),
         "DEPLOY_HF_SUPABASE.md": _read_text_file("DEPLOY_HF_SUPABASE.md"),
         "API_ENDPOINTS_BY_TABLE.md": _read_text_file("API_ENDPOINTS_BY_TABLE.md"),
