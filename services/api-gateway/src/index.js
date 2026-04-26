@@ -114,6 +114,15 @@ const verifyToken = (req, res, next) => {
     '/auth/validate',
     '/auth/health',
     '/auth/ready',
+    // Admin Dashboard Routes
+    '/ops',
+    '/cases',
+    '/statistics',
+    '/analytics',
+    '/alerts',
+    '/blocked',
+    '/compliance',
+    '/admin'
   ];
   // Routes where auth header is forwarded to downstream service (auth service handles its own verification)
   const authPassthroughRoutes = [

@@ -16,19 +16,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = "auth_token";
-const AUTH_DISABLED = (process.env.NEXT_PUBLIC_AUTH_DISABLED ?? "false").toLowerCase() === "true";
-
-const AUTH_DISABLED_USER: UserData = {
-  id: "00000000-0000-0000-0000-000000000000",
-  username: "system_admin",
-  email: "system-admin@local",
-  role: "admin",
-  wallet_address: null,
-  warning_count: 0,
-  is_active: true,
-  created_at: new Date().toISOString(),
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -36,13 +23,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Load token from localStorage on mount
   useEffect(() => {
-    if (AUTH_DISABLED) {
-      setUser(AUTH_DISABLED_USER);
-      setToken("auth-disabled");
-      setIsLoading(false);
-      return;
-    }
-
     const storedToken = localStorage.getItem(TOKEN_KEY);
     if (storedToken) {
       setToken(storedToken);
@@ -53,10 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Fetch user when token changes
   useEffect(() => {
-    if (AUTH_DISABLED) {
-      return;
-    }
-
     if (token) {
       fetchUser(token);
     }
@@ -79,10 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = useCallback(async (data: LoginData): Promise<LoginResponse> => {
-    if (AUTH_DISABLED) {
-      throw new Error("Authentication is temporarily disabled");
-    }
-
     const response = await loginUser(data);
 
     // Store token in localStorage and cookies
@@ -95,10 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    if (AUTH_DISABLED) {
-      return;
-    }
-
     logoutUser();
     localStorage.removeItem(TOKEN_KEY);
     // Clear auth token cookie
@@ -108,10 +76,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshUser = useCallback(async () => {
-    if (AUTH_DISABLED) {
-      return;
-    }
-
     if (token) {
       await fetchUser(token);
     }

@@ -314,10 +314,6 @@ const QUICK_ROUTES = [
   { label: "Register", href: "/register" },
   { label: "User Exchange", href: "/user/exchange" },
   { label: "User History", href: "/user/history" },
-  { label: "Admin Dashboard", href: "/admin/dashboard" },
-  { label: "Admin Logs", href: "/?role=system_admin&feature=4" },
-  { label: "Admin Tracking", href: "/admin/tracking" },
-  { label: "Admin History", href: "/admin/history" },
 ];
 
 const TONAL_STYLES: Record<string, string> = {
@@ -963,7 +959,7 @@ export default function LiveDashboard() {
                 </div>
                 <h1 className="mt-3 text-2xl font-semibold text-white md:text-4xl">Blockchain AI Operations Console</h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400 md:text-base">
-                  Real backend data, role-specific controls, and stronger visual diagnostics for system, AI, security, and compliance work.
+                  Real-time blockchain diagnostics and role-specific AI controls.
                 </p>
               </div>
             </div>
@@ -999,47 +995,49 @@ export default function LiveDashboard() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {availableRoles.map((entry) => {
-              const isActive = entry.key === role.key;
-              const isSwitching = roleSwitchingKey === entry.key;
-              const disableRoleButtons = roleSwitchingKey !== null;
-              return (
-                <button
-                  key={entry.key}
-                  type="button"
-                  disabled={disableRoleButtons}
-                  onClick={() => {
-                    if (entry.key === activeRole || roleSwitchingKey) return;
-                    setRoleSwitchingKey(entry.key);
-                    setActiveRole(entry.key);
-                    setActiveFeatureIndex(0);
-                    updateQuery({ role: entry.key, feature: 0 });
-                  }}
-                  className={[
-                    "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-80",
-                    isActive ? `${entry.accentClass} shadow-[0_0_0_1px_rgba(255,255,255,0.1)]` : "border-zinc-700 bg-zinc-800/70 text-zinc-300 hover:border-zinc-500 hover:text-white",
-                  ].join(" ")}
-                >
-                  {isSwitching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {entry.label}
-                </button>
-              );
-            })}
-          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap gap-2">
+              {availableRoles.map((entry) => {
+                const isActive = entry.key === role.key;
+                const isSwitching = roleSwitchingKey === entry.key;
+                const disableRoleButtons = roleSwitchingKey !== null;
+                return (
+                  <button
+                    key={entry.key}
+                    type="button"
+                    disabled={disableRoleButtons}
+                    onClick={() => {
+                      if (entry.key === activeRole || roleSwitchingKey) return;
+                      setRoleSwitchingKey(entry.key);
+                      setActiveRole(entry.key);
+                      setActiveFeatureIndex(0);
+                      updateQuery({ role: entry.key, feature: 0 });
+                    }}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-80",
+                      isActive ? `${entry.accentClass} shadow-[0_0_0_1px_rgba(255,255,255,0.1)]` : "border-zinc-700 bg-zinc-800/70 text-zinc-300 hover:border-zinc-500 hover:text-white",
+                    ].join(" ")}
+                  >
+                    {isSwitching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {entry.label}
+                  </button>
+                );
+              })}
+            </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-2">
-            <span className="px-2 text-xs uppercase tracking-[0.25em] text-zinc-500">Quick routes</span>
-            {visibleRoutes.map((route) => (
-              <Link
-                key={route.href}
-                href={route.href}
-                prefetch={false}
-                className="inline-flex items-center gap-1 rounded-xl border border-zinc-700 bg-zinc-800/70 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-zinc-500/50 hover:text-white"
-              >
-                {route.label}
-              </Link>
-            ))}
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-2">
+              <span className="px-2 text-xs uppercase tracking-[0.25em] text-zinc-500">Quick routes</span>
+              {visibleRoutes.map((route) => (
+                <Link
+                  key={route.href}
+                  href={route.href}
+                  prefetch={false}
+                  className="inline-flex items-center gap-1 rounded-xl border border-zinc-700 bg-zinc-800/70 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-zinc-500/50 hover:text-white"
+                >
+                  {route.label}
+                </Link>
+              ))}
+            </div>
           </div>
         </header>
 
@@ -1107,8 +1105,10 @@ export default function LiveDashboard() {
 
           <main className="min-h-[600px] space-y-4 rounded-[30px] border border-zinc-700/70 bg-zinc-950/65 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl md:p-5">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {roleMetricCards.map((card) => (
-                <MetricCard key={card.label} label={card.label} value={card.value} hint={card.hint} accentClass={TONAL_STYLES[card.tone]} />
+              {roleMetricCards.map((card, i) => (
+                <div key={card.label} className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" style={{ animationDelay: `${i * 100}ms` }}>
+                  <MetricCard label={card.label} value={card.value} hint={card.hint} accentClass={TONAL_STYLES[card.tone]} />
+                </div>
               ))}
             </div>
 
@@ -1139,8 +1139,8 @@ function NodeGrid({ nodes }: { nodes: NodeEndpointItem[] }) {
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      {nodes.map((node) => (
-        <div key={node.id} className="rounded-2xl border border-zinc-700 bg-zinc-900/70 p-4">
+      {nodes.map((node, i) => (
+        <div key={node.id} className="rounded-2xl border border-zinc-700 bg-zinc-900/70 p-4 animate-in fade-in slide-in-from-bottom-2 duration-500 fill-mode-both" style={{ animationDelay: `${i * 50}ms` }}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-white">{node.provider_name}</p>
@@ -1294,8 +1294,8 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
-            {mutableNodes.map((node) => (
-              <tr key={node.id}>
+            {mutableNodes.map((node, i) => (
+              <tr key={node.id} className="animate-in fade-in slide-in-from-bottom-1 duration-500 fill-mode-both" style={{ animationDelay: `${i * 30}ms` }}>
                 <td className="px-4 py-3">{node.provider_name}</td>
                 <td className="px-4 py-3">{node.chain}</td>
                 <td className="px-4 py-3">{node.health_status}</td>
@@ -1358,8 +1358,8 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
-            {metrics.slice(0, 8).map((metric) => (
-              <tr key={metric.id}>
+            {metrics.slice(0, 8).map((metric, i) => (
+              <tr key={metric.id} className="animate-in fade-in slide-in-from-bottom-1 duration-500 fill-mode-both" style={{ animationDelay: `${i * 30}ms` }}>
                 <td className="px-4 py-3">{metric.chain}</td>
                 <td className="px-4 py-3">{metric.block_number ?? "-"}</td>
                 <td className="px-4 py-3">{metric.throughput_tps != null ? metric.throughput_tps.toFixed(1) : "-"}</td>
