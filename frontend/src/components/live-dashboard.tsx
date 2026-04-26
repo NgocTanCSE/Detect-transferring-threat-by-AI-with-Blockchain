@@ -409,7 +409,7 @@ function SeverityPill({ severity }: { severity: string }) {
 
 function CardShell({ title, subtitle, children, icon: Icon }: { title: string; subtitle: string; children: React.ReactNode; icon?: React.ComponentType<{ className?: string }> }) {
   return (
-    <section className="rounded-3xl border border-zinc-800/80 bg-zinc-900/60 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-300">
+    <section className="animate-in fade-in zoom-in-[0.98] slide-in-from-bottom-2 duration-300 ease-out rounded-3xl border border-zinc-800/80 bg-zinc-900/60 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-white">{title}</h3>
@@ -529,9 +529,12 @@ export default function LiveDashboard() {
         }
       }
       const query = nextParams.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      const newUrl = query ? `${pathname}?${query}` : pathname;
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", newUrl);
+      }
     },
-    [pathname, router, searchParams]
+    [pathname, searchParams]
   );
 
   useEffect(() => {
@@ -1102,14 +1105,14 @@ export default function LiveDashboard() {
             </div>
           </aside>
 
-          <main className="space-y-4 rounded-[30px] border border-zinc-700/70 bg-zinc-950/65 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl md:p-5">
+          <main className="min-h-[600px] space-y-4 rounded-[30px] border border-zinc-700/70 bg-zinc-950/65 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl md:p-5">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {roleMetricCards.map((card) => (
                 <MetricCard key={card.label} label={card.label} value={card.value} hint={card.hint} accentClass={TONAL_STYLES[card.tone]} />
               ))}
             </div>
 
-            <CardShell title={selectedPanel.title} subtitle={selectedPanel.description} icon={ChartColumn}>
+            <CardShell key={`${activeRole}-${activeFeatureIndex}`} title={selectedPanel.title} subtitle={selectedPanel.description} icon={ChartColumn}>
               {selectedPanel.content}
             </CardShell>
           </main>
