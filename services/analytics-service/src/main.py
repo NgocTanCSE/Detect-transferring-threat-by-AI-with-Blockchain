@@ -8,8 +8,13 @@ from typing import Dict, Any, List
 
 app = FastAPI(title="Analytics Service")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main")
-engine = create_engine(DATABASE_URL)
+DATABASE_URL_MAIN = os.getenv("DATABASE_URL", "postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main")
+DATABASE_URL_ALERTS = os.getenv("DATABASE_URL_ALERTS", "postgresql://blockchain:blockchain123@postgres_alerts:5432/blockchain_alerts")
+DATABASE_URL_TRANSFERS = os.getenv("DATABASE_URL_TRANSFERS", "postgresql://blockchain:blockchain123@postgres_transfers:5432/blockchain_transfers")
+
+engine_main = create_engine(DATABASE_URL_MAIN)
+engine_alerts = create_engine(DATABASE_URL_ALERTS)
+engine_transfers = create_engine(DATABASE_URL_TRANSFERS)
 
 def _window_start(days: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
@@ -23,71 +28,73 @@ def _to_eth(value_wei: Any) -> float:
 def health():
     return {"status": "ok", "service": "analytics-service"}
 
+@app.get("/statistics/dashboard")
 @app.get("/compliance/reporting/summary")
 def compliance_reporting_summary(days: int = Query(default=30, ge=1, le=365)):
     period_start = _window_start(days)
     
-    with engine.connect() as conn:
-        # Alerts
-        alerts_total = conn.execute(text("SELECT COUNT(*) FROM alerts WHERE detected_at >= :start"), {"start": period_start}).scalar()
-        critical_alerts = conn.execute(text("SELECT COUNT(*) FROM alerts WHERE detected_at >= :start AND severity = 'CRITICAL'"), {"start": period_start}).scalar()
+    # KPIs from multiple databases
+    with engine_alerts.connect() as conn_alerts, \
+         engine_main.connect() as conn_main, \
+         engine_transfers.connect() as conn_transfers:
         
-        # Blocked
-        blocked_total = conn.execute(text("SELECT COUNT(*) FROM blocked_transfers WHERE blocked_at >= :start"), {"start": period_start}).scalar()
-        blocked_value_wei = conn.execute(text("SELECT COALESCE(SUM(amount), 0) FROM blocked_transfers WHERE blocked_at >= :start"), {"start": period_start}).scalar()
+        # Alerts (Alerts DB)
+        alerts_total = conn_alerts.execute(text("SELECT COUNT(*) FROM alerts WHERE detected_at >= :start"), {"start": period_start}).scalar()
+        critical_alerts = conn_alerts.execute(text("SELECT COUNT(*) FROM alerts WHERE detected_at >= :start AND severity = 'CRITICAL'"), {"start": period_start}).scalar()
         
-        # Cases
-        cases_rows = conn.execute(text("SELECT case_status, COUNT(*) FROM transactions WHERE updated_at >= :start GROUP BY case_status"), {"start": period_start}).fetchall()
-        cases_by_state = {row[0]: row[1] for row in cases_rows}
+        # Blocked (Main DB)
+        blocked_total = conn_main.execute(text("SELECT COUNT(*) FROM blocked_transfers WHERE blocked_at >= :start"), {"start": period_start}).scalar()
         
-        # Notifications
-        notif_sent = conn.execute(text("SELECT COUNT(*) FROM notification_events WHERE created_at >= :start AND status = 'sent'"), {"start": period_start}).scalar()
-        notif_failed = conn.execute(text("SELECT COUNT(*) FROM notification_events WHERE created_at >= :start AND status = 'failed'"), {"start": period_start}).scalar()
-        
-        # Policies
-        policy_active = conn.execute(text("SELECT COUNT(*) FROM policy_rules WHERE is_active = true")).scalar()
-        
-        # Audit
-        audit_count = conn.execute(text("SELECT COUNT(*) FROM audit_logs WHERE timestamp >= :start"), {"start": period_start}).scalar()
-
-    return {
-        "period": {
-            "days": days,
-            "start": period_start.isoformat(),
-            "end": datetime.now(timezone.utc).isoformat(),
-        },
-        "kpis": {
-            "alerts_total": int(alerts_total or 0),
-            "critical_alerts": int(critical_alerts or 0),
-            "blocked_total": int(blocked_total or 0),
-            "blocked_value_eth": _to_eth(blocked_value_wei),
-            "policy_rules_active": int(policy_active or 0),
-            "notifications_sent": int(notif_sent or 0),
-            "notifications_failed": int(notif_failed or 0),
-            "audit_events": int(audit_count or 0),
-        },
-        "cases": {
-            "PENDING": int(cases_by_state.get("PENDING", 0)),
-            "VERIFIED": int(cases_by_state.get("VERIFIED", 0)),
-            "FRAUD": int(cases_by_state.get("FRAUD", 0)),
-            "IGNORED": int(cases_by_state.get("IGNORED", 0)),
-        },
-    }
+        # Dashboard Stats Construction
+        return {
+            "money_laundering": {
+                "wallet_count": int(conn_main.execute(text("SELECT COUNT(*) FROM wallets WHERE risk_category = 'money_laundering'")).scalar() or 0),
+                "alert_count": int(conn_alerts.execute(text("SELECT COUNT(*) FROM alerts WHERE alert_type IN ('LAYERING', 'STRUCTURING', 'INTEGRATION', 'MIXER_DEPOSIT')")).scalar() or 0),
+                "icon": "shield",
+                "color": "blue"
+            },
+            "manipulation": {
+                "wallet_count": int(conn_main.execute(text("SELECT COUNT(*) FROM wallets WHERE risk_category = 'manipulation'")).scalar() or 0),
+                "alert_count": int(conn_alerts.execute(text("SELECT COUNT(*) FROM alerts WHERE alert_type IN ('WASH_TRADING', 'PUMP_AND_DUMP')")).scalar() or 0),
+                "icon": "activity",
+                "color": "amber"
+            },
+            "scam": {
+                "wallet_count": int(conn_main.execute(text("SELECT COUNT(*) FROM wallets WHERE risk_category = 'scam'")).scalar() or 0),
+                "alert_count": int(conn_alerts.execute(text("SELECT COUNT(*) FROM alerts WHERE alert_type IN ('PHISHING', 'RUG_PULL', 'HACKER_TRANSFER')")).scalar() or 0),
+                "icon": "alert-triangle",
+                "color": "red"
+            },
+            "overview": {
+                "total_wallets": int(conn_main.execute(text("SELECT COUNT(*) FROM wallets")).scalar() or 0),
+                "total_alerts": int(alerts_total or 0),
+                "critical_alerts": int(critical_alerts or 0),
+                "alerts_today": int(conn_alerts.execute(text("SELECT COUNT(*) FROM alerts WHERE detected_at >= NOW() - INTERVAL '1 day'")).scalar() or 0),
+                "total_blocked": int(blocked_total or 0)
+            }
+        }
 
 @app.get("/system/slo-metrics")
 def system_slo_metrics(days: int = Query(default=7, ge=1, le=90)):
     period_start = _window_start(days)
     
-    with engine.connect() as conn:
-        # Endpoint health
-        endpoints = conn.execute(text("SELECT is_active, health_status FROM node_endpoints")).fetchall()
+    with engine_main.connect() as conn:
+        # Endpoint health (Main DB)
+        try:
+            endpoints = conn.execute(text("SELECT is_active, health_status FROM node_endpoints")).fetchall()
+        except:
+            endpoints = []
+        
         active_endpoints = [e for e in endpoints if e[0]]
         healthy_active = [e for e in active_endpoints if e[1] == "healthy"]
         
         availability_pct = (len(healthy_active) / len(active_endpoints) * 100.0) if active_endpoints else 0.0
         
-        # Latency
-        metrics = conn.execute(text("SELECT ingestion_latency_ms, decode_latency_ms FROM pipeline_metrics WHERE inserted_at >= :start"), {"start": period_start}).fetchall()
+        # Latency (Main DB)
+        try:
+            metrics = conn.execute(text("SELECT ingestion_latency_ms, decode_latency_ms FROM pipeline_metrics WHERE inserted_at >= :start"), {"start": period_start}).fetchall()
+        except:
+            metrics = []
         
     ingest_values = [float(m[0]) for m in metrics if m[0] is not None]
     decode_values = [float(m[1]) for m in metrics if m[1] is not None]

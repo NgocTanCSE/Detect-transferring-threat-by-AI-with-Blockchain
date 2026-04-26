@@ -7,7 +7,6 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const helmet = require('helmet');
-const helmet = require('helmet');
 const { v4: uuidv4 } = require('uuid');
 const morgan = require('morgan');
 const logger = require('./utils/logger');
