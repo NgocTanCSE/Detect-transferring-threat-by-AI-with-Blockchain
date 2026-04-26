@@ -4,13 +4,12 @@ export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const token = request.cookies.get("auth_token")?.value;
 
-  // Routes that require authentication
+  // Admin routes are now open to everyone without login
   const adminRoutes = ["/admin/dashboard", "/admin/logs", "/admin/tracking", "/admin/history"];
   const protectedRoutes = ["/user/exchange", "/user/history"];
 
-  const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
-  const needsAuth = isAdminRoute || isProtectedRoute;
+  const needsAuth = isProtectedRoute; // Only user routes need auth now
 
   // If accessing protected route without token, redirect to login
   if (needsAuth && !token) {

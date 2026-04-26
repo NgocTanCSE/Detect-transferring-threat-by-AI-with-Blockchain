@@ -508,9 +508,9 @@ export default function LiveDashboard() {
       if (route.href.startsWith('/user')) {
         return isAuthenticated;
       }
-      // Show admin routes only for admin role
+      // Show admin routes for everyone (no login needed as requested)
       if (route.href.startsWith('/admin') || route.href.includes('role=')) {
-        return isAdmin;
+        return true;
       }
       return true;
     });
