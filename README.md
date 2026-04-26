@@ -1,3 +1,12 @@
+---
+title: Blockchain AI Sentinel
+emoji: 🛡️
+colorFrom: blue
+colorTo: red
+sdk: docker
+pinned: false
+---
+
 # Blockchain AI Sentinel - Microservices Edition 🚀
 
 A state-of-the-art, fully decoupled microservices platform for real-time blockchain threat detection, risk management, and AI-driven compliance.
