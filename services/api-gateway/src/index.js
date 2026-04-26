@@ -170,10 +170,10 @@ const ROUTE_MAP = {
   '/transfers': 'transfer',
   '/protected-transfer': 'transfer',
 
-  // Analytics Service (3005)
-  '/statistics': 'analytics',
-  '/dashboard': 'analytics',
-  '/analytics': 'analytics',
+  // Analytics Service (3005) - Now handled by AI service (8000) for consistency
+  '/statistics': 'ai',
+  '/dashboard': 'ai',
+  '/analytics': 'ai',
 
   // Compliance Service (3006)
   '/compliance': 'compliance',
@@ -217,6 +217,11 @@ app.all('*', (req, res) => {
   // Gateway exposes them as /auth/register and /auth/login.
   if (service === 'auth' && req.url.startsWith('/auth')) {
     req.url = req.url.replace(/^\/auth/, '') || '/';
+  }
+
+  // Strip /api prefix for AI service
+  if (service === 'ai' && req.url.startsWith('/api')) {
+    req.url = req.url.replace(/^\/api/, '') || '/';
   }
 
   console.log(`→ Proxying ${req.method} ${req.path} to ${service} (${target})`);

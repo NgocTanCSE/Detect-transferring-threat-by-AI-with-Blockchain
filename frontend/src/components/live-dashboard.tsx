@@ -587,14 +587,6 @@ export default function LiveDashboard() {
       return;
     }
 
-    if (mode === "auto" && typeof window !== "undefined") {
-      const persistedLast = Number(window.sessionStorage.getItem("dashboard:last-auto-fetch") || "0");
-      if (now - persistedLast < 8000) {
-        return;
-      }
-      window.sessionStorage.setItem("dashboard:last-auto-fetch", String(now));
-    }
-
     isFetchingRef.current = true;
     if (mode === "auto") {
       lastAutoFetchAtRef.current = now;
@@ -989,9 +981,7 @@ export default function LiveDashboard() {
                 <RefreshCcw className="h-4 w-4" />
                 Refresh live data
               </button>
-              <div className="rounded-xl border border-zinc-500/30 bg-zinc-500/10 px-4 py-2 text-sm font-medium text-zinc-200">
-                {isLoading ? "Loading live feeds" : `${currentChain.toUpperCase()} feeds connected`}
-              </div>
+
             </div>
           </div>
 
@@ -1048,7 +1038,7 @@ export default function LiveDashboard() {
         <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Role" value={role.label} hint={activeFeatureLabel} accentClass={role.accentClass} />
           <MetricCard label="Section" value={activeFeatureLabel} hint={activeFeatureIndex < 2 ? "Overview focus" : activeFeatureIndex < 4 ? "Workflow focus" : "Data focus"} accentClass="border-zinc-600 bg-zinc-900/80" />
-          <MetricCard label="Real data feeds" value={isLoading ? "Updating" : "Connected"} hint="Backend API responses" accentClass="border-zinc-500/30 bg-zinc-500/10" />
+
           <MetricCard label="Alerts today" value={dashboardStats ? formatCompact(dashboardStats.overview.alerts_today) : "-"} hint="From /statistics/dashboard" accentClass="border-zinc-500/30 bg-zinc-500/10" />
         </section>
 
