@@ -67,10 +67,10 @@ export default function WalletInsightPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-4">
-          <Metric title="ETH sent" value={statsLoading || !stats ? "-" : stats.eth_sent.toFixed(4)} />
-          <Metric title="ETH received" value={statsLoading || !stats ? "-" : stats.eth_received.toFixed(4)} />
-          <Metric title="Balance" value={statsLoading || !stats ? "-" : stats.eth_balance.toFixed(4)} />
-          <Metric title="Total tx" value={statsLoading || !stats ? "-" : String(stats.total_transactions)} />
+          <Metric title="ETH sent" value={statsLoading ? "-" : (stats?.eth_sent ?? 0).toFixed(4)} />
+          <Metric title="ETH received" value={statsLoading ? "-" : (stats?.eth_received ?? 0).toFixed(4)} />
+          <Metric title="Balance" value={statsLoading ? "-" : (stats?.eth_balance ?? 0).toFixed(4)} />
+          <Metric title="Total tx" value={statsLoading ? "-" : String(stats?.total_transactions ?? 0)} />
         </div>
 
         <div className="grid gap-4 xl:grid-cols-2">
@@ -78,9 +78,9 @@ export default function WalletInsightPage() {
             <h2 className="mb-3 text-lg font-semibold text-white">Recent Transactions</h2>
             {txLoading ? (
               <p className="text-zinc-400">Loading transactions...</p>
-            ) : (
+            ) : txs && txs.length > 0 ? (
               <div className="space-y-2">
-                {(txs || []).slice(0, 12).map((tx) => (
+                {txs.slice(0, 12).map((tx) => (
                   <div key={tx.tx_hash} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="text-zinc-200">{tx.direction.toUpperCase()}</span>
@@ -91,6 +91,8 @@ export default function WalletInsightPage() {
                   </div>
                 ))}
               </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-zinc-500 italic">No recent transactions found for this address.</p>
             )}
           </section>
 
@@ -98,9 +100,9 @@ export default function WalletInsightPage() {
             <h2 className="mb-3 text-lg font-semibold text-white">Top Connections</h2>
             {connLoading ? (
               <p className="text-zinc-400">Loading connections...</p>
-            ) : (
+            ) : connections?.connections && connections.connections.length > 0 ? (
               <div className="space-y-2">
-                {(connections?.connections || []).slice(0, 12).map((item) => (
+                {connections.connections.slice(0, 12).map((item) => (
                   <div key={`${item.direction}-${item.address}`} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="inline-flex items-center gap-2 text-zinc-200">
@@ -114,6 +116,8 @@ export default function WalletInsightPage() {
                   </div>
                 ))}
               </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-zinc-500 italic">No established connections found for this address.</p>
             )}
           </section>
         </div>

@@ -2074,7 +2074,7 @@ def get_wallet_stats(
     # Get wallet info
     wallet = database_session.query(Wallet).filter(Wallet.address == normalized_address).first()
 
-    return {
+    stats_data = {
         "address": normalized_address,
         "eth_sent": _eth_from_wei(total_sent_wei),
         "eth_received": _eth_from_wei(total_received_wei),
@@ -2089,6 +2089,12 @@ def get_wallet_stats(
             "account_status": wallet.account_status if wallet else None
         } if wallet else None
     }
+
+    return api_success(
+        data=stats_data,
+        message=f"Wallet stats for {normalized_address} fetched successfully",
+        legacy=stats_data
+    )
 
 
 @app.get("/wallets/{wallet_address}/transactions", tags=["Admin - Tracking"])
@@ -2131,11 +2137,17 @@ def get_wallet_transactions(
             "flag_reason": tx.flag_reason
         })
 
-    return {
+    response_data = {
         "address": normalized_address,
         "transactions": tx_list,
         "count": len(tx_list)
     }
+
+    return api_success(
+        data=response_data,
+        message=f"Wallet transactions for {normalized_address} fetched successfully",
+        legacy=response_data
+    )
 
 
 # ==========================================
@@ -2361,7 +2373,7 @@ def get_wallet_connections(
     # Get main wallet info
     main_wallet = database_session.query(Wallet).filter(Wallet.address == normalized_address).first()
 
-    return {
+    response_data = {
         "wallet": {
             "address": normalized_address,
             "label": main_wallet.label if main_wallet else None,
@@ -2372,6 +2384,12 @@ def get_wallet_connections(
         "connections": connections,
         "total_connections": len(connections)
     }
+
+    return api_success(
+        data=response_data,
+        message=f"Wallet connections for {normalized_address} fetched successfully",
+        legacy=response_data
+    )
 
 
 @app.get("/blocked-transfers", tags=["Admin - History"])
