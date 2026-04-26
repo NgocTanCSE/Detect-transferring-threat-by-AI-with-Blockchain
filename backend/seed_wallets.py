@@ -39,6 +39,10 @@ from app.models.models import (
     TransactionCase,
     User,
     Wallet,
+    MoneyFlowSnapshot,
+    ComplianceKPI,
+    SystemHealthSnapshot,
+    AIThreatLog
 )
 
 
@@ -378,7 +382,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             # Note: In many local setups, 'public' is enough, but some envs might need explicit grants
             # conn.execute(text(f"GRANT ALL ON SCHEMA public TO {user}"))
             conn.commit()
-        print("✓ Database schema wiped and recreated.")
+        print("[OK] Database schema wiped and recreated.")
 
     Base.metadata.create_all(bind=engine)
 
@@ -389,7 +393,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
     try:
         if RESET_DB:
             # We already dropped and recreated, but let's keep the logging for consistency
-            print("✓ Database schema recreated.")
+            print("[OK] Database schema recreated.")
             tables_to_clear = [
                 "alerts", "audit_logs", "blocked_transfers", "diagnostic_events",
                 "feature_store_configs", "model_registry", "node_endpoints",
@@ -402,7 +406,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
                 try:
                     db.execute(text(f"DELETE FROM {table}"))
                     db.commit()
-                    print(f"✓ Cleared {table}")
+                    print(f"[OK] Cleared {table}")
                 except Exception as e:
                     db.rollback()
                     print(f"⚠ Could not clear {table}: {e}")
@@ -431,7 +435,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
         print("\n" + "="*70)
         print("TEST ACCOUNTS FOR LOGIN")
         print("="*70)
-        print(f"\n✓ DEMO USERS (ALL): demo_user_00000 to demo_user_{DEFAULT_USER_COUNT-1:05d}")
+        print(f"\n[OK] DEMO USERS (ALL): demo_user_00000 to demo_user_{DEFAULT_USER_COUNT-1:05d}")
         print(f"  Password: demo123")
         print(f"  Count: {DEFAULT_USER_COUNT} users")
         print(f"  Roles: 1 admin, ~{DEFAULT_USER_COUNT//17} analyst, rest are user")
@@ -471,7 +475,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
                 )
                 users_to_add.append(test_user)
                 wallets_to_add.append(test_wallet)
-                print(f"✓ Username: {username}")
+                print(f"[OK] Username: {username}")
                 print(f"  Password: {password_plain}")
                 print(f"  Role: {role}")
                 print(f"  Wallet: {wallet_address}")
@@ -782,7 +786,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
                 except Exception as e:
                     print(f"Failed to add item: {e}")
                     db.rollback()
-            print(f"✓ Added {count} {description}")
+            print(f"[OK] Added {count} {description}")
 
         diagnostic_events: list[DiagnosticEvent] = []
         log_types = ["INFO", "ERROR", "WARNING", "SUCCESS", "DEBUG"]
@@ -826,6 +830,68 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
                     timestamp=now - timedelta(minutes=index * 3),
                 )
             )
+
+        # SEED REPORTING SNAPSHOTS (New Tables)
+        print("--- Seeding money flow snapshots ---")
+        flow_snapshots = []
+        for index in range(30):
+            d = (now - timedelta(days=index)).date()
+            flow_snapshots.append(
+                MoneyFlowSnapshot(
+                    id=_make_id("flow", index),
+                    date=d,
+                    inflow_eth=float(rng.uniform(800, 2500)),
+                    outflow_eth=float(rng.uniform(700, 2200)),
+                    chain_id="ethereum"
+                )
+            )
+
+        print("--- Seeding compliance KPIs ---")
+        compliance_kpis = [
+            ComplianceKPI(id=_make_id("kpi", 1), metric_key="alerts_total", metric_value=1240, category="security"),
+            ComplianceKPI(id=_make_id("kpi", 2), metric_key="critical_alerts", metric_value=42, category="security"),
+            ComplianceKPI(id=_make_id("kpi", 3), metric_key="blocked_total", metric_value=186, category="policy"),
+            ComplianceKPI(id=_make_id("kpi", 4), metric_key="blocked_value_eth", metric_value=45.5, category="policy"),
+            ComplianceKPI(id=_make_id("kpi", 5), metric_key="policy_rules_active", metric_value=24, category="policy"),
+            ComplianceKPI(id=_make_id("kpi", 6), metric_key="notifications_sent", metric_value=890, category="ops"),
+            ComplianceKPI(id=_make_id("kpi", 7), metric_key="notifications_failed", metric_value=12, category="ops"),
+            ComplianceKPI(id=_make_id("kpi", 8), metric_key="audit_events", metric_value=3450, category="compliance"),
+            ComplianceKPI(id=_make_id("kpi", 9), metric_key="cases_pending", metric_value=12, category="compliance"),
+            ComplianceKPI(id=_make_id("kpi", 10), metric_key="cases_verified", metric_value=85, category="compliance"),
+            ComplianceKPI(id=_make_id("kpi", 11), metric_key="cases_fraud", metric_value=24, category="compliance"),
+            ComplianceKPI(id=_make_id("kpi", 12), metric_key="cases_ignored", metric_value=156, category="compliance"),
+        ]
+
+        print("--- Seeding system health snapshots ---")
+        system_snapshots = [
+            SystemHealthSnapshot(
+                id=_make_id("health", 1),
+                availability_pct=99.98,
+                latency_p95_ms=342.5,
+                error_budget_burn=0.02,
+                sample_points=15000
+            )
+        ]
+
+        print("--- Seeding AI threat logs ---")
+        threat_logs = []
+        threat_wallets = [_make_address(rng, 5000 + i) for i in range(5)]
+        for i, addr in enumerate(threat_wallets):
+            threat_logs.append(
+                AIThreatLog(
+                    id=_make_id("threat", i),
+                    wallet_address=addr,
+                    threat_type=rng.choice(["CYCLE", "TRACE_BACK", "HIGH_VELOCITY"]),
+                    risk_score=float(rng.uniform(70, 99)),
+                    details={"evidence_nodes": rng.randint(5, 25), "confidence": 0.92},
+                    detected_at=now - timedelta(hours=i * 4)
+                )
+            )
+
+        _robust_add(flow_snapshots, "money flow snapshots")
+        _robust_add(compliance_kpis, "compliance kpis")
+        _robust_add(system_snapshots, "system health snapshots")
+        _robust_add(threat_logs, "ai threat logs")
 
         _robust_add(users_to_add, "users")
         _robust_add(wallets_to_add, "wallets")
@@ -930,7 +996,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
         print(f"Alert severity: {alert_severity_counts}")
         print(f"Case state: {case_state_counts}")
         print(f"Notification status: {notification_status_counts}")
-        print("✓ Seed completed successfully!")
+        print("OK Seed completed successfully!")
         print("=" * 60)
 
     except DatabaseError as error:
@@ -940,7 +1006,7 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             and "malformed" in str(error).lower()
             and sqlite_path is not None
         ):
-            print("⚠ SQLite reported malformed image during seed. Rebuilding once and retrying...")
+            print("WARNING SQLite reported malformed image during seed. Rebuilding once and retrying...")
             db.rollback()
             db.close()
             engine.dispose()
@@ -948,11 +1014,11 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
             Base.metadata.create_all(bind=engine)
             return seed_wallets(retried_after_rebuild=True)
 
-        print(f"✗ Error during seeding: {error}")
+        print(f"ERROR Error during seeding: {error}")
         db.rollback()
         raise
     except Exception as error:
-        print(f"✗ Error during seeding: {error}")
+        print(f"ERROR Error during seeding: {error}")
         db.rollback()
         raise
     finally:

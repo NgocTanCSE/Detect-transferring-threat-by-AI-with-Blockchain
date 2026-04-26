@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case
 
 from app.core.database import engine, get_db, Base, ensure_schema
-from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase, NodeEndpoint, PipelineMetric, FeatureStoreConfig, ModelRegistry, PolicyRule, NotificationEvent, DiagnosticEvent
+from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase, NodeEndpoint, PipelineMetric, FeatureStoreConfig, ModelRegistry, PolicyRule, NotificationEvent, DiagnosticEvent, MoneyFlowSnapshot, ComplianceKPI, SystemHealthSnapshot, AIThreatLog
 from blockchain_client import fetch_wallet_history
 from app.core.config import ALCHEMY_API_KEY, ALCHEMY_ETH_RPC_URL, ALCHEMY_BSC_RPC_URL
 from app.services.ai_engine import MultiAgentDetectionEngine
@@ -2676,58 +2676,60 @@ def get_money_flow_statistics(
     start_date = end_date - timedelta(days=days)
 
     try:
-        if normalized_wallet:
-            # Wallet-specific flow (inflow to wallet, outflow from wallet)
-            query = database_session.query(
-                func.date(Transaction.timestamp).label('date'),
-                func.sum(
-                    case(
-                        (Transaction.to_address == normalized_wallet, Transaction.value),
-                        else_=0
-                    )
-                ).label('inflow'),
-                func.sum(
-                    case(
-                        (Transaction.from_address == normalized_wallet, Transaction.value),
-                        else_=0
-                    )
-                ).label('outflow')
-            ).filter(
-                Transaction.chain_id == canonical_chain,
-                Transaction.timestamp >= start_date,
-                (Transaction.from_address == normalized_wallet) | (Transaction.to_address == normalized_wallet)
+        # Attempt to fetch aggregated snapshots from the new reporting table
+        snapshots = (
+            database_session.query(MoneyFlowSnapshot)
+            .filter(
+                MoneyFlowSnapshot.chain_id == canonical_chain,
+                MoneyFlowSnapshot.date >= start_date.date(),
+                MoneyFlowSnapshot.wallet_address == (normalized_wallet if normalized_wallet else None)
             )
+            .order_by(MoneyFlowSnapshot.date.asc())
+            .all()
+        )
+
+        if snapshots:
+            results = [
+                {
+                    "date": str(s.date),
+                    "inflow_eth": s.inflow_eth,
+                    "outflow_eth": s.outflow_eth
+                }
+                for s in snapshots
+            ]
         else:
-            # Network-wide flow (distinct inflows and outflows by direction)
-            query = database_session.query(
-                func.date(Transaction.timestamp).label('date'),
-                func.sum(
-                    case(
-                        (Transaction.to_address != '', Transaction.value),
-                        else_=0
-                    )
-                ).label('inflow'),
-                func.sum(
-                    case(
-                        (Transaction.from_address != '', Transaction.value),
-                        else_=0
-                    )
-                ).label('outflow')
-            ).filter(
-                Transaction.chain_id == canonical_chain,
-                Transaction.timestamp >= start_date
-            )
+            if normalized_wallet:
+                # Wallet-specific flow (inflow to wallet, outflow from wallet)
+                query = database_session.query(
+                    func.date(Transaction.timestamp).label('date'),
+                    func.sum(case((Transaction.to_address == normalized_wallet, Transaction.value), else_=0)).label('inflow'),
+                    func.sum(case((Transaction.from_address == normalized_wallet, Transaction.value), else_=0)).label('outflow')
+                ).filter(
+                    Transaction.chain_id == canonical_chain,
+                    Transaction.timestamp >= start_date,
+                    (Transaction.from_address == normalized_wallet) | (Transaction.to_address == normalized_wallet)
+                )
+            else:
+                # Network-wide flow (distinct inflows and outflows by direction)
+                query = database_session.query(
+                    func.date(Transaction.timestamp).label('date'),
+                    func.sum(case((Transaction.to_address != '', Transaction.value), else_=0)).label('inflow'),
+                    func.sum(case((Transaction.from_address != '', Transaction.value), else_=0)).label('outflow')
+                ).filter(
+                    Transaction.chain_id == canonical_chain,
+                    Transaction.timestamp >= start_date
+                )
 
-        daily_flow = query.group_by(func.date(Transaction.timestamp)).order_by(func.date(Transaction.timestamp)).all()
+            daily_flow = query.group_by(func.date(Transaction.timestamp)).order_by(func.date(Transaction.timestamp)).all()
 
-        # Format results
-        results = []
-        for row in daily_flow:
-            results.append({
-                "date": str(row.date) if row.date else None,
-                "inflow_eth": _eth_from_wei(int(row.inflow or 0)),
-                "outflow_eth": _eth_from_wei(int(row.outflow or 0))
-            })
+            # Format results
+            results = []
+            for row in daily_flow:
+                results.append({
+                    "date": str(row.date) if row.date else None,
+                    "inflow_eth": _eth_from_wei(int(row.inflow or 0)),
+                    "outflow_eth": _eth_from_wei(int(row.outflow or 0))
+                })
 
         # If no results found, generate high-quality mock data for the requested period
         if not results:

@@ -423,7 +423,8 @@ export default function LiveDashboard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { isAuthenticated, user } = useAuth();
-  const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
+   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
+  const { notify } = useToast();
   const [roleSwitchingKey, setRoleSwitchingKey] = useState<RoleKey | null>(null);
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);

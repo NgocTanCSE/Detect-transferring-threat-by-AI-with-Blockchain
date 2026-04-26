@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, BigInteger, DECIMAL, Text, func, SmallInteger, Boolean, Integer, UUID as SA_UUID, JSON
+from sqlalchemy import Column, String, Float, DateTime, Date, ForeignKey, BigInteger, DECIMAL, Text, func, SmallInteger, Boolean, Integer, UUID as SA_UUID, JSON
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB as PG_JSONB, INET as PG_INET
 from sqlalchemy.orm import relationship
 
@@ -433,4 +433,56 @@ class DiagnosticEvent(Base):
 
     def __repr__(self) -> str:
         return f"<DiagnosticEvent(type={self.log_type}, endpoint={self.endpoint}, status={self.status_code})>"
+
+
+class MoneyFlowSnapshot(Base):
+    """Daily aggregated inflow/outflow for the whole network or specific wallets."""
+
+    __tablename__ = "money_flow_snapshots"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    date = Column(Date, nullable=False, index=True)
+    inflow_eth = Column(Float, default=0.0)
+    outflow_eth = Column(Float, default=0.0)
+    chain_id = Column(String(50), default='ethereum', index=True)
+    wallet_address = Column(String(255), nullable=True, index=True) # null means network-wide
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ComplianceKPI(Base):
+    """Historical snapshots of compliance metrics for reporting."""
+
+    __tablename__ = "compliance_kpis"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    metric_key = Column(String(100), nullable=False, index=True) # e.g. alerts_total
+    metric_value = Column(Float, nullable=False)
+    category = Column(String(50), nullable=True, index=True) # e.g. security, policy
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class SystemHealthSnapshot(Base):
+    """Aggregated SLO/health data for system administration."""
+
+    __tablename__ = "system_health_snapshots"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    availability_pct = Column(Float, default=100.0)
+    latency_p95_ms = Column(Float, default=0.0)
+    error_budget_burn = Column(Float, default=0.0)
+    sample_points = Column(Integer, default=0)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class AIThreatLog(Base):
+    """Persistent history of threats detected by the AI deep scan engine."""
+
+    __tablename__ = "ai_threat_logs"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    wallet_address = Column(String(255), nullable=False, index=True)
+    threat_type = Column(String(50), nullable=False, index=True) # e.g. CYCLE, TRACE_BACK
+    risk_score = Column(Float, nullable=False)
+    details = Column(JSONB, nullable=True)
+    detected_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 

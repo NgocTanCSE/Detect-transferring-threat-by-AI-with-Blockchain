@@ -2,8 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ExternalLink, Search } from "lucide-react";
+import { ExternalLink, Search, Plus } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type PolicyRuleItem = {
   id: string;
@@ -146,6 +157,15 @@ export default function PolicyRulesPanel({
   const [pageSize, setPageSize] = useState(8);
   const pageSizeOptions = [8, 20, 50];
 
+  // New Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newPolicy, setNewPolicy] = useState({
+    rule_name: "",
+    description: "",
+    min_risk_score: 80,
+    priority: 100
+  });
+
   useEffect(() => {
     setMutablePolicies(policies);
   }, [policies]);
@@ -200,26 +220,11 @@ export default function PolicyRulesPanel({
     setMutablePolicies(data.items || []);
   }
 
-  async function handleCreatePolicy() {
-    const ruleName = window.prompt("Rule name, vi du: Block High Velocity Wallet");
-    if (!ruleName || !ruleName.trim()) return;
-    const minRiskRaw = window.prompt("Min risk score (0-100)", "80");
-    if (!minRiskRaw) return;
-    const minRisk = Number(minRiskRaw);
-    if (!Number.isFinite(minRisk) || minRisk < 0 || minRisk > 100) {
-      notify("Min risk score phai nam trong khoang 0-100", "error");
+  async function handleCreatePolicySubmit() {
+    if (!newPolicy.rule_name.trim()) {
+      notify("Rule name is required", "error");
       return;
     }
-
-    const priorityRaw = window.prompt("Priority (so nho = uu tien cao)", "100");
-    if (!priorityRaw) return;
-    const priority = Number(priorityRaw);
-    if (!Number.isInteger(priority)) {
-      notify("Priority phai la so nguyen", "error");
-      return;
-    }
-
-    const description = window.prompt("Description (optional)") ?? "";
 
     setIsMutating(true);
     try {
@@ -227,10 +232,10 @@ export default function PolicyRulesPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rule_name: ruleName.trim(),
-          description: description.trim() || null,
-          min_risk_score: minRisk,
-          priority,
+          rule_name: newPolicy.rule_name.trim(),
+          description: newPolicy.description.trim() || null,
+          min_risk_score: newPolicy.min_risk_score,
+          priority: newPolicy.priority,
           is_active: true,
           block_blacklisted: true,
           block_suspended: true,
@@ -243,6 +248,8 @@ export default function PolicyRulesPanel({
       }
       await reloadPolicies();
       notify("Policy created", "success");
+      setIsModalOpen(false);
+      setNewPolicy({ rule_name: "", description: "", min_risk_score: 80, priority: 100 });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create policy";
       notify(message, "error");
@@ -334,14 +341,87 @@ export default function PolicyRulesPanel({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={isMutating}
-          onClick={() => void handleCreatePolicy()}
-          className="h-10 rounded-xl border border-zinc-500/20 bg-zinc-800/40 text-zinc-100 hover:border-zinc-400/60"
-        >
-          Add policy
-        </button>
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-500/20 bg-zinc-800/40 px-4 text-sm font-medium text-zinc-100 transition hover:border-zinc-400/60"
+          >
+            <Plus className="h-4 w-4" />
+            Add policy
+          </button>
+          <DialogContent className="border-zinc-800 bg-zinc-950/90 text-zinc-100 backdrop-blur-xl sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold">Create New Policy Rule</DialogTitle>
+              <DialogDescription className="text-zinc-400">
+                Define a new guardrail for automated transaction enforcement.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-5 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="rule_name" className="text-xs uppercase tracking-wider text-zinc-500">Rule Name</Label>
+                <Input
+                  id="rule_name"
+                  placeholder="e.g. Block High Velocity Wallet"
+                  value={newPolicy.rule_name}
+                  onChange={(e) => setNewPolicy({ ...newPolicy, rule_name: e.target.value })}
+                  className="border-zinc-800 bg-zinc-900/50"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="description" className="text-xs uppercase tracking-wider text-zinc-500">Description (Optional)</Label>
+                <Input
+                  id="description"
+                  placeholder="Detailed rationale for this rule"
+                  value={newPolicy.description}
+                  onChange={(e) => setNewPolicy({ ...newPolicy, description: e.target.value })}
+                  className="border-zinc-800 bg-zinc-900/50"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="min_risk" className="text-xs uppercase tracking-wider text-zinc-500">Min Risk Score (0-100)</Label>
+                  <Input
+                    id="min_risk"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={newPolicy.min_risk_score}
+                    onChange={(e) => setNewPolicy({ ...newPolicy, min_risk_score: Number(e.target.value) })}
+                    className="border-zinc-800 bg-zinc-900/50"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="priority" className="text-xs uppercase tracking-wider text-zinc-500">Priority</Label>
+                  <Input
+                    id="priority"
+                    type="number"
+                    value={newPolicy.priority}
+                    onChange={(e) => setNewPolicy({ ...newPolicy, priority: Number(e.target.value) })}
+                    className="border-zinc-800 bg-zinc-900/50"
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="mt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsModalOpen(false)}
+                className="border-zinc-700 bg-transparent text-zinc-300 hover:bg-zinc-800"
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={isMutating}
+                onClick={() => void handleCreatePolicySubmit()}
+                className="bg-zinc-100 text-black hover:bg-white"
+              >
+                {isMutating ? "Creating..." : "Create Policy"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
           <input
@@ -460,5 +540,3 @@ export default function PolicyRulesPanel({
     </div>
   );
 }
-
-

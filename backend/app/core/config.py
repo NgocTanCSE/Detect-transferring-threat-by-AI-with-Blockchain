@@ -13,6 +13,11 @@ def _default_database_url() -> str:
     # Hugging Face Spaces exposes SPACE_ID and provides persistent storage at /data.
     if os.getenv("SPACE_ID"):
         return "sqlite:////data/blockchain_local.db"
+    
+    # On Windows local dev, default to sqlite to avoid "db" host resolution errors
+    if os.name == "nt" and not os.getenv("DATABASE_URL"):
+        return "sqlite:///blockchain_local.db"
+        
     return "postgresql://user:password@db:5432/blockchain_db"
 
 
