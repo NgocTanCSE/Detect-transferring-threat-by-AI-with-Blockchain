@@ -317,13 +317,13 @@ const QUICK_ROUTES = [
 ];
 
 const TONAL_STYLES: Record<string, string> = {
-  zinc: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
-  zinc: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
-  zinc: "border-zinc-600/20 bg-zinc-600/10 text-zinc-200",
-  zinc: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
-  zinc: "border-zinc-400/20 bg-zinc-400/10 text-zinc-100",
-  zinc: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
-  zinc: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
+  zinc: "border-zinc-500/20 bg-zinc-900/40 text-zinc-100",
+  blue: "border-blue-500/20 bg-blue-500/10 text-blue-100",
+  red: "border-red-500/20 bg-red-500/10 text-red-100",
+  green: "border-green-500/20 bg-green-500/10 text-green-100",
+  amber: "border-amber-500/20 bg-amber-500/10 text-amber-100",
+  purple: "border-purple-500/20 bg-purple-500/10 text-purple-100",
+  emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
 };
 
 async function fetchJson<T>(path: string, defaultValue: T | null = null): Promise<T> {
@@ -1035,13 +1035,6 @@ export default function LiveDashboard() {
           <div className="mb-4 rounded-2xl border border-zinc-500/30 bg-zinc-500/10 px-4 py-3 text-sm text-zinc-100">Live data error: {error}</div>
         ) : null}
 
-        <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Role" value={role.label} hint={activeFeatureLabel} accentClass={role.accentClass} />
-          <MetricCard label="Section" value={activeFeatureLabel} hint={activeFeatureIndex < 2 ? "Overview focus" : activeFeatureIndex < 4 ? "Workflow focus" : "Data focus"} accentClass="border-zinc-600 bg-zinc-900/80" />
-
-          <MetricCard label="Alerts today" value={dashboardStats ? formatCompact(dashboardStats.overview.alerts_today) : "-"} hint="From /statistics/dashboard" accentClass="border-zinc-500/30 bg-zinc-500/10" />
-        </section>
-
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_1fr]">
           <aside className="rounded-[30px] border border-zinc-700/70 bg-zinc-950/65 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl">
             <div className="mb-4 flex items-center justify-between">
@@ -1404,14 +1397,13 @@ function DiagnosticsLogsPanel({
   }, [includeArchived]);
 
   const logTypeColors: Record<string, string> = {
-    error: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
-    zinc: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
-    info: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
+    error: "bg-red-500/20 text-red-300 border-red-500/30",
+    info: "bg-blue-500/20 text-blue-300 border-blue-500/30",
     api_call: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
-    api_error: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
-    zinc: "border-zinc-500/20 bg-zinc-500/10 text-zinc-100",
-    zinc: "border-zinc-600/20 bg-zinc-600/10 text-zinc-300",
-    ai_service: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
+    api_error: "bg-red-500/20 text-red-300 border-red-500/30",
+    ai_service: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+    success: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    warning: "bg-amber-500/20 text-amber-300 border-amber-500/30",
   };
 
   const filteredLogs = mutableLogs.filter((log) => {

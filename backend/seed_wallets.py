@@ -343,6 +343,7 @@ def _build_transactions(seed_rows: list[SeedUser], tx_per_user: int, rng: random
                     assigned_to=assigned_to,
                     is_flagged=seed.wallet.risk_score >= 65 or (index + tx_index) % 10 == 0,
                     flag_reason=seed.wallet.risk_category if seed.wallet.risk_score >= 65 else "Suspicious Velocity",
+                    chain_id=seed.wallet.chain_id,
                 )
             )
 
@@ -497,7 +498,8 @@ def seed_wallets(retried_after_rebuild: bool = False) -> None:
                     status=1,
                     normalized_risk_score=0.0,
                     case_status="VERIFIED",
-                    is_flagged=False
+                    is_flagged=False,
+                    chain_id="ethereum"
                 )
             )
 
