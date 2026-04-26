@@ -303,10 +303,10 @@ const SIDEBAR_GROUPS: Array<{ title: string; start: number; end: number }> = [
 const ROLE_ICONS = [Gauge, ChartColumn, Brain, Shield, FileCheck2, Wallet];
 
 const ROLE_COLORS: Record<RoleKey, string[]> = {
-  system_admin: ["#ffffff", "#d4d4d8", "#a1a1aa"],
-  ai_data_engineer: ["#e4e4e7", "#a1a1aa", "#71717a"],
-  security_analyst: ["#f4f4f5", "#d4d4d8", "#a1a1aa"],
-  compliance_risk_manager: ["#fafafa", "#f5f5f5", "#e5e5e5"],
+  system_admin: ["#22d3ee", "#3b82f6", "#6366f1"], // Cyan, Blue, Indigo
+  ai_data_engineer: ["#a855f7", "#ec4899", "#f43f5e"], // Purple, Pink, Rose
+  security_analyst: ["#f59e0b", "#f97316", "#ef4444"], // Amber, Orange, Red
+  compliance_risk_manager: ["#10b981", "#06b6d4", "#3b82f6"], // Emerald, Cyan, Blue
 };
 
 const QUICK_ROUTES = [
@@ -787,11 +787,11 @@ export default function LiveDashboard() {
                   {flowStats.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300} minHeight={300}>
                       <LineChart data={flowChartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                        <XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 12 }} stroke="#3f3f46" />
-                        <YAxis tick={{ fill: "#71717a", fontSize: 12 }} stroke="#3f3f46" />
-                        <Tooltip cursor={{ stroke: "#ffffff", strokeWidth: 1 }} contentStyle={{ background: "#09090b", border: "1px solid #27272a", borderRadius: 16 }} labelStyle={{ color: "#fafafa" }} />
-                        <Legend wrapperStyle={{ paddingTop: "16px" }} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                        <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} stroke="#475569" tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} stroke="#475569" tickLine={false} axisLine={false} />
+                        <Tooltip cursor={{ stroke: "#94a3b8", strokeWidth: 1 }} contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 12, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)" }} labelStyle={{ color: "#f8fafc", fontWeight: 600 }} />
+                        <Legend wrapperStyle={{ paddingTop: "20px" }} iconType="circle" />
                         <Line type="monotone" dataKey="inflow" stroke={chartPalette[0]} strokeWidth={2} dot={false} name="Inflow" isAnimationActive={true} />
                         <Line type="monotone" dataKey="outflow" stroke={chartPalette[1]} strokeWidth={2} dot={false} name="Outflow" isAnimationActive={true} />
                       </LineChart>
@@ -2131,8 +2131,8 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
                 <Cell key={entry.name} fill={index === 0 ? ROLE_COLORS.ai_data_engineer[0] : ROLE_COLORS.ai_data_engineer[2]} />
               ))}
             </Pie>
-            <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} />
-            <Legend />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 12 }} />
+            <Legend iconType="circle" />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -2446,10 +2446,10 @@ function AlertSeverityCard({ alertsSummary, alerts }: { alertsSummary: AlertsSum
       <div className="mt-3 h-[260px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-            <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 12 }} />
-            <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} allowDecimals={false} />
-            <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+            <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+            <Tooltip cursor={{ fill: "rgba(255, 255, 255, 0.05)" }} contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 12 }} />
             <Bar dataKey="value" radius={[10, 10, 0, 0]}>
               {chartData.map((entry, index) => (
                 <Cell key={entry.name} fill={ROLE_COLORS.security_analyst[index]} />
@@ -2701,8 +2701,8 @@ function CaseActionPanel({ caseSummary }: { caseSummary: CaseSummary | null }) {
                 <Cell key={entry.name} fill={ROLE_COLORS.security_analyst[index]} />
               ))}
             </Pie>
-            <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} />
-            <Legend />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 12 }} />
+            <Legend iconType="circle" />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -2788,10 +2788,10 @@ function AlertChartPanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSum
     <div className="h-[320px] rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 12 }} />
-          <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} allowDecimals={false} />
-          <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+          <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+          <Tooltip cursor={{ fill: "rgba(255, 255, 255, 0.05)" }} contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 12 }} />
           <Bar dataKey="value" radius={[10, 10, 0, 0]}>
             {chartData.map((entry, index) => (
               <Cell key={entry.name} fill={ROLE_COLORS.security_analyst[index]} />
@@ -3164,10 +3164,10 @@ function ReportingSummaryPanel({ reportingSummary, controlEffectiveness, auditCo
       <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-            <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 12 }} />
-            <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} allowDecimals={false} />
-            <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1f2937", borderRadius: 16 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+            <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+            <Tooltip cursor={{ fill: "rgba(255, 255, 255, 0.05)" }} contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 12 }} />
             <Bar dataKey="value" radius={[10, 10, 0, 0]} fill={ROLE_COLORS.compliance_risk_manager[0]} />
           </BarChart>
         </ResponsiveContainer>
