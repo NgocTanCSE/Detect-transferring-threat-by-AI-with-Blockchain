@@ -86,7 +86,23 @@ class HFSecurityAnalyst:
             conversation_history=conversation_history or [],
         )
         try:
-            return self._generate_text(prompt=prompt, max_new_tokens=1000, temperature=0.45)
+            response = self._generate_text(prompt=prompt, max_new_tokens=1000, temperature=0.45)
+
+            # Check if response is an error message (when API fails but no exception is raised)
+            if response and ("tạm thời không khả dụng" in response.lower() or
+                           "gặp lỗi" in response.lower() or
+                           '"error"' in response or
+                           '"code":' in response):
+                # API returned error message instead of actual response - use fallback
+                logger.warning(f"API returned error response, triggering fallback")
+                return self._fallback_dashboard_answer(
+                    question=question,
+                    context=context,
+                    conversation_history=conversation_history,
+                    knowledge_snippets=knowledge_snippets,
+                )
+
+            return response
         except Exception as error:
             logger.error(f"Gemini dashboard chat failed: {error}")
             return self._fallback_dashboard_answer(
@@ -114,7 +130,23 @@ class HFSecurityAnalyst:
             conversation_history=conversation_history or [],
         )
         try:
-            return self._generate_text(prompt=prompt, max_new_tokens=900, temperature=0.55)
+            response = self._generate_text(prompt=prompt, max_new_tokens=900, temperature=0.55)
+
+            # Check if response is an error message (when API fails but no exception is raised)
+            if response and ("tạm thời không khả dụng" in response.lower() or
+                           "gặp lỗi" in response.lower() or
+                           '"error"' in response or
+                           '"code":' in response):
+                # API returned error message instead of actual response - use fallback
+                logger.warning(f"API returned error response, triggering fallback")
+                return self._fallback_general_answer(
+                    question=question,
+                    context=context,
+                    conversation_history=conversation_history,
+                    knowledge_snippets=knowledge_snippets,
+                )
+
+            return response
         except Exception as error:
             logger.error(f"Gemini general chat failed: {error}")
             return self._fallback_general_answer(

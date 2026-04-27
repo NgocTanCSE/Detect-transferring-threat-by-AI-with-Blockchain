@@ -128,6 +128,21 @@ def _is_low_quality_answer(answer: str) -> bool:
     if len(text) < 25:
         return True
 
+    # CRITICAL: Check for error/API failure responses (these are ALWAYS low quality)
+    error_patterns = [
+        "tạm thời không khả dụng",
+        "không có đủ dữ liệu",
+        "vui lòng kiểm tra",
+        "gặp lỗi",
+        "xin lỗi",
+        '"error"',  # JSON error response
+        '"code":',  # JSON error with code
+    ]
+    for pattern in error_patterns:
+        if pattern.lower() in text.lower():
+            # Error messages are ALWAYS low quality, regardless of length
+            return True
+
     # CRITICAL: Check for incomplete/truncated responses
     incomplete_indicators = [
         "Dựa trên dữ liệu",  # Incomplete prefix that's often cut off
@@ -160,18 +175,7 @@ def _is_low_quality_answer(answer: str) -> bool:
     if len(substance_lines) <= 1 and len(text) < 100:
         return True
 
-    # Check for generic/error patterns
-    generic_patterns = [
-        "không có đủ dữ liệu",
-        "tạm thời không khả dụng",
-        "vui lòng thử lại sau",
-        "lỗi: status 404",
-        "lỗi: status 503",
-        "gặp lỗi",
-        "xin lỗi",
-    ]
-    is_generic = any(pattern in text.lower() for pattern in generic_patterns)
-    return is_generic and len(text) < 100
+    return False
 
 
 def _build_structured_context_answer(question: str, context: Dict[str, Any]) -> str:
