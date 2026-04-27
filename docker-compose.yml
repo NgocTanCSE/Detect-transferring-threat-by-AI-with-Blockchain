@@ -325,6 +325,9 @@ services:
     environment:
       - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
     depends_on:
       postgres_main:
         condition: service_healthy

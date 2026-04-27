@@ -122,7 +122,10 @@ const verifyToken = (req, res, next) => {
     '/alerts',
     '/blocked',
     '/compliance',
-    '/admin'
+    '/admin',
+    '/assistant',
+    '/api',
+    '/socket.io'
   ];
   // Routes where auth header is forwarded to downstream service (auth service handles its own verification)
   const authPassthroughRoutes = [
@@ -139,8 +142,10 @@ const verifyToken = (req, res, next) => {
     return next();
   }
 
+  // For debugging 401s
   if (!token) {
-    return res.status(401).json({ error: 'Missing authorization token' });
+    console.log(`[GATEWAY AUTH] Denied access to ${req.method} ${req.path} - No token provided`);
+    return res.status(401).json({ error: 'Access denied: No token provided' });
   }
 
   try {
@@ -187,6 +192,7 @@ const ROUTE_MAP = {
   '/assistant': 'ai',
   '/ops': 'ai',
   '/api': 'ai',
+  '/socket.io': 'event',
 };
 
 // Find service for route

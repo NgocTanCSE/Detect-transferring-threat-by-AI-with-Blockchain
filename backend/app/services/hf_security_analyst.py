@@ -27,13 +27,16 @@ class HFSecurityAnalyst:
         
         # Load Persona from file
         from pathlib import Path
-        self.persona = "Bạn là trợ lý AI thông minh cho dự án Blockchain Sentinel."
+        self.persona = "Bạn là Sentinel Prime, trợ lý AI bảo mật cao cấp cho dự án Blockchain Sentinel."
         try:
             persona_path = Path(__file__).parent / "ai_persona.txt"
             if persona_path.exists():
                 self.persona = persona_path.read_text(encoding="utf-8")
         except Exception as e:
             logger.warning(f"Could not load ai_persona.txt: {e}")
+            
+        # Refine persona to be more analytical
+        self.persona += "\n\nBổ sung phong cách: Bạn là một chuyên gia phân tích dữ liệu sắc sảo, luôn dựa trên con số thực tế để đưa ra nhận định. Bạn không bao giờ trả lời hời hợt hoặc dùng các câu mẫu sáo rỗng."
 
         if not self.enabled:
             logger.warning("GEMINI_API_KEY/GOOGLE_API_KEY not found. AI Security Analyst will use fallback mode.")
@@ -134,7 +137,7 @@ class HFSecurityAnalyst:
 
         # Try multiple model names and API versions
         versions = ["v1beta", "v1"]
-        models_to_try = ["gemini-2.0-flash", self.model, "gemini-flash-latest", "gemini-pro"]
+        models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-pro"]
         last_error = None
 
         for version in versions:
@@ -216,11 +219,26 @@ CÂU HỎI:
         knowledge_text = render_snippets_for_prompt(knowledge_snippets)
         history_text = json.dumps(conversation_history[-8:], ensure_ascii=False)
         
+        # Extract overview if available for a "System Snapshot"
+        overview = context.get("overview", {})
+        system_snapshot = ""
+        if overview:
+            system_snapshot = f"""
+SYSTEM SNAPSHOT (Trạng thái hệ thống hiện tại):
+- Tổng số ví đang theo dõi: {overview.get('total_wallets', 'N/A')}
+- Tổng số cảnh báo rủi ro: {overview.get('total_alerts', 'N/A')}
+- Cảnh báo mức Nghiêm trọng (Critical): {overview.get('critical_alerts', 'N/A')}
+- Cảnh báo mới trong hôm nay: {overview.get('alerts_today', 'N/A')}
+- Giao dịch đã bị chặn: {overview.get('total_blocked', 'N/A')}
+"""
+
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
 {self.persona}
 Bạn có kiến thức sâu rộng về dự án này, blockchain và kiến thức chung.
 Bạn không chỉ trả lời câu hỏi mà còn đưa ra các phân tích sâu và dự báo rủi ro.
+
+{system_snapshot}
 
 KHẢ NĂNG CỦA BẠN:
 1. Phân tích thuật toán: Bạn hiểu rõ các công thức tính điểm rủi ro (Random Forest, Multi-Agent Scoring, Heuristics).
@@ -229,12 +247,14 @@ KHẢ NĂNG CỦA BẠN:
 4. Tri thức đa ngành: Có khả năng thảo luận về khoa học, lịch sử, lập trình và đời sống một cách thông tuệ.
 
 HƯỚNG DẪN TƯ DUY (Chain of Thought):
-- Khi nhận câu hỏi phức tạp, hãy phân tích từng bước: Giải thích bối cảnh -> Đưa ra số liệu/bằng chứng -> Kết luận & Khuyến nghị.
+- Khi nhận câu hỏi, hãy kiểm tra SYSTEM SNAPSHOT để xem có thông tin thực tế nào giúp trả lời câu hỏi không.
+- Nếu người dùng hỏi về tình hình hệ thống, hãy dùng số liệu từ SNAPSHOT.
+- Phân tích từng bước: Giải thích bối cảnh -> Đưa ra số liệu/bằng chứng -> Kết luận & Khuyến nghị.
 - Luôn sử dụng tiếng Việt chuẩn, súc tích nhưng đầy đủ ý nghĩa.
-- Định dạng: Sử dụng dấu gạch đầu dòng (-) và các đoạn văn ngắn để dễ đọc. Tránh dùng markdown quá phức tạp làm rối mắt.
+- Định dạng: Sử dụng dấu gạch đầu dòng (-) và các đoạn văn ngắn để dễ đọc.
 
 <|eot_id|><|start_header_id|>user<|end_header_id|>
-NGỮ CẢNH HỆ THỐNG:
+NGỮ CẢNH HỘI THOẠI:
 {context_json}
 
 LỊCH SỬ HỘI THOẠI GẦN ĐÂY:

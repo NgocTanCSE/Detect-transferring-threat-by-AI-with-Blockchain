@@ -119,10 +119,19 @@ def _dedupe_preserve_order(values: List[str]) -> List[str]:
 
 def _is_low_quality_answer(answer: str) -> bool:
     text = (answer or "").strip()
-    if len(text) < 120:
+    if len(text) < 25:
         return True
-    required_sections = ["1)", "2)", "3)"]
-    return any(section not in text for section in required_sections)
+    # Natural AI responses don't always use the 1) 2) 3) format.
+    # We only flag as low quality if it's extremely generic or an error message.
+    generic_patterns = [
+        "không có đủ dữ liệu",
+        "tạm thời không khả dụng",
+        "vui lòng thử lại sau",
+        "lỗi: status 404",
+        "lỗi: status 503"
+    ]
+    is_generic = any(pattern in text.lower() for pattern in generic_patterns)
+    return is_generic and len(text) < 80
 
 
 def _build_structured_context_answer(question: str, context: Dict[str, Any]) -> str:
@@ -807,28 +816,10 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         )
         raise HTTPException(status_code=400, detail="Missing message")
 
-    if _is_account_support_question(message):
-        answer = _build_account_support_answer(message)
-        log_diagnostic(
-            DiagnosticLogType.API_CALL,
-            "Assistant answered account support question via deterministic path",
-            details={"message": message, "role": role, "scope": screen_scope},
-            status_code=200,
-            endpoint="/assistant/chat"
-        )
-        return {
-            "answer": answer,
-            "context": {
-                "role": role,
-                "screen_scope": screen_scope,
-                "overview": {},
-                "top_risky_wallets": [],
-                "wallet_focus": None,
-            },
-            "sources": ["auth/register", "auth/login"],
-            "knowledge_sources": [],
-            "model_enabled": False,
-        }
+    # We no longer intercept these early. We let the AI Analyst handle them 
+    # to provide more contextual answers, using these as fallbacks later if needed.
+    is_support_q = _is_account_support_question(message)
+    is_system_q = _is_system_component_question(message)
 
     context = {}
     knowledge_snippets = []
@@ -910,14 +901,11 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         knowledge_snippets = []
 
     if not _is_dashboard_analytics_question(message):
-        general_context = {
-            "role": role,
-            "screen_scope": screen_scope,
-            "ui_context": ui_context,
-        }
+        # We now pass the full context (including overview) to general questions
+        # so Sentinel Prime can answer about system state contextually.
         answer = analyst.answer_general_question(
             question=message,
-            context=general_context,
+            context=context,
             knowledge_snippets=knowledge_snippets,
             conversation_history=conversation_history,
         )
