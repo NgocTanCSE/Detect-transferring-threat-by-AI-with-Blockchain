@@ -127,17 +127,32 @@ def _is_low_quality_answer(answer: str) -> bool:
     text = (answer or "").strip()
     if len(text) < 25:
         return True
-    # Natural AI responses don't always use the 1) 2) 3) format.
-    # We only flag as low quality if it's extremely generic or an error message.
+
+    # Check for incomplete/stub answers
+    incomplete_patterns = [
+        r"^[a-z\s:]+\*+$",  # Text ending with just asterisks
+        "Dựa trên dữ liệu hệ thống hiện tại:",  # Incomplete prefix
+        "được rồi",  # Acknowledgement only
+    ]
+
+    for pattern in incomplete_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            # Check if there's actual content after
+            if len(text) < 60 or text.count(".") < 2:
+                return True
+
+    # Check for generic/error patterns
     generic_patterns = [
         "không có đủ dữ liệu",
         "tạm thời không khả dụng",
         "vui lòng thử lại sau",
         "lỗi: status 404",
-        "lỗi: status 503"
+        "lỗi: status 503",
+        "gặp lỗi",
+        "xin lỗi",
     ]
     is_generic = any(pattern in text.lower() for pattern in generic_patterns)
-    return is_generic and len(text) < 80
+    return is_generic and len(text) < 100
 
 
 def _build_structured_context_answer(question: str, context: Dict[str, Any]) -> str:
@@ -911,44 +926,54 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
 
     if question_intent == "account_support":
         # Account support questions - use dynamic answers with context
-        answer = analyst.answer_general_question(
-            question=message,
-            context=context,
-            knowledge_snippets=knowledge_snippets,
-            conversation_history=conversation_history,
-        )
-        normalized_answer = _normalize_assistant_answer(answer)
+        if analyst.enabled:
+            answer = analyst.answer_general_question(
+                question=message,
+                context=context,
+                knowledge_snippets=knowledge_snippets,
+                conversation_history=conversation_history,
+            )
+            normalized_answer = _normalize_assistant_answer(answer)
+        else:
+            normalized_answer = None
 
-        # If AI doesn't provide good answer, use dynamic support builder
-        if _is_low_quality_answer(normalized_answer) or not analyst.enabled:
+        # If AI doesn't provide good answer OR is disabled, use dynamic support builder
+        if not normalized_answer or _is_low_quality_answer(normalized_answer):
             normalized_answer = _build_dynamic_account_support_answer(message, context, database_session)
     elif question_intent == "dashboard_analytics":
         # Dashboard analytics - use dashboard-specific analysis
-        answer = analyst.answer_dashboard_question(
-            question=message,
-            context=context,
-            knowledge_snippets=knowledge_snippets,
-            conversation_history=conversation_history,
-        )
-        normalized_answer = _normalize_assistant_answer(answer)
+        if analyst.enabled:
+            answer = analyst.answer_dashboard_question(
+                question=message,
+                context=context,
+                knowledge_snippets=knowledge_snippets,
+                conversation_history=conversation_history,
+            )
+            normalized_answer = _normalize_assistant_answer(answer)
+        else:
+            normalized_answer = None
 
-        # If AI doesn't help, use dynamic dashboard builder
-        if _is_low_quality_answer(normalized_answer) or not analyst.enabled:
+        # If AI doesn't help OR is disabled, use dynamic dashboard builder
+        if not normalized_answer or _is_low_quality_answer(normalized_answer):
             normalized_answer = _build_dynamic_dashboard_answer(message, context)
     else:
         # General questions - system architecture, operational guidance, etc.
-        answer = analyst.answer_general_question(
-            question=message,
-            context=context,
-            knowledge_snippets=knowledge_snippets,
-            conversation_history=conversation_history,
-        )
-        normalized_answer = _normalize_assistant_answer(answer)
-        if _is_low_quality_answer(normalized_answer):
+        if analyst.enabled:
+            answer = analyst.answer_general_question(
+                question=message,
+                context=context,
+                knowledge_snippets=knowledge_snippets,
+                conversation_history=conversation_history,
+            )
+            normalized_answer = _normalize_assistant_answer(answer)
+        else:
+            normalized_answer = None
+
+        if not normalized_answer or _is_low_quality_answer(normalized_answer):
             if _is_system_component_question(message):
                 normalized_answer = _build_system_component_answer(message)
             else:
-                normalized_answer = "Mình chưa có đủ dữ liệu để trả lời chính xác câu hỏi này. Hãy cho mình biết bạn đang hỏi về các thành phần hệ thống, đăng ký tài khoản, hay dashboard vận hành để mình trả lời đúng hơn."
+                normalized_answer = _build_structured_context_answer(message, context)
 
     raw_knowledge_sources = [
         {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}
@@ -970,48 +995,8 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         status_code=200,
         endpoint="/assistant/chat"
     )
-    return {
-        "answer": normalized_answer,
-        "context": {
-            "role": role,
-            "screen_scope": screen_scope,
-            "overview": context.get("overview", {}) if isinstance(context, dict) else {},
-            "top_risky_wallets": context.get("top_risky_wallets", []) if isinstance(context, dict) else [],
-            "wallet_focus": context.get("wallet_focus") if isinstance(context, dict) else None,
-            },
-            "sources": _dedupe_preserve_order(["assistant_general", "knowledge_base"]),
-            "knowledge_sources": knowledge_sources,
-            "model_enabled": analyst.enabled,
-        }
 
-    try:
-        answer = analyst.answer_dashboard_question(
-            question=message,
-            context=context,
-            knowledge_snippets=knowledge_snippets,
-            conversation_history=conversation_history,
-        )
-        log_diagnostic(
-            DiagnosticLogType.AI_SERVICE,
-            f"AI answer generated (model_enabled={analyst.enabled})",
-            details={"message_length": len(message), "answer_length": len(answer)},
-            status_code=200,
-            endpoint="/assistant/chat"
-        )
-    except Exception as e:
-        logger.exception(f"Assistant answer generation failed: {e}")
-        log_diagnostic(
-            DiagnosticLogType.AI_SERVICE,
-            f"AI answer generation failed: {str(e)}",
-            details={"error_type": type(e).__name__},
-            status_code=500,
-            endpoint="/assistant/chat"
-        )
-        answer = (
-            "Xin lỗi, trợ lý AI gặp lỗi khi xử lý câu hỏi. "
-            "Vui lòng kiểm tra GEMINI_API_KEY (hoặc GOOGLE_API_KEY) trong Space Secrets hoặc thử lại sau."
-        )
-
+    # Build sources list
     sources = [
         "overview: wallets/alerts/blocked_transfers",
         "flow_7d: transactions",
@@ -1019,36 +1004,33 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
     ]
     if wallet_address:
         sources.append("wallet_focus: wallets/transactions/alerts")
-
-    normalized_answer = _normalize_assistant_answer(answer)
-    if _is_low_quality_answer(normalized_answer):
-        normalized_answer = _build_structured_context_answer(message, context)
     deduped_sources = _dedupe_preserve_order(sources)
 
+    # Process knowledge sources
     raw_knowledge_sources = [
         {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}
         for snippet in knowledge_snippets
     ]
     seen_knowledge = set()
-    knowledge_sources = []
+    deduplicated_knowledge_sources = []
     for item in raw_knowledge_sources:
         key = (str(item.get("source", "")).strip(), str(item.get("heading", "")).strip())
         if key in seen_knowledge:
             continue
         seen_knowledge.add(key)
-        knowledge_sources.append(item)
+        deduplicated_knowledge_sources.append(item)
 
     response = {
         "answer": normalized_answer,
         "context": {
             "role": role,
             "screen_scope": screen_scope,
-            "overview": context.get("overview", {}),
-            "top_risky_wallets": context.get("top_risky_wallets", []),
-            "wallet_focus": context.get("wallet_focus"),
+            "overview": context.get("overview", {}) if isinstance(context, dict) else {},
+            "top_risky_wallets": context.get("top_risky_wallets", []) if isinstance(context, dict) else [],
+            "wallet_focus": context.get("wallet_focus") if isinstance(context, dict) else None,
         },
         "sources": deduped_sources,
-        "knowledge_sources": knowledge_sources,
+        "knowledge_sources": deduplicated_knowledge_sources,
         "model_enabled": analyst.enabled,
     }
 
