@@ -1,0 +1,145 @@
+{
+  "timestamp": "1777310262.1159127",
+  "total_issues": 17,
+  "critical_issues": 3,
+  "issues": [
+    {
+      "type": "hardcoded_responses",
+      "severity": "high",
+      "description": "Found 0 hardcoded template responses in _build_account_support_answer",
+      "lines": 0
+    },
+    {
+      "type": "question_detection",
+      "severity": "medium",
+      "description": "_is_dashboard_analytics_question uses 16 hardcoded keywords only",
+      "example_keywords": [
+        ").lower()\n    analytics_terms = [\n        ",
+        ",\n        ",
+        ",\n        ",
+        ",\n        ",
+        ",\n        "
+      ]
+    },
+    {
+      "type": "question_detection",
+      "severity": "medium",
+      "description": "_is_account_support_question uses 11 hardcoded keywords only",
+      "example_keywords": [
+        ").lower()\n    support_terms = [\n        ",
+        ",\n        ",
+        ",\n        ",
+        ",\n        ",
+        ",\n        "
+      ]
+    },
+    {
+      "type": "question_detection",
+      "severity": "medium",
+      "description": "_is_system_component_question uses 15 hardcoded keywords only",
+      "example_keywords": [
+        ").lower()\n    system_terms = [\n        ",
+        ", ",
+        ",\n        ",
+        ", ",
+        ",\n        "
+      ]
+    },
+    {
+      "type": "context_gaps",
+      "severity": "medium",
+      "description": "Missing context: recent_cases - High priority fraud cases in last 24h"
+    },
+    {
+      "type": "context_gaps",
+      "severity": "medium",
+      "description": "Missing context: alert_trend - Alert spike detection and patterns"
+    },
+    {
+      "type": "context_gaps",
+      "severity": "medium",
+      "description": "Missing context: policy_effectiveness - Which policies are most effective"
+    },
+    {
+      "type": "context_gaps",
+      "severity": "medium",
+      "description": "Missing context: user_actions - Recent user actions and decisions"
+    },
+    {
+      "type": "context_gaps",
+      "severity": "medium",
+      "description": "Missing context: system_health - ML model accuracy, processing delays"
+    },
+    {
+      "type": "context_gaps",
+      "severity": "medium",
+      "description": "Missing context: risk_distribution - Distribution of risk levels"
+    },
+    {
+      "type": "prompt_quality",
+      "severity": "low",
+      "description": "Prompt 1: has_examples=False, has_constraints=True",
+      "suggestions": [
+        "Add few-shot examples to improve answer quality",
+        "Add explicit constraints (max response length, format)",
+        "Specify output format more clearly"
+      ]
+    },
+    {
+      "type": "prompt_quality",
+      "severity": "low",
+      "description": "Prompt 2: has_examples=False, has_constraints=True",
+      "suggestions": [
+        "Add few-shot examples to improve answer quality",
+        "Add explicit constraints (max response length, format)",
+        "Specify output format more clearly"
+      ]
+    },
+    {
+      "type": "prompt_quality",
+      "severity": "low",
+      "description": "Prompt 3: has_examples=False, has_constraints=False",
+      "suggestions": [
+        "Add few-shot examples to improve answer quality",
+        "Add explicit constraints (max response length, format)",
+        "Specify output format more clearly"
+      ]
+    },
+    {
+      "type": "weak_fallbacks",
+      "severity": "high",
+      "description": "_fallback_dashboard_answer doesn't use live data"
+    },
+    {
+      "type": "weak_fallbacks",
+      "severity": "high",
+      "description": "_fallback_general_answer doesn't use live data"
+    },
+    {
+      "type": "kb_scoring",
+      "severity": "medium",
+      "description": "Knowledge base scoring has only 3 bonus rules",
+      "suggestion": "Add more context-aware scoring (role, scope, temporal relevance)"
+    },
+    {
+      "type": "model_config",
+      "severity": "low",
+      "description": "Temperature settings: set()",
+      "note": "Lower temp (0.3-0.5) = factual, Higher (0.7+) = creative"
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "hardcoded_responses",
+      "action": "Dynamic context usage",
+      "description": "Replace hardcoded responses with dynamic queries from database",
+      "impact": "Higher contextual relevance, personalized answers"
+    },
+    {
+      "type": "question_detection",
+      "action": "AI-powered intent detection",
+      "description": "Use LLM or ML model to understand question intent instead of keyword matching",
+      "impact": "Handles questions with similar meaning but different wording"
+    }
+  ]
+}

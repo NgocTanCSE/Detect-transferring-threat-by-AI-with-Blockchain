@@ -25,6 +25,12 @@ from app.services.ai_engine import MultiAgentDetectionEngine
 from app.services.persistence import persist_transactions
 from app.services.hf_security_analyst import HFSecurityAnalyst
 from app.services.assistant_knowledge_base import retrieve_relevant_snippets
+from app.services.ai_agent_improvements import (
+    _build_enhanced_dashboard_context,
+    _detect_question_intent,
+    _build_dynamic_account_support_answer,
+    _build_dynamic_dashboard_answer,
+)
 from app.admin_diagnostics import (
     diagnostic_logger,
     log_diagnostic,
@@ -816,7 +822,7 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         )
         raise HTTPException(status_code=400, detail="Missing message")
 
-    # We no longer intercept these early. We let the AI Analyst handle them 
+    # We no longer intercept these early. We let the AI Analyst handle them
     # to provide more contextual answers, using these as fallbacks later if needed.
     is_support_q = _is_account_support_question(message)
     is_system_q = _is_system_component_question(message)
@@ -826,7 +832,7 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
     analyst = HFSecurityAnalyst()
 
     try:
-        context = _build_dashboard_assistant_context(
+        context = _build_enhanced_dashboard_context(
             database_session,
             role=role,
             wallet_address=wallet_address,
@@ -900,9 +906,37 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         )
         knowledge_snippets = []
 
-    if not _is_dashboard_analytics_question(message):
-        # We now pass the full context (including overview) to general questions
-        # so Sentinel Prime can answer about system state contextually.
+    # IMPROVED: Detect question intent for smarter routing
+    question_intent = _detect_question_intent(message, context)
+
+    if question_intent == "account_support":
+        # Account support questions - use dynamic answers with context
+        answer = analyst.answer_general_question(
+            question=message,
+            context=context,
+            knowledge_snippets=knowledge_snippets,
+            conversation_history=conversation_history,
+        )
+        normalized_answer = _normalize_assistant_answer(answer)
+
+        # If AI doesn't provide good answer, use dynamic support builder
+        if _is_low_quality_answer(normalized_answer) or not analyst.enabled:
+            normalized_answer = _build_dynamic_account_support_answer(message, context, database_session)
+    elif question_intent == "dashboard_analytics":
+        # Dashboard analytics - use dashboard-specific analysis
+        answer = analyst.answer_dashboard_question(
+            question=message,
+            context=context,
+            knowledge_snippets=knowledge_snippets,
+            conversation_history=conversation_history,
+        )
+        normalized_answer = _normalize_assistant_answer(answer)
+
+        # If AI doesn't help, use dynamic dashboard builder
+        if _is_low_quality_answer(normalized_answer) or not analyst.enabled:
+            normalized_answer = _build_dynamic_dashboard_answer(message, context)
+    else:
+        # General questions - system architecture, operational guidance, etc.
         answer = analyst.answer_general_question(
             question=message,
             context=context,
@@ -911,41 +945,39 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         )
         normalized_answer = _normalize_assistant_answer(answer)
         if _is_low_quality_answer(normalized_answer):
-            if _is_account_support_question(message):
-                normalized_answer = _build_account_support_answer(message)
-            elif _is_system_component_question(message):
+            if _is_system_component_question(message):
                 normalized_answer = _build_system_component_answer(message)
             else:
                 normalized_answer = "Mình chưa có đủ dữ liệu để trả lời chính xác câu hỏi này. Hãy cho mình biết bạn đang hỏi về các thành phần hệ thống, đăng ký tài khoản, hay dashboard vận hành để mình trả lời đúng hơn."
 
-        raw_knowledge_sources = [
-            {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}
-            for snippet in knowledge_snippets
-        ]
-        seen_knowledge = set()
-        knowledge_sources = []
-        for item in raw_knowledge_sources:
-            key = (str(item.get("source", "")).strip(), str(item.get("heading", "")).strip())
-            if key in seen_knowledge:
-                continue
-            seen_knowledge.add(key)
-            knowledge_sources.append(item)
+    raw_knowledge_sources = [
+        {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}
+        for snippet in knowledge_snippets
+    ]
+    seen_knowledge = set()
+    knowledge_sources = []
+    for item in raw_knowledge_sources:
+        key = (str(item.get("source", "")).strip(), str(item.get("heading", "")).strip())
+        if key in seen_knowledge:
+            continue
+        seen_knowledge.add(key)
+        knowledge_sources.append(item)
 
-        log_diagnostic(
-            DiagnosticLogType.AI_SERVICE,
-            "General assistant response generated",
-            details={"message_length": len(message), "answer_length": len(normalized_answer)},
-            status_code=200,
-            endpoint="/assistant/chat"
-        )
-        return {
-            "answer": normalized_answer,
-            "context": {
-                "role": role,
-                "screen_scope": screen_scope,
-                "overview": context.get("overview", {}) if isinstance(context, dict) else {},
-                "top_risky_wallets": context.get("top_risky_wallets", []) if isinstance(context, dict) else [],
-                "wallet_focus": context.get("wallet_focus") if isinstance(context, dict) else None,
+    log_diagnostic(
+        DiagnosticLogType.AI_SERVICE,
+        "General assistant response generated",
+        details={"message_length": len(message), "answer_length": len(normalized_answer)},
+        status_code=200,
+        endpoint="/assistant/chat"
+    )
+    return {
+        "answer": normalized_answer,
+        "context": {
+            "role": role,
+            "screen_scope": screen_scope,
+            "overview": context.get("overview", {}) if isinstance(context, dict) else {},
+            "top_risky_wallets": context.get("top_risky_wallets", []) if isinstance(context, dict) else [],
+            "wallet_focus": context.get("wallet_focus") if isinstance(context, dict) else None,
             },
             "sources": _dedupe_preserve_order(["assistant_general", "knowledge_base"]),
             "knowledge_sources": knowledge_sources,

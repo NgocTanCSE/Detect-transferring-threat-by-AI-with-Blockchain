@@ -24,7 +24,11 @@ class HFSecurityAnalyst:
         self.model = GEMINI_MODEL
         self.api_url = f"{GEMINI_API_BASE_URL}/models/{self.model}:generateContent"
         self.enabled = bool(self.api_key)
-        
+
+        # Debug logging
+        api_key_status = "CONFIGURED" if self.api_key else "NOT SET"
+        logger.info(f"HFSecurityAnalyst initialized: model={self.model}, api_key={api_key_status}, enabled={self.enabled}")
+
         # Load Persona from file
         from pathlib import Path
         self.persona = "Bạn là Sentinel Prime, trợ lý AI bảo mật cao cấp cho dự án Blockchain Sentinel."
@@ -34,7 +38,7 @@ class HFSecurityAnalyst:
                 self.persona = persona_path.read_text(encoding="utf-8")
         except Exception as e:
             logger.warning(f"Could not load ai_persona.txt: {e}")
-            
+
         # Refine persona to be more analytical
         self.persona += "\n\nBổ sung phong cách: Bạn là một chuyên gia phân tích dữ liệu sắc sảo, luôn dựa trên con số thực tế để đưa ra nhận định. Bạn không bao giờ trả lời hời hợt hoặc dùng các câu mẫu sáo rỗng."
 
@@ -135,9 +139,16 @@ class HFSecurityAnalyst:
             },
         }
 
-        # Try multiple model names and API versions
-        versions = ["v1beta", "v1"]
-        models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-pro"]
+        # Try multiple model names and API versions (Gemini models only)
+        # Prioritize working models first
+        versions = ["v1", "v1beta"]
+        models_to_try = [
+            "gemini-1.5-flash",    # Most stable and available
+            "gemini-pro",           # Alternative v1 model
+            "gemini-2.0-flash",     # Newer model
+            "gemini-1.5-pro",       # More capable
+            "gemini-2.0-flash-exp", # Experimental
+        ]
         last_error = None
 
         for version in versions:
@@ -146,7 +157,7 @@ class HFSecurityAnalyst:
                     # Strip 'models/' if already present in model_name
                     clean_model_name = model_name.replace("models/", "")
                     url = f"https://generativelanguage.googleapis.com/{version}/models/{clean_model_name}:generateContent?key={self.api_key}"
-                    
+
                     response = requests.post(
                         url,
                         headers={"Content-Type": "application/json"},
@@ -161,14 +172,19 @@ class HFSecurityAnalyst:
                             parts = content.get("parts", [])
                             text = "".join(part.get("text", "") for part in parts).strip()
                             if text:
+                                logger.info(f"✓ Gemini API success with {version}/{model_name}")
                                 return text
                     else:
-                        last_error = f"({version}/{model_name}) Status {response.status_code}"
-                        # logger.warning(f"Model {model_name} on {version} failed: {response.status_code}")
+                        error_detail = response.text[:100] if response.text else str(response.status_code)
+                        last_error = f"({version}/{model_name}) {response.status_code}: {error_detail}"
+                        logger.debug(f"Model {model_name} on {version} failed: {response.status_code}")
                 except Exception as e:
-                    last_error = str(e)
-        
-        return f"Hiện chưa có đủ nội dung trả lời từ mô hình. (Lỗi: {last_error})"
+                    last_error = f"({version}/{model_name}) {str(e)[:50]}"
+                    logger.debug(f"Exception with {model_name}: {e}")
+
+        # All API calls failed - return helpful message
+        logger.error(f"All Gemini API attempts failed. Last error: {last_error}")
+        return f"AI model tạm thời không khả dụng. Vui lòng kiểm tra GEMINI_API_KEY hoặc thử lại sau. (Chi tiết: {last_error})"
 
     def _construct_dashboard_chat_prompt(
         self,
@@ -177,35 +193,57 @@ class HFSecurityAnalyst:
         knowledge_snippets: List[KnowledgeSnippet],
         conversation_history: List[Dict[str, str]],
     ) -> str:
-        context_json = json.dumps(context, ensure_ascii=False)
+        context_json = json.dumps(context, ensure_ascii=False, indent=2)
         knowledge_text = render_snippets_for_prompt(knowledge_snippets)
-        history_text = json.dumps(conversation_history[-6:], ensure_ascii=False)
+        history_text = json.dumps(conversation_history[-6:], ensure_ascii=False, indent=2)
         screen_scope = str(context.get("screen_scope", "dashboard"))
-        
+
+        # Extract key metrics for better guidance
+        overview = context.get("overview", {})
+        alert_trend = context.get("alert_trend", {})
+
+        metrics_summary = f"""
+SNAPSHOT HỆ THỐNG HIỆN TẠI:
+- Tổng ví: {overview.get('total_wallets', 0)}
+- Tổng alerts: {overview.get('total_alerts', 0)} (Critical: {overview.get('critical_alerts', 0)})
+- Alerts hôm nay: {overview.get('alerts_today', 0)}
+- Alerts 24h: {overview.get('alerts_24h', 0)}
+- Xu hướng: {alert_trend.get('trend_direction', 'STABLE')} ({alert_trend.get('trend_percentage', 0):.1f}%)
+- Spike phát hiện: {alert_trend.get('spike_detected', False)}
+- Giao dịch bị chặn: {overview.get('total_blocked', 0)} (Hôm nay: {overview.get('blocked_today', 0)})
+"""
+
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
 {self.persona}
-Mục tiêu: Giải thích các chỉ số trên màn hình {screen_scope} và đưa ra lời khuyên cho người vận hành.
 
-HƯỚNG DẪN TRẢ LỜI:
-- Luôn trả lời bằng tiếng Việt.
-- Sử dụng số liệu thực tế từ JSON CONTEXT bên dưới.
-- Trình bày rõ ràng, dễ hiểu. Nếu có nhiều ý, hãy dùng dấu gạch đầu dòng (-).
-- Nếu không có đủ dữ liệu để trả lời chính xác, hãy nêu rõ và đưa ra nhận định dựa trên kiến thức chung về bảo mật blockchain.
-- Kết hợp thông tin từ TÀI LIỆU DỰ ÁN để giải thích thuật ngữ hoặc quy trình.
+MỤC ĐÍCH: Phân tích dữ liệu dashboard {screen_scope} và cung cấp lời khuyên hành động cụ thể cho người vận hành.
+
+HƯỚNG DẪN TRẢ LỜI NGHIÊM NGẶT:
+1. LUÔN SỬ DỤNG SỐ LIỆU THỰC TẾ từ JSON CONTEXT - đừng dùng con số tùy ý
+2. LIÊN KẾT TRỰ TIẾP: Nếu hỏi về alerts tăng, phải nói: "Hôm nay X alerts, trung bình Y/ngày, tức tăng Z%"
+3. HÀNH ĐỘNG CỤ THỂ: Không chỉ nói "cần xử lý", mà nói "cần xử lý ngay X cases critical"
+4. PHÁT HIỆN ANOMALY: Khi spike_detected=true, phải highlight như cảnh báo quan trọng
+5. ĐỊNH DẠNG: Dùng dấu gạch đầu dòng (-) cho danh sách, không dùng đánh số trừ khi người dùng yêu cầu
+6. NGÔN NGỮ: Tiếng Việt chuyên nghiệp, tránh dùng từ generic như "tương đối", "khá", v.v.
+7. KHÔNG HALLUCINATE: Nếu không có dữ liệu cho câu hỏi, hãy nêu rõ "Không có dữ liệu..." thay vì đoán
+
+{metrics_summary}
 
 <|eot_id|><|start_header_id|>user<|end_header_id|>
-JSON CONTEXT (Dữ liệu hệ thống):
+JSON CONTEXT ĐẦY ĐỦ (Dữ liệu hệ thống):
 {context_json}
 
-LỊCH SỬ HỘI THOẠI:
+LỊCH SỬ HỘI THOẠI (để bối cảnh):
 {history_text}
 
 TÀI LIỆU THAM KHẢO DỰ ÁN:
-{knowledge_text or "Không có tài liệu cụ thể, hãy dùng kiến thức chuyên gia."}
+{knowledge_text or "Không có tài liệu cụ thể được lấy."}
 
-CÂU HỎI:
+CÂU HỎI TỪNG ĐƯỢC ĐẶT:
 {question}
+
+HÃY TRẢ LỜI NGẮN GỌN NHƯNG ĐẦY ĐỦ, KỂ KỀ SỐ LIỆU CỤ THỂ:
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     def _construct_general_chat_prompt(
@@ -215,56 +253,78 @@ CÂU HỎI:
         knowledge_snippets: List[KnowledgeSnippet],
         conversation_history: List[Dict[str, str]],
     ) -> str:
-        context_json = json.dumps(context, ensure_ascii=False)
+        context_json = json.dumps(context, ensure_ascii=False, indent=2)
         knowledge_text = render_snippets_for_prompt(knowledge_snippets)
-        history_text = json.dumps(conversation_history[-8:], ensure_ascii=False)
-        
+        history_text = json.dumps(conversation_history[-8:], ensure_ascii=False, indent=2)
+
         # Extract overview if available for a "System Snapshot"
         overview = context.get("overview", {})
-        system_snapshot = ""
-        if overview:
-            system_snapshot = f"""
-SYSTEM SNAPSHOT (Trạng thái hệ thống hiện tại):
+        alert_trend = context.get("alert_trend", {})
+        risk_dist = context.get("risk_distribution", {})
+        recent_cases = context.get("recent_high_priority_cases", [])
+
+        system_snapshot = f"""
+TRẠNG THÁI HỆ THỐNG (System Snapshot):
 - Tổng số ví đang theo dõi: {overview.get('total_wallets', 'N/A')}
 - Tổng số cảnh báo rủi ro: {overview.get('total_alerts', 'N/A')}
-- Cảnh báo mức Nghiêm trọng (Critical): {overview.get('critical_alerts', 'N/A')}
-- Cảnh báo mới trong hôm nay: {overview.get('alerts_today', 'N/A')}
+- Cảnh báo mức CRITICAL: {overview.get('critical_alerts', 'N/A')}
+- Cảnh báo mức HIGH: {overview.get('high_alerts', 'N/A')}
+- Cảnh báo hôm nay: {overview.get('alerts_today', 'N/A')}
 - Giao dịch đã bị chặn: {overview.get('total_blocked', 'N/A')}
+- Xu hướng alerts: {alert_trend.get('trend_direction', 'STABLE')} ({alert_trend.get('trend_percentage', 0):.1f}%)
+- Spike phát hiện: {alert_trend.get('spike_detected', False)}
+- Phân bố rủi ro: Critical={risk_dist.get('CRITICAL', 0)}, High={risk_dist.get('HIGH', 0)}, Medium={risk_dist.get('MEDIUM', 0)}
+{f"- Các case cần xử lý: {len(recent_cases)} (PENDING/FLAGGED)" if recent_cases else ""}
 """
 
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
 {self.persona}
-Bạn có kiến thức sâu rộng về dự án này, blockchain và kiến thức chung.
-Bạn không chỉ trả lời câu hỏi mà còn đưa ra các phân tích sâu và dự báo rủi ro.
+
+PHẠM VI KIẾN THỨC VÀ KHẢ NĂNG:
+1. Phân tích blockchain: Hiểu sâu về Ethereum, cấu trúc giao dịch, smart contract patterns
+2. Kỹ thuật phát hiện: Mixer detection, phishing patterns, money laundering techniques, multi-hop attacks
+3. Điểm rủi ro: Công thức scoring (Random Forest, Multi-Agent, Heuristics), cách đọc và diễn giải
+4. Kiến trúc hệ thống: Frontend React, Backend FastAPI, AI Engine, Database architecture, RBAC
+5. Quy trình vận hành: Cách xử lý cases, policies, compliance, audit
 
 {system_snapshot}
 
-KHẢ NĂNG CỦA BẠN:
-1. Phân tích thuật toán: Bạn hiểu rõ các công thức tính điểm rủi ro (Random Forest, Multi-Agent Scoring, Heuristics).
-2. Chuyên gia Blockchain: Hiểu sâu về cấu trúc giao dịch, smart contract rác, kỹ thuật ẩn danh (Mixers), và các mô hình lừa đảo đa chuỗi.
-3. Kiến trúc hệ thống: Nắm rõ luồng dữ liệu từ Frontend React đến Node.js Orchestrator và AI Engine Python.
-4. Tri thức đa ngành: Có khả năng thảo luận về khoa học, lịch sử, lập trình và đời sống một cách thông tuệ.
+HƯỚNG DẪN TƯ DUY & PHẢN ỨNG (Chain of Thought):
+1. ĐỌC SNAPSHOT: Luôn kiểm tra SYSTEM SNAPSHOT trước để hiểu tình hình hiện tại
+2. HIỂU CÂU HỎI: Phân tích xem người dùng đang hỏi gì - phát hiện intent sâu hơn từ khóa
+3. LIÊN KẾT DỮ LIỆU: Nếu có dữ liệu trong context, phải trích dẫn số liệu cụ thể
+4. GIẢI THÍCH: Không chỉ nói "có vấn đề", mà giải thích CHI TIẾT bằng dữ liệu
+5. ĐỀ XUẤT: Đưa ra hành động cụ thể, không generic
+6. TRÁNH HALLUCINATE: Không bao giờ nói số liệu không có trong context
 
-HƯỚNG DẪN TƯ DUY (Chain of Thought):
-- Khi nhận câu hỏi, hãy kiểm tra SYSTEM SNAPSHOT để xem có thông tin thực tế nào giúp trả lời câu hỏi không.
-- Nếu người dùng hỏi về tình hình hệ thống, hãy dùng số liệu từ SNAPSHOT.
-- Phân tích từng bước: Giải thích bối cảnh -> Đưa ra số liệu/bằng chứng -> Kết luận & Khuyến nghị.
-- Luôn sử dụng tiếng Việt chuẩn, súc tích nhưng đầy đủ ý nghĩa.
-- Định dạng: Sử dụng dấu gạch đầu dòng (-) và các đoạn văn ngắn để dễ đọc.
+HẠNG MỤC CÂU HỎI THỨ NHẤT:
+- Nếu hỏi về dashboard/alerts/metrics → dùng dữ liệu từ SYSTEM SNAPSHOT
+- Nếu hỏi về ví cụ thể → dùng wallet_focus context
+- Nếu hỏi về hệ thống → dùng kiến thức kiến trúc và dự án documentation
+- Nếu hỏi về account/đăng nhập → giải thích vấn đề phổ biến và cách fix
+
+ĐỊNH DẠN OUTPUT:
+- Sử dụng tiếng Việt chuẩn mực
+- Dùng dấu gạch đầu dòng (-) cho danh sách
+- Tránh từ mơ hồ như "tương đối", "khá", "khoảng"
+- Cấu trúc: Mô tả vấn đề → Dữ liệu cụ thể → Phân tích → Đề xuất
+- Giữ độ dài phù hợp (100-400 từ)
 
 <|eot_id|><|start_header_id|>user<|end_header_id|>
-NGỮ CẢNH HỘI THOẠI:
+NGỮ CẢNH HỆ THỐNG ĐẦY ĐỦ:
 {context_json}
 
-LỊCH SỬ HỘI THOẠI GẦN ĐÂY:
+LỊCH SỬ HỘI THOẠI (để hiểu flow):
 {history_text}
 
-DỮ LIỆU TRI THỨC DỰ ÁN (RAG):
-{knowledge_text or "Dùng cơ sở tri thức Sentinel Prime của bạn."}
+DỮ LIỆU TRI THỨC TỪ DOCS:
+{knowledge_text or "Không có tài liệu cụ thể - dùng cơ sở tri thức Sentinel Prime."}
 
 CÂU HỎI TỪ NGƯỜI DÙNG:
 {question}
+
+HÃY TRẢ LỜI NGẮN GỌN VÀ CHÍNH XÁC, SỬ DỤNG DỮ LIỆU THỰC:
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     def _fallback_dashboard_answer(
@@ -274,26 +334,46 @@ CÂU HỎI TỪ NGƯỜI DÙNG:
         conversation_history: Optional[List[Dict[str, str]]] = None,
         knowledge_snippets: Optional[List[KnowledgeSnippet]] = None,
     ) -> str:
+        """Improved fallback with actual context data"""
         overview = context.get("overview", {}) if isinstance(context, dict) else {}
+        alert_trend = context.get("alert_trend", {}) if isinstance(context, dict) else {}
+
         total_wallets = overview.get("total_wallets", 0)
         total_alerts = overview.get("total_alerts", 0)
         critical_alerts = overview.get("critical_alerts", 0)
         blocked = overview.get("total_blocked", 0)
-        snippet_hint = ""
-        if knowledge_snippets:
-            top_snippet = knowledge_snippets[0]
-            snippet_hint = f"\n- Nguồn tham khảo gần nhất: {top_snippet.source} / {top_snippet.heading}"
+        trend_dir = alert_trend.get("trend_direction", "STABLE")
 
-        return (
-            "AI model đang tạm thời không khả dụng, mình trả lời theo dữ liệu hệ thống hiện có.\n\n"
-            f"- Tổng ví theo dõi: {total_wallets}\n"
-            f"- Tổng cảnh báo: {total_alerts}\n"
-            f"- Cảnh báo critical: {critical_alerts}\n"
-            f"- Giao dịch đã chặn: {blocked}\n\n"
-            f"Câu hỏi của bạn: {question}\n"
-            + snippet_hint
-            + "\nGợi ý: nếu cần giải thích sâu hơn theo ví cụ thể, hãy cung cấp địa chỉ ví để mình phân tích theo ngữ cảnh chi tiết."
-        )
+        q_lower = (question or "").lower()
+
+        # Dynamically match question to metrics
+        if any(term in q_lower for term in ["4 chỉ số", "metric", "chỉ số"]):
+            return (
+                "4 chỉ số chính trên dashboard (dữ liệu thực tế):\n"
+                f"- Tổng ví theo dõi: {total_wallets}\n"
+                f"- Tổng cảnh báo: {total_alerts} (Critical: {critical_alerts})\n"
+                f"- Giao dịch bị chặn: {blocked}\n"
+                f"- Alerts hôm nay: {overview.get('alerts_today', 0)}\n\n"
+                f"Xu hướng hiện tại: {trend_dir}"
+            )
+        elif any(term in q_lower for term in ["tăng", "giảm", "xu hướng"]):
+            return (
+                f"Xu hướng alerts: {trend_dir}\n"
+                f"Chi tiết: {alert_trend.get('trend_percentage', 0):.1f}% so với trung bình 7 ngày\n"
+                f"Alerts hôm nay: {overview.get('alerts_today', 0)}\n"
+                f"Spike phát hiện: {'Có' if alert_trend.get('spike_detected', False) else 'Không'}\n\n"
+                "Mình chưa có đủ chi tiết phân tích sâu từ mô hình AI, nhưng dữ liệu dashboard trên đó thực tế."
+            )
+        else:
+            return (
+                "Tóm tắt hệ thống hiện tại:\n"
+                f"- {total_wallets} ví đang theo dõi\n"
+                f"- {total_alerts} cảnh báo toàn bộ ({critical_alerts} Critical)\n"
+                f"- {blocked} giao dịch đã chặn\n"
+                f"- Xu hướng: {trend_dir}\n\n"
+                "Mình chưa có chi tiết phân tích AI sâu hơn để trả lời câu hỏi của bạn. "
+                "Hãy thử hỏi cụ thể hơn về một số liệu hoặc ví cụ thể để mình phân tích."
+            )
 
     def _fallback_general_answer(
         self,
@@ -302,16 +382,46 @@ CÂU HỎI TỪ NGƯỜI DÙNG:
         conversation_history: Optional[List[Dict[str, str]]] = None,
         knowledge_snippets: Optional[List[KnowledgeSnippet]] = None,
     ) -> str:
+        """Improved general fallback with context awareness"""
+        q_lower = (question or "").lower()
+
+        # Support question detection
+        if any(term in q_lower for term in ["đăng nhập", "login", "tài khoản", "account"]):
+            return (
+                "Vấn đề đăng nhập/tài khoản thường do:\n"
+                "- Username hoặc mật khẩu sai\n"
+                "- Tài khoản chưa được kích hoạt\n"
+                "- Wallet address không tồn tại trong hệ thống\n"
+                "- Session token hết hạn\n\n"
+                "Cách khắc phục: Kiểm tra thông tin đăng nhập, wallet address, và thử lại sau vài phút."
+            )
+
+        # System architecture question detection
+        if any(term in q_lower for term in ["thành phần", "architecture", "cấu trúc hệ thống", "frontend", "backend"]):
+            return (
+                "Kiến trúc hệ thống gồm:\n"
+                "- Frontend: Next.js + React (UI trực quan cho dashboard)\n"
+                "- Backend: FastAPI + Python (xử lý logic, AI scoring)\n"
+                "- Database: PostgreSQL/Supabase (lưu trữ dữ liệu blockchain)\n"
+                "- AI Engine: Multi-agent detection (phát hiện rủi ro)\n\n"
+                "Dữ liệu từ blockchain được xử lý → AI scoring → tạo alerts → hiển thị dashboard."
+            )
+
+        # Default fallback
         snippet_hint = ""
-        if knowledge_snippets:
+        if knowledge_snippets and len(knowledge_snippets) > 0:
             top_snippet = knowledge_snippets[0]
-            snippet_hint = f"\n- Nguồn tham khảo gần nhất: {top_snippet.source} / {top_snippet.heading}"
+            snippet_hint = f"\n\nTham khảo: {top_snippet.source} - {top_snippet.heading}"
 
         return (
-            "Mình chưa lấy được câu trả lời từ mô hình, nhưng mình có thể hỗ trợ theo ngữ cảnh hệ thống.\n\n"
-            f"Câu hỏi của bạn: {question}\n"
+            "Mình chưa có lời giải thích AI chi tiết cho câu hỏi này, nhưng tôi có thể giúp về:\n"
+            "- Dashboard metrics & alerts\n"
+            "- Wallet analysis & risk scoring\n"
+            "- Hệ thống architecture\n"
+            "- Đăng nhập/tài khoản\n"
+            "- Quy trình vận hành\n\n"
+            "Hãy hỏi cụ thể hơn để mình trả lời tốt hơn."
             + snippet_hint
-            + "\nNếu bạn muốn, mình có thể trả lời theo 3 kiểu: lỗi đăng ký/đăng nhập, lỗi giao diện, hoặc câu hỏi về dashboard/ops."
         )
 
     def _construct_prompt(
@@ -355,7 +465,7 @@ THÔNG TIN VÍ:
 - Địa chỉ: {wallet_address}
 - Điểm rủi ro tổng hợp: {risk_score}/100 ({risk_level})
 - Điểm từ mô hình ML (S_ML): {ml_score}
-- Các dấu hiệu Heuristic: 
+- Các dấu hiệu Heuristic:
 {reasons_text}
 
 HÃY ĐƯA RA PHÂN TÍCH CHUYÊN SÂU:

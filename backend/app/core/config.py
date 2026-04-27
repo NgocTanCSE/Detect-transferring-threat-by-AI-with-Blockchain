@@ -13,11 +13,11 @@ def _default_database_url() -> str:
     # Hugging Face Spaces exposes SPACE_ID and provides persistent storage at /data.
     if os.getenv("SPACE_ID"):
         return "sqlite:////data/blockchain_local.db"
-    
+
     # On Windows local dev, default to sqlite to avoid "db" host resolution errors
     if os.name == "nt" and not os.getenv("DATABASE_URL"):
         return "sqlite:///blockchain_local.db"
-        
+
     return "postgresql://user:password@db:5432/blockchain_db"
 
 
@@ -87,8 +87,9 @@ RISK_THRESHOLD_HIGH: int = 80
 # Gemini AI Studio (Generative Language API)
 # Prefer GEMINI_API_KEY for explicitness; allow GOOGLE_API_KEY as compatibility alias.
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-GEMINI_API_BASE_URL: str = os.getenv("GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
+# Use gemini-1.5-flash by default (most stable and available)
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_API_BASE_URL: str = os.getenv("GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1")
 GEMINI_REQUEST_TIMEOUT_SECONDS: int = int(os.getenv("GEMINI_REQUEST_TIMEOUT_SECONDS", "45"))
 
 # Legacy HF settings (kept for backward compatibility with older diagnostics payloads/docs).
