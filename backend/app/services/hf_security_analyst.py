@@ -86,7 +86,7 @@ class HFSecurityAnalyst:
             conversation_history=conversation_history or [],
         )
         try:
-            return self._generate_text(prompt=prompt, max_new_tokens=380, temperature=0.45)
+            return self._generate_text(prompt=prompt, max_new_tokens=1000, temperature=0.45)
         except Exception as error:
             logger.error(f"Gemini dashboard chat failed: {error}")
             return self._fallback_dashboard_answer(
@@ -114,7 +114,7 @@ class HFSecurityAnalyst:
             conversation_history=conversation_history or [],
         )
         try:
-            return self._generate_text(prompt=prompt, max_new_tokens=420, temperature=0.55)
+            return self._generate_text(prompt=prompt, max_new_tokens=900, temperature=0.55)
         except Exception as error:
             logger.error(f"Gemini general chat failed: {error}")
             return self._fallback_general_answer(

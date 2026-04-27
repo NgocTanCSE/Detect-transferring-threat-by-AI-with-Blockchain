@@ -128,18 +128,37 @@ def _is_low_quality_answer(answer: str) -> bool:
     if len(text) < 25:
         return True
 
-    # Check for incomplete/stub answers
-    incomplete_patterns = [
-        r"^[a-z\s:]+\*+$",  # Text ending with just asterisks
-        "Dựa trên dữ liệu hệ thống hiện tại:",  # Incomplete prefix
-        "được rồi",  # Acknowledgement only
+    # CRITICAL: Check for incomplete/truncated responses
+    incomplete_indicators = [
+        "Dựa trên dữ liệu",  # Incomplete prefix that's often cut off
+        "Chào người",  # Greeting that leads to truncation
+        "Với vai trò là",  # Role assignment that's often incomplete
+        "được rồi",  # Bare acknowledgement
     ]
 
-    for pattern in incomplete_patterns:
-        if re.search(pattern, text, re.IGNORECASE):
-            # Check if there's actual content after
-            if len(text) < 60 or text.count(".") < 2:
+    for indicator in incomplete_indicators:
+        if indicator.lower() in text.lower():
+            # If we find incomplete prefix, check if content is too short
+            # Most complete answers should have 150+ chars and 3+ periods
+            if len(text) < 150 or text.count(".") < 3:
                 return True
+
+    # Check for responses ending with just bullet or incomplete line
+    if text.rstrip().endswith("-") or text.rstrip().endswith("•"):
+        return True
+
+    # Check for responses that look like they got cut mid-word (ends with comma + short tail)
+    if text.rstrip().endswith(","):
+        # Incomplete sentence ending in comma
+        last_line = text.split("\n")[-1]
+        if len(last_line.strip()) < 20:
+            return True
+
+    # Check for minimal content (just headers without substance)
+    lines = text.split("\n")
+    substance_lines = [l for l in lines if l.strip() and not l.strip().startswith("-") and not l.strip().startswith("•")]
+    if len(substance_lines) <= 1 and len(text) < 100:
+        return True
 
     # Check for generic/error patterns
     generic_patterns = [
