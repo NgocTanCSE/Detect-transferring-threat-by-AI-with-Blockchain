@@ -140,14 +140,12 @@ class HFSecurityAnalyst:
         }
 
         # Try multiple model names and API versions (Gemini models only)
-        # Prioritize working models first
+        # Prioritize working models first (tested 2026-04-28)
         versions = ["v1", "v1beta"]
         models_to_try = [
-            "gemini-1.5-flash",    # Most stable and available
-            "gemini-pro",           # Alternative v1 model
-            "gemini-2.0-flash",     # Newer model
-            "gemini-1.5-pro",       # More capable
-            "gemini-2.0-flash-exp", # Experimental
+            "gemini-2.5-flash",      # Newest model (primary)
+            "gemini-2.5-pro",        # Newer pro version
+            "gemini-2.0-flash",      # Stable fallback
         ]
         last_error = None
 
