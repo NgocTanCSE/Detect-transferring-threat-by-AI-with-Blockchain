@@ -3,10 +3,6 @@
 import os
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 
 def _default_database_url() -> str:
     """Return environment-appropriate default database URL."""
