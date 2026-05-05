@@ -90,25 +90,25 @@ export default function GlobalAssistantWidget() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-5 right-5 z-[60] inline-flex h-14 w-14 items-center justify-center rounded-full border border-zinc-500/40 bg-zinc-800/40 text-zinc-100 shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_18px_40px_rgba(0,0,0,0.5)] transition hover:scale-105 hover:bg-zinc-700/50"
+        className="fixed bottom-5 right-5 z-[60] inline-flex h-14 w-14 items-center justify-center rounded-full border border-slate-500/40 bg-slate-800/40 text-slate-100 shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_18px_40px_rgba(0,0,0,0.5)] transition hover:scale-105 hover:bg-slate-700/50"
         aria-label="Open assistant"
       >
         <MessageCircle className="h-6 w-6" />
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 shadow-[0_30px_100px_rgba(0,0,0,0.7)]">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-slate-800 bg-slate-950 text-slate-100 shadow-[0_30px_100px_rgba(0,0,0,0.7)]">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-400">Assistant</p>
+              <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">Assistant</p>
               <h2 className="mt-1 text-xl font-semibold text-white">Global Operator Assistant</h2>
-              <p className="mt-1 text-sm text-zinc-400">Available across the whole app · {roleLabel} · {pathname}</p>
+              <p className="mt-1 text-sm text-slate-400">Available across the whole app · {roleLabel} · {pathname}</p>
             </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setOpen(false)}
-              className="text-zinc-400 hover:bg-zinc-800 hover:text-white"
+              className="text-slate-400 hover:bg-slate-800 hover:text-white"
             >
               <X className="h-5 w-5" />
             </Button>

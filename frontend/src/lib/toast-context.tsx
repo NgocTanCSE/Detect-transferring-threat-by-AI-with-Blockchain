@@ -39,10 +39,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             className={[
               "rounded-xl border px-3 py-2 text-sm shadow-lg backdrop-blur",
               item.tone === "success"
-                ? "border-zinc-500/40 bg-zinc-500/15 text-zinc-100"
+                ? "border-slate-500/40 bg-slate-500/15 text-slate-100"
                 : item.tone === "error"
-                  ? "border-zinc-500/40 bg-zinc-500/15 text-zinc-100"
-                  : "border-zinc-500/40 bg-zinc-500/15 text-zinc-100",
+                  ? "border-slate-500/40 bg-slate-500/15 text-slate-100"
+                  : "border-slate-500/40 bg-slate-500/15 text-slate-100",
             ].join(" ")}
           >
             {item.message}

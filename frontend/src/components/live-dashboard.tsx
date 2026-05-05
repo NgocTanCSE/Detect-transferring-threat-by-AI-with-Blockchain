@@ -317,7 +317,7 @@ const QUICK_ROUTES = [
 ];
 
 const TONAL_STYLES: Record<string, string> = {
-  zinc: "border-slate-500/20 bg-slate-900/50 text-slate-100",
+  teal: "border-slate-500/20 bg-slate-900/50 text-slate-100",
   blue: "border-teal-400/20 bg-teal-500/10 text-teal-100",
   red: "border-amber-500/20 bg-amber-500/10 text-amber-100",
   green: "border-teal-500/20 bg-teal-500/10 text-teal-100",
@@ -393,12 +393,12 @@ function percentage(value: number, total: number): number {
 function SeverityPill({ severity }: { severity: string }) {
   const color =
     severity === "CRITICAL"
-      ? "border-zinc-200/40 bg-zinc-200/10 text-zinc-50 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+      ? "border-slate-200/40 bg-slate-200/10 text-slate-50 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
       : severity === "HIGH"
-        ? "border-zinc-400/30 bg-zinc-400/10 text-zinc-100"
+        ? "border-slate-400/30 bg-slate-400/10 text-slate-100"
         : severity === "MEDIUM"
-          ? "border-zinc-600/30 bg-zinc-600/10 text-zinc-300"
-          : "border-zinc-800/30 bg-zinc-800/10 text-zinc-500";
+          ? "border-slate-600/30 bg-slate-600/10 text-slate-300"
+          : "border-slate-800/30 bg-slate-800/10 text-slate-500";
 
   return <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${color}`}>{severity}</span>;
 }
@@ -735,36 +735,36 @@ export default function LiveDashboard() {
 
     if (role.key === "system_admin") {
       return [
-        { label: "Availability", value: sloMetrics ? formatPercent(sloMetrics.endpoint_health.availability_pct) : "-", tone: "zinc", hint: "Active endpoints" },
-        { label: "Healthy nodes", value: sloMetrics ? `${sloMetrics.endpoint_health.healthy_active}/${sloMetrics.endpoint_health.active}` : "-", tone: "zinc", hint: "Endpoint health" },
-        { label: "Pipeline TPS", value: pipelineSummary?.avg_throughput_tps != null ? pipelineSummary.avg_throughput_tps.toFixed(1) : "-", tone: "zinc", hint: "Average throughput" },
-        { label: "Alerts today", value: overview ? formatCompact(overview.alerts_today) : "-", tone: "zinc", hint: "Live alert volume" },
+        { label: "Availability", value: sloMetrics ? formatPercent(sloMetrics.endpoint_health.availability_pct) : "-", tone: "teal", hint: "Active endpoints" },
+        { label: "Healthy nodes", value: sloMetrics ? `${sloMetrics.endpoint_health.healthy_active}/${sloMetrics.endpoint_health.active}` : "-", tone: "teal", hint: "Endpoint health" },
+        { label: "Pipeline TPS", value: pipelineSummary?.avg_throughput_tps != null ? pipelineSummary.avg_throughput_tps.toFixed(1) : "-", tone: "teal", hint: "Average throughput" },
+        { label: "Alerts today", value: overview ? formatCompact(overview.alerts_today) : "-", tone: "teal", hint: "Live alert volume" },
       ];
     }
 
     if (role.key === "ai_data_engineer") {
       return [
-        { label: "Feature flags", value: formatCompact(featureConfigs.length), tone: "zinc", hint: `${featureConfigs.filter((item) => item.enabled).length} enabled` },
-        { label: "Model versions", value: formatCompact(modelRegistry.length), tone: "zinc", hint: `${activeModels.length} active` },
-        { label: "Latest records", value: pipelineSummary?.total_points != null ? formatCompact(pipelineSummary.total_points) : "-", tone: "zinc", hint: "Pipeline metrics available" },
-        { label: "Tracked wallets", value: overview ? formatCompact(overview.total_wallets) : "-", tone: "zinc", hint: "Source population" },
+        { label: "Feature flags", value: formatCompact(featureConfigs.length), tone: "slate", hint: `${featureConfigs.filter((item) => item.enabled).length} enabled` },
+        { label: "Model versions", value: formatCompact(modelRegistry.length), tone: "slate", hint: `${activeModels.length} active` },
+        { label: "Latest records", value: pipelineSummary?.total_points != null ? formatCompact(pipelineSummary.total_points) : "-", tone: "slate", hint: "Pipeline metrics available" },
+        { label: "Tracked wallets", value: overview ? formatCompact(overview.total_wallets) : "-", tone: "slate", hint: "Source population" },
       ];
     }
 
     if (role.key === "security_analyst") {
       return [
-        { label: "Critical alerts", value: alertsSummary ? formatCompact(alertsSummary.critical) : "-", tone: "zinc", hint: "Severity snapshot" },
-        { label: "Pending cases", value: caseSummary ? formatCompact(caseSummary.totals.PENDING || 0) : "-", tone: "zinc", hint: `${caseSummary?.unassigned ?? 0} unassigned` },
-        { label: "Notifications", value: notificationEvents.length ? formatCompact(notificationEvents.length) : "-", tone: "zinc", hint: "Recent channel events" },
-        { label: "Blocked today", value: blockedTransfers.length ? formatCompact(blockedTransfers.length) : "-", tone: "zinc", hint: "Transfer intervention" },
+        { label: "Critical alerts", value: alertsSummary ? formatCompact(alertsSummary.critical) : "-", tone: "amber", hint: "Severity snapshot" },
+        { label: "Pending cases", value: caseSummary ? formatCompact(caseSummary.totals.PENDING || 0) : "-", tone: "slate", hint: `${caseSummary?.unassigned ?? 0} unassigned` },
+        { label: "Notifications", value: notificationEvents.length ? formatCompact(notificationEvents.length) : "-", tone: "slate", hint: "Recent channel events" },
+        { label: "Blocked today", value: blockedTransfers.length ? formatCompact(blockedTransfers.length) : "-", tone: "amber", hint: "Transfer intervention" },
       ];
     }
 
     return [
-      { label: "Blocked value", value: reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-", tone: "zinc", hint: "30-day risk impact" },
-      { label: "Audit completeness", value: auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-", tone: "zinc", hint: `${auditCompleteness?.present_actions ?? 0}/${auditCompleteness?.required_actions ?? 0}` },
-      { label: "Policy rules", value: reportingSummary ? formatCompact(reportingSummary.kpis.policy_rules_active) : "-", tone: "zinc", hint: "Active governance rules" },
-      { label: "Blocked transfers", value: reportingSummary ? formatCompact(reportingSummary.kpis.blocked_total) : "-", tone: "zinc", hint: "Audit window" },
+      { label: "Blocked value", value: reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-", tone: "amber", hint: "30-day risk impact" },
+      { label: "Audit completeness", value: auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-", tone: "teal", hint: `${auditCompleteness?.present_actions ?? 0}/${auditCompleteness?.required_actions ?? 0}` },
+      { label: "Policy rules", value: reportingSummary ? formatCompact(reportingSummary.kpis.policy_rules_active) : "-", tone: "teal", hint: "Active governance rules" },
+      { label: "Blocked transfers", value: reportingSummary ? formatCompact(reportingSummary.kpis.blocked_total) : "-", tone: "amber", hint: "Audit window" },
     ];
   }, [activeModels.length, alertsSummary, auditCompleteness, blockedTransfers.length, caseSummary, dashboardStats, featureConfigs.length, modelRegistry.length, notificationEvents.length, pipelineSummary, reportingSummary, role.key, sloMetrics]);
 
@@ -783,7 +783,7 @@ export default function LiveDashboard() {
             description: "Availability, latency, and flow are sourced from live backend metrics.",
             content: (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/60 p-4">
+                <div className="rounded-2xl border border-slate-700/70 bg-slate-950/60 p-4">
                   {flowStats.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300} minHeight={300}>
                       <LineChart data={flowChartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
@@ -797,10 +797,10 @@ export default function LiveDashboard() {
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="flex h-[300px] items-center justify-center text-zinc-500">
+                    <div className="flex h-[300px] items-center justify-center text-slate-500">
                       <div className="text-center">
                         <p className="text-sm">No flow data available</p>
-                        <p className="text-xs text-zinc-600 mt-2">Data will appear after transactions are processed</p>
+                        <p className="text-xs text-slate-600 mt-2">Data will appear after transactions are processed</p>
                       </div>
                     </div>
                   )}
@@ -808,10 +808,10 @@ export default function LiveDashboard() {
                 <div className="grid gap-3">
                   {sloMetrics ? (
                     <>
-                      <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper="Healthy / active endpoints" tone="zinc" />
-                      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current period" tone="zinc" />
-                      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="zinc" />
-                      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="zinc" />
+                      <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper="Healthy / active endpoints" tone="teal" />
+                      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current period" tone="teal" />
+                      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="teal" />
+                      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="teal" />
                     </>
                   ) : null}
                 </div>
@@ -1482,8 +1482,8 @@ function DiagnosticsLogsPanel({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Total logs" value={formatCompact(mutableLogs.length)} helper="All diagnostic entries" tone="zinc" />
-        <MetricBlock label="Errors" value={formatCompact(errorCount)} helper="Error logs" tone={errorCount > 0 ? "red" : "zinc"} />
+        <MetricBlock label="Total logs" value={formatCompact(mutableLogs.length)} helper="All diagnostic entries" tone="slate" />
+        <MetricBlock label="Errors" value={formatCompact(errorCount)} helper="Error logs" tone={errorCount > 0 ? "red" : "slate"} />
         <MetricBlock label="Endpoints" value={formatCompact(new Set(mutableLogs.map((log) => log.endpoint).filter(Boolean)).size)} helper="Unique endpoints" tone="blue" />
         <MetricBlock label="Log types" value={formatCompact(uniqueTypes.length)} helper="Different log categories" tone="amber" />
       </div>
@@ -1645,10 +1645,10 @@ function SloPanel({ sloMetrics }: { sloMetrics: SloMetrics | null }) {
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper={`${sloMetrics.endpoint_health.healthy_active}/${sloMetrics.endpoint_health.active} active endpoints healthy`} tone="zinc" />
-      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current window" tone="zinc" />
-      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="zinc" />
-      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="zinc" />
+      <MetricBlock label="Availability" value={formatPercent(sloMetrics.endpoint_health.availability_pct)} helper={`${sloMetrics.endpoint_health.healthy_active}/${sloMetrics.endpoint_health.active} active endpoints healthy`} tone="teal" />
+      <MetricBlock label="Error budget burn" value={formatPercent(sloMetrics.endpoint_health.error_budget_burn_pct)} helper="Current window" tone="teal" />
+      <MetricBlock label="Ingest p95" value={`${sloMetrics.latency_slo.ingest_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.ingest_target_ms.toFixed(0)} ms`} tone="teal" />
+      <MetricBlock label="Decode p95" value={`${sloMetrics.latency_slo.decode_p95_ms.toFixed(0)} ms`} helper={`Target ${sloMetrics.latency_slo.decode_target_ms.toFixed(0)} ms`} tone="teal" />
     </div>
   );
 }
@@ -1730,10 +1730,10 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Checks" value={formatCompact(report.checks.length)} helper="Total controls" tone="zinc" />
-        <MetricBlock label="Missing" value={formatCompact(missing.length)} helper="Need seeding/config" tone={missing.length ? "zinc" : "zinc"} />
-        <MetricBlock label="Roles ready" value={formatCompact(Object.values(report.role_readiness || {}).filter(Boolean).length)} helper="Out of 4 roles" tone="zinc" />
-        <MetricBlock label="Diagnostics rows" value={formatCompact(report.counts?.diagnostic_events ?? 0)} helper="Persistent logs" tone="zinc" />
+        <MetricBlock label="Checks" value={formatCompact(report.checks.length)} helper="Total controls" tone="teal" />
+        <MetricBlock label="Missing" value={formatCompact(missing.length)} helper="Need seeding/config" tone={missing.length ? "amber" : "slate"} />
+        <MetricBlock label="Roles ready" value={formatCompact(Object.values(report.role_readiness || {}).filter(Boolean).length)} helper="Out of 4 roles" tone="teal" />
+        <MetricBlock label="Diagnostics rows" value={formatCompact(report.counts?.diagnostic_events ?? 0)} helper="Persistent logs" tone="slate" />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -1766,9 +1766,9 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
         </button>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Control</th>
               <th className="px-4 py-3 text-left font-medium">Owner role</th>
@@ -1777,7 +1777,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
               <th className="px-4 py-3 text-left font-medium">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {(missing.length ? missing : report.checks.slice(0, 8).map((item) => ({
               key: item.key,
               owner_role: item.owner_role,
@@ -1804,7 +1804,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
             ))}
             {missing.length === 0 && report.checks.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">No integrity controls were returned.</td>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No integrity controls were returned.</td>
               </tr>
             ) : null}
           </tbody>
@@ -1925,10 +1925,10 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricBlock label="Registry entries" value={formatCompact(mutableModels.length)} helper="Current records" tone="zinc" />
-        <MetricBlock label="Active models" value={formatCompact(mutableActiveModels.length)} helper="Serving now" tone="zinc" />
-        <MetricBlock label="Frameworks" value={formatCompact(new Set(mutableModels.map((item) => item.framework)).size)} helper="Unique runtimes" tone="zinc" />
-        <MetricBlock label="Artifacts" value={formatCompact(mutableModels.length)} helper="Tracked versions" tone="zinc" />
+        <MetricBlock label="Registry entries" value={formatCompact(mutableModels.length)} helper="Current records" tone="teal" />
+        <MetricBlock label="Active models" value={formatCompact(mutableActiveModels.length)} helper="Serving now" tone="teal" />
+        <MetricBlock label="Frameworks" value={formatCompact(new Set(mutableModels.map((item) => item.framework)).size)} helper="Unique runtimes" tone="slate" />
+        <MetricBlock label="Artifacts" value={formatCompact(mutableModels.length)} helper="Tracked versions" tone="slate" />
       </div>
       <button
         type="button"
@@ -1938,9 +1938,9 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
       >
         Register model
       </button>
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Model</th>
               <th className="px-4 py-3 text-left font-medium">Version</th>
@@ -1949,7 +1949,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
               <th className="px-4 py-3 text-left font-medium">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {mutableModels.slice(0, 50).map((model) => {
               const isActive = model.is_active || activeNames.has(`${model.model_name}:${model.version}`);
               return (
@@ -1963,7 +1963,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
                       type="button"
                       disabled={isSubmitting || isActive}
                       onClick={() => void handleActivateModel(model)}
-                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
+                      className="rounded-md border border-slate-500/40 bg-slate-500/10 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-60"
                     >
                       {isActive ? "Active" : "Activate"}
                     </button>
@@ -2077,9 +2077,9 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
       >
         Add feature
       </button>
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Feature</th>
               <th className="px-4 py-3 text-left font-medium">Enabled</th>
@@ -2088,7 +2088,7 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
               <th className="px-4 py-3 text-left font-medium">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {mutableFeatures.slice(0, 50).map((feature) => (
               <tr key={feature.id}>
                 <td className="px-4 py-3">{feature.feature_key}</td>
@@ -2100,7 +2100,7 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => void handleToggleFeature(feature)}
-                    className="rounded-lg border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-xs font-medium text-zinc-200 transition hover:border-zinc-400/60 disabled:opacity-60"
+                    className="rounded-lg border border-slate-500/40 bg-slate-500/10 px-2 py-1 text-xs font-medium text-slate-200 transition hover:border-slate-400/60 disabled:opacity-60"
                   >
                     {feature.enabled ? "Disable" : "Enable"}
                   </button>
@@ -2123,7 +2123,7 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
         <ResponsiveContainer width="100%" height={260}>
           <PieChart>
             <Pie data={data} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={3}>
@@ -2136,11 +2136,11 @@ function FeatureOperationsPanel({ features }: { features: FeatureConfigItem[] })
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
         <div className="space-y-3">
-          <MetricBlock label="Enabled features" value={formatCompact(enabled)} helper="Active feature flags" tone="zinc" />
-          <MetricBlock label="Disabled features" value={formatCompact(Math.max(0, features.length - enabled))} helper="Risk-free toggles" tone="zinc" />
-          <MetricBlock label="Owner coverage" value={formatCompact(new Set(features.map((item) => item.owner_user_id).filter(Boolean)).size)} helper="Unique owners" tone="zinc" />
+          <MetricBlock label="Enabled features" value={formatCompact(enabled)} helper="Active feature flags" tone="teal" />
+          <MetricBlock label="Disabled features" value={formatCompact(Math.max(0, features.length - enabled))} helper="Risk-free toggles" tone="slate" />
+          <MetricBlock label="Owner coverage" value={formatCompact(new Set(features.map((item) => item.owner_user_id).filter(Boolean)).size)} helper="Unique owners" tone="slate" />
         </div>
       </div>
     </div>
@@ -2155,15 +2155,15 @@ function ModelOperationsPanel({ models, activeModels }: { models: ModelRegistryI
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Active serving" value={formatCompact(activeModels.length)} helper="Live models" tone="zinc" />
-        <MetricBlock label="Promoted" value={formatCompact(promoted.length)} helper="Governed promotions" tone="zinc" />
-        <MetricBlock label="Inactive" value={formatCompact(inactive.length)} helper="Needs review" tone="zinc" />
-        <MetricBlock label="Frameworks" value={formatCompact(new Set(models.map((item) => item.framework)).size)} helper="Runtime diversity" tone="zinc" />
+        <MetricBlock label="Active serving" value={formatCompact(activeModels.length)} helper="Live models" tone="teal" />
+        <MetricBlock label="Promoted" value={formatCompact(promoted.length)} helper="Governed promotions" tone="teal" />
+        <MetricBlock label="Inactive" value={formatCompact(inactive.length)} helper="Needs review" tone="amber" />
+        <MetricBlock label="Frameworks" value={formatCompact(new Set(models.map((item) => item.framework)).size)} helper="Runtime diversity" tone="slate" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Model</th>
               <th className="px-4 py-3 text-left font-medium">Version</th>
@@ -2172,7 +2172,7 @@ function ModelOperationsPanel({ models, activeModels }: { models: ModelRegistryI
               <th className="px-4 py-3 text-left font-medium">By</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {models.slice(0, 50).map((item) => {
               const key = `${item.model_name}:${item.version}`;
               const isServing = item.is_active || activeKey.has(key);
@@ -2201,15 +2201,15 @@ function FeatureDataPanel({ features }: { features: FeatureConfigItem[] }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Features" value={formatCompact(features.length)} helper="All records" tone="zinc" />
-        <MetricBlock label="With expression" value={formatCompact(features.filter((item) => Boolean(item.expression)).length)} helper="Ready for runtime" tone="zinc" />
-        <MetricBlock label="Owned" value={formatCompact(features.filter((item) => Boolean(item.owner_user_id)).length)} helper="Has owner" tone="zinc" />
-        <MetricBlock label="Updated" value={formatCompact(features.filter((item) => Boolean(item.updated_at)).length)} helper="Fresh metadata" tone="zinc" />
+        <MetricBlock label="Features" value={formatCompact(features.length)} helper="All records" tone="teal" />
+        <MetricBlock label="With expression" value={formatCompact(features.filter((item) => Boolean(item.expression)).length)} helper="Ready for runtime" tone="teal" />
+        <MetricBlock label="Owned" value={formatCompact(features.filter((item) => Boolean(item.owner_user_id)).length)} helper="Has owner" tone="slate" />
+        <MetricBlock label="Updated" value={formatCompact(features.filter((item) => Boolean(item.updated_at)).length)} helper="Fresh metadata" tone="slate" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Feature key</th>
               <th className="px-4 py-3 text-left font-medium">Expression</th>
@@ -2217,7 +2217,7 @@ function FeatureDataPanel({ features }: { features: FeatureConfigItem[] }) {
               <th className="px-4 py-3 text-left font-medium">Updated</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {features.slice(0, 50).map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.feature_key}</td>
@@ -2241,15 +2241,15 @@ function RegistryDataPanel({ models }: { models: ModelRegistryItem[] }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Versions" value={formatCompact(models.length)} helper="Tracked versions" tone="zinc" />
-        <MetricBlock label="Artifacts" value={formatCompact(models.filter((item) => Boolean(item.artifact_uri)).length)} helper="Stored URIs" tone="zinc" />
-        <MetricBlock label="Promoted" value={formatCompact(models.filter((item) => Boolean(item.promoted_at)).length)} helper="Lifecycle events" tone="zinc" />
-        <MetricBlock label="Missing promoter" value={formatCompact(models.filter((item) => !item.promoted_by).length)} helper="Governance gap" tone="zinc" />
+        <MetricBlock label="Versions" value={formatCompact(models.length)} helper="Tracked versions" tone="teal" />
+        <MetricBlock label="Artifacts" value={formatCompact(models.filter((item) => Boolean(item.artifact_uri)).length)} helper="Stored URIs" tone="teal" />
+        <MetricBlock label="Promoted" value={formatCompact(models.filter((item) => Boolean(item.promoted_at)).length)} helper="Lifecycle events" tone="slate" />
+        <MetricBlock label="Missing promoter" value={formatCompact(models.filter((item) => !item.promoted_by).length)} helper="Governance gap" tone="amber" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Model</th>
               <th className="px-4 py-3 text-left font-medium">Version</th>
@@ -2257,7 +2257,7 @@ function RegistryDataPanel({ models }: { models: ModelRegistryItem[] }) {
               <th className="px-4 py-3 text-left font-medium">Created</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {models.slice(0, 50).map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.model_name}</td>
@@ -2342,7 +2342,7 @@ function AlertQueuePanel({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               value={searchTerm}
               onChange={(event) => {
@@ -2350,7 +2350,7 @@ function AlertQueuePanel({
                 setPage(1);
               }}
               placeholder="Search wallet, type, message"
-              className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-200 outline-none transition focus:border-zinc-500/50"
+              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-slate-500/50"
             />
           </div>
           <select
@@ -2359,7 +2359,7 @@ function AlertQueuePanel({
               setSeverityFilter(event.target.value);
               setPage(1);
             }}
-            className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-200 outline-none"
+            className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
           >
             <option value="all">All severities</option>
             <option value="CRITICAL">CRITICAL</option>
@@ -2369,9 +2369,9 @@ function AlertQueuePanel({
           </select>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-zinc-700">
-          <table className="min-w-full divide-y divide-zinc-800 text-sm">
-            <thead className="bg-zinc-900/80 text-zinc-400">
+        <div className="overflow-hidden rounded-2xl border border-slate-700">
+          <table className="min-w-full divide-y divide-slate-800 text-sm">
+            <thead className="bg-slate-900/80 text-slate-400">
               <tr>
                 <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("wallet")} className="hover:text-white">Wallet</button></th>
                 <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("severity")} className="hover:text-white">Severity</button></th>
@@ -2380,7 +2380,7 @@ function AlertQueuePanel({
                 <th className="px-4 py-3 text-left font-medium">Detail</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+            <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
               {pagedAlerts.map((alert) => (
                 <tr key={alert.alert_id}>
                   <td className="px-4 py-3">{formatAddress(alert.wallet_address)}</td>
@@ -2388,7 +2388,7 @@ function AlertQueuePanel({
                   <td className="px-4 py-3">{alert.alert_type}</td>
                   <td className="px-4 py-3">{formatDateTime(alert.detected_at)}</td>
                   <td className="px-4 py-3">
-                    <Link href={`/insights/wallet/${encodeURIComponent(alert.wallet_address)}${contextQuery}`} className="inline-flex items-center gap-1 text-zinc-300 hover:text-zinc-200">
+                    <Link href={`/insights/wallet/${encodeURIComponent(alert.wallet_address)}${contextQuery}`} className="inline-flex items-center gap-1 text-slate-300 hover:text-slate-200">
                       Wallet
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
@@ -2397,7 +2397,7 @@ function AlertQueuePanel({
               ))}
               {pagedAlerts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">No alerts match current filters.</td>
+                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No alerts match current filters.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -2441,7 +2441,7 @@ function AlertSeverityCard({ alertsSummary, alerts }: { alertsSummary: AlertsSum
   ];
 
   return (
-    <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+    <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
       <p className="text-sm font-semibold text-white">Severity mix</p>
       <div className="mt-3 h-[260px]">
         <ResponsiveContainer width="100%" height="100%">
@@ -2567,15 +2567,15 @@ function CaseQueuePanel({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Pending" value={formatCompact(caseSummary?.totals.PENDING ?? 0)} helper="Case queue" tone="zinc" />
-        <MetricBlock label="Verified" value={formatCompact(caseSummary?.totals.VERIFIED ?? 0)} helper="Analyst review" tone="zinc" />
-        <MetricBlock label="Fraud" value={formatCompact(caseSummary?.totals.FRAUD ?? 0)} helper="Confirmed risk" tone="zinc" />
-        <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="zinc" />
+        <MetricBlock label="Pending" value={formatCompact(caseSummary?.totals.PENDING ?? 0)} helper="Case queue" tone="amber" />
+        <MetricBlock label="Verified" value={formatCompact(caseSummary?.totals.VERIFIED ?? 0)} helper="Analyst review" tone="teal" />
+        <MetricBlock label="Fraud" value={formatCompact(caseSummary?.totals.FRAUD ?? 0)} helper="Confirmed risk" tone="amber" />
+        <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="amber" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <input
             value={searchTerm}
             onChange={(event) => {
@@ -2583,7 +2583,7 @@ function CaseQueuePanel({
               setPage(1);
             }}
             placeholder="Search tx hash or wallet"
-            className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-200 outline-none transition focus:border-zinc-500/50"
+            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-slate-500/50"
           />
         </div>
         <select
@@ -2592,7 +2592,7 @@ function CaseQueuePanel({
             setStatusFilter(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-200 outline-none"
+          className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
         >
           <option value="all">All statuses</option>
           <option value="PENDING">PENDING</option>
@@ -2602,9 +2602,9 @@ function CaseQueuePanel({
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("tx")} className="hover:text-white">TX Hash</button></th>
               <th className="px-4 py-3 text-left font-medium"><button type="button" onClick={() => onSort("risk")} className="hover:text-white">Risk</button></th>
@@ -2614,7 +2614,7 @@ function CaseQueuePanel({
               <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {pagedCases.map((item) => (
               <tr key={item.tx_hash}>
                 <td className="px-4 py-3 font-mono text-xs">{formatAddress(item.tx_hash)}</td>
@@ -2627,7 +2627,7 @@ function CaseQueuePanel({
                       type="button"
                       disabled={actingTxHash === item.tx_hash}
                       onClick={() => void handleCaseAction(item.tx_hash, "CONFIRM_FRAUD")}
-                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
+                      className="rounded-md border border-slate-500/40 bg-slate-500/10 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-60"
                     >
                       Fraud
                     </button>
@@ -2635,7 +2635,7 @@ function CaseQueuePanel({
                       type="button"
                       disabled={actingTxHash === item.tx_hash}
                       onClick={() => void handleCaseAction(item.tx_hash, "DISMISS")}
-                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
+                      className="rounded-md border border-slate-500/40 bg-slate-500/10 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-60"
                     >
                       Dismiss
                     </button>
@@ -2650,7 +2650,7 @@ function CaseQueuePanel({
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-zinc-300 hover:text-zinc-200">
+                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-slate-300 hover:text-slate-200">
                     Case
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Link>
@@ -2659,7 +2659,7 @@ function CaseQueuePanel({
             ))}
             {pagedCases.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-sm text-zinc-500">No cases match current filters.</td>
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">No cases match current filters.</td>
               </tr>
             ) : null}
           </tbody>
@@ -2693,7 +2693,7 @@ function CaseActionPanel({ caseSummary }: { caseSummary: CaseSummary | null }) {
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
         <ResponsiveContainer width="100%" height={280}>
           <PieChart>
             <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={70} outerRadius={100} paddingAngle={4}>
@@ -2707,9 +2707,9 @@ function CaseActionPanel({ caseSummary }: { caseSummary: CaseSummary | null }) {
         </ResponsiveContainer>
       </div>
       <div className="grid gap-3">
-        <MetricBlock label="High-risk unassigned" value={formatCompact(caseSummary?.high_risk_unassigned ?? 0)} helper="Needs immediate action" tone="zinc" />
-        <MetricBlock label="Total queue" value={formatCompact(Object.values(totals).reduce((sum, value) => sum + value, 0))} helper="Live case volume" tone="zinc" />
-        <MetricBlock label="Assignment pressure" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Open cases without owners" tone="zinc" />
+        <MetricBlock label="High-risk unassigned" value={formatCompact(caseSummary?.high_risk_unassigned ?? 0)} helper="Needs immediate action" tone="amber" />
+        <MetricBlock label="Total queue" value={formatCompact(Object.values(totals).reduce((sum, value) => sum + value, 0))} helper="Live case volume" tone="teal" />
+        <MetricBlock label="Assignment pressure" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Open cases without owners" tone="amber" />
       </div>
     </div>
   );
@@ -2736,9 +2736,9 @@ function NotificationTable({ notifications }: { notifications: NotificationItem[
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Channel</th>
               <th className="px-4 py-3 text-left font-medium">Recipient</th>
@@ -2746,7 +2746,7 @@ function NotificationTable({ notifications }: { notifications: NotificationItem[
               <th className="px-4 py-3 text-left font-medium">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {pagedNotifications.map((notification) => (
               <tr key={notification.id}>
                 <td className="px-4 py-3">{notification.channel}</td>
@@ -2785,7 +2785,7 @@ function AlertChartPanel({ alerts, alertsSummary }: { alerts: Alert[]; alertsSum
   ];
 
   return (
-    <div className="h-[320px] rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+    <div className="h-[320px] rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
@@ -2821,15 +2821,15 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Total cases" value={formatCompact(cases.length)} helper="Current dataset" tone="zinc" />
-        <MetricBlock label="Flagged" value={formatCompact(cases.filter((item) => item.is_flagged).length)} helper="Risk signals" tone="zinc" />
-        <MetricBlock label="Assigned" value={formatCompact(cases.filter((item) => Boolean(item.assigned_to)).length)} helper="Has owner" tone="zinc" />
-        <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="zinc" />
+        <MetricBlock label="Total cases" value={formatCompact(cases.length)} helper="Current dataset" tone="teal" />
+        <MetricBlock label="Flagged" value={formatCompact(cases.filter((item) => item.is_flagged).length)} helper="Risk signals" tone="amber" />
+        <MetricBlock label="Assigned" value={formatCompact(cases.filter((item) => Boolean(item.assigned_to)).length)} helper="Has owner" tone="slate" />
+        <MetricBlock label="Unassigned" value={formatCompact(caseSummary?.unassigned ?? 0)} helper="Assignment gap" tone="amber" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Tx</th>
               <th className="px-4 py-3 text-left font-medium">Risk</th>
@@ -2838,7 +2838,7 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
               <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {pagedCases.map((item) => (
               <tr key={item.tx_hash}>
                 <td className="px-4 py-3 font-mono text-xs">{formatAddress(item.tx_hash)}</td>
@@ -2846,7 +2846,7 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
                 <td className="px-4 py-3">{item.status}</td>
                 <td className="px-4 py-3">{item.assigned_to ?? "-"}</td>
                 <td className="px-4 py-3">
-                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-zinc-300 hover:text-zinc-200">
+                  <Link href={`/insights/case/${encodeURIComponent(item.tx_hash)}${contextQuery}`} className="inline-flex items-center gap-1 text-slate-300 hover:text-slate-200">
                     Case
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Link>
@@ -2855,7 +2855,7 @@ function CaseDataPanel({ cases, caseSummary, contextQuery }: { cases: CaseItem[]
             ))}
             {pagedCases.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">No cases available.</td>
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No cases available.</td>
               </tr>
             ) : null}
           </tbody>
@@ -2900,15 +2900,15 @@ function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleI
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Rules" value={formatCompact(policies.length)} helper="All policy records" tone="zinc" />
-        <MetricBlock label="Active" value={formatCompact(policies.filter((item) => item.is_active).length)} helper="Enforced now" tone="zinc" />
-        <MetricBlock label="Avg threshold" value={`${(policies.reduce((sum, item) => sum + item.min_risk_score, 0) / Math.max(1, policies.length)).toFixed(1)}`} helper="Risk floor" tone="zinc" />
-        <MetricBlock label="Blocked total" value={formatCompact(reportingSummary?.kpis.blocked_total ?? 0)} helper="30-day impact" tone="zinc" />
+        <MetricBlock label="Rules" value={formatCompact(policies.length)} helper="All policy records" tone="teal" />
+        <MetricBlock label="Active" value={formatCompact(policies.filter((item) => item.is_active).length)} helper="Enforced now" tone="teal" />
+        <MetricBlock label="Avg threshold" value={`${(policies.reduce((sum, item) => sum + item.min_risk_score, 0) / Math.max(1, policies.length)).toFixed(1)}`} helper="Risk floor" tone="slate" />
+        <MetricBlock label="Blocked total" value={formatCompact(reportingSummary?.kpis.blocked_total ?? 0)} helper="30-day impact" tone="amber" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Rule</th>
               <th className="px-4 py-3 text-left font-medium">Threshold</th>
@@ -2916,7 +2916,7 @@ function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleI
               <th className="px-4 py-3 text-left font-medium">Notify</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {pagedPolicies.map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.rule_name}</td>
@@ -2978,24 +2978,24 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricBlock label="Completeness" value={formatPercent(auditCompleteness?.completeness_pct ?? 0)} helper="Audit coverage" tone="zinc" />
-        <MetricBlock label="required" value={formatCompact(auditCompleteness?.required_actions ?? 0)} helper="required actions" tone="zinc" />
-        <MetricBlock label="Present" value={formatCompact(auditCompleteness?.present_actions ?? 0)} helper="Captured actions" tone="zinc" />
-        <MetricBlock label="Missing" value={formatCompact(auditGaps?.missing_count ?? 0)} helper="Outstanding gaps" tone="zinc" />
+        <MetricBlock label="Completeness" value={formatPercent(auditCompleteness?.completeness_pct ?? 0)} helper="Audit coverage" tone="teal" />
+        <MetricBlock label="required" value={formatCompact(auditCompleteness?.required_actions ?? 0)} helper="required actions" tone="teal" />
+        <MetricBlock label="Present" value={formatCompact(auditCompleteness?.present_actions ?? 0)} helper="Captured actions" tone="teal" />
+        <MetricBlock label="Missing" value={formatCompact(auditGaps?.missing_count ?? 0)} helper="Outstanding gaps" tone="teal" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <div key="audit-checks-card" className="flex flex-col rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+        <div key="audit-checks-card" className="flex flex-col rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
           <p className="text-sm font-semibold text-white">Audit checks</p>
-          <div className="mt-3 flex-grow space-y-2 text-sm text-zinc-300">
+          <div className="mt-3 flex-grow space-y-2 text-sm text-slate-300">
             {pagedChecks.length ? pagedChecks.map((item, idx) => (
-              <div key={`check-${item.action_type}-${idx}`} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+              <div key={`check-${item.action_type}-${idx}`} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2">
                 <span>{item.action_type}</span>
                 <span>{item.count} · {item.present ? "PRESENT" : "MISSING"}</span>
               </div>
-            )) : <p className="text-zinc-500">No audit checks found.</p>}
+            )) : <p className="text-slate-500">No audit checks found.</p>}
           </div>
-          <div className="mt-4 border-t border-zinc-800 pt-3">
+          <div className="mt-4 border-t border-slate-800 pt-3">
             <TablePager
               key="checks-pager"
               page={checksPage}
@@ -3009,17 +3009,17 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
           </div>
         </div>
 
-        <div key="missing-actions-card" className="flex flex-col rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+        <div key="missing-actions-card" className="flex flex-col rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
           <p className="text-sm font-semibold text-white">Missing actions</p>
-          <div className="mt-3 flex-grow space-y-2 text-sm text-zinc-300">
+          <div className="mt-3 flex-grow space-y-2 text-sm text-slate-300">
             {pagedMissing.length ? pagedMissing.map((item, idx) => (
-              <div key={`missing-${item.action_type}-${idx}`} className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-zinc-200">
+              <div key={`missing-${item.action_type}-${idx}`} className="rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-slate-200">
                 <p className="font-medium">{item.action_type}</p>
-                <p className="text-xs text-zinc-400 mt-1">Owner: {item.owner_role} · {item.reason}</p>
+                <p className="text-xs text-slate-400 mt-1">Owner: {item.owner_role} · {item.reason}</p>
               </div>
-            )) : <p className="text-zinc-500">No missing actions.</p>}
+            )) : <p className="text-slate-500">No missing actions.</p>}
           </div>
-          <div className="mt-4 border-t border-zinc-800 pt-3">
+          <div className="mt-4 border-t border-slate-800 pt-3">
             <TablePager
               key="missing-pager"
               page={missingPage}
@@ -3060,25 +3060,25 @@ function TablePager({
   const end = Math.min(itemCount, page * pageSize);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
       <span>Showing {start}-{end} of {itemCount}</span>
       <div className="flex items-center gap-2">
         {pageSizeOptions && onPageSizeChange ? (
           <select
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
-            className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-300 outline-none"
+            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-300 outline-none"
           >
             {pageSizeOptions.map((size) => (
               <option key={size} value={size}>{size}/page</option>
             ))}
           </select>
         ) : null}
-        <button type="button" onClick={onPrev} disabled={page <= 1} className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-zinc-500">
+        <button type="button" onClick={onPrev} disabled={page <= 1} className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500">
           Prev
         </button>
         <span>Page {page}/{totalPages}</span>
-        <button type="button" onClick={onNext} disabled={page >= totalPages} className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-zinc-500">
+        <button type="button" onClick={onNext} disabled={page >= totalPages} className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500">
           Next
         </button>
       </div>
@@ -3094,20 +3094,20 @@ function AuditPanel({ auditCompleteness, auditGaps }: { auditCompleteness: Audit
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <div className="space-y-3">
-        <MetricBlock label="Completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="required audit actions present" tone="zinc" />
-        <MetricBlock label="Present actions" value={auditCompleteness ? `${auditCompleteness.present_actions}/${auditCompleteness.required_actions}` : "-"} helper="Audit coverage" tone="zinc" />
-        <MetricBlock label="Missing actions" value={auditGaps ? formatCompact(auditGaps.missing_count) : "-"} helper="Gaps needing evidence" tone="zinc" />
+        <MetricBlock label="Completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="required audit actions present" tone="teal" />
+        <MetricBlock label="Present actions" value={auditCompleteness ? `${auditCompleteness.present_actions}/${auditCompleteness.required_actions}` : "-"} helper="Audit coverage" tone="teal" />
+        <MetricBlock label="Missing actions" value={auditGaps ? formatCompact(auditGaps.missing_count) : "-"} helper="Gaps needing evidence" tone="teal" />
       </div>
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Action</th>
               <th className="px-4 py-3 text-left font-medium">Count</th>
               <th className="px-4 py-3 text-left font-medium">Present</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {auditCompleteness?.checks.slice(0, 8).map((check) => (
               <tr key={check.action_type}>
                 <td className="px-4 py-3">{check.action_type}</td>
@@ -3130,13 +3130,13 @@ function ControlEffectivenessPanel({ controlEffectiveness, reportingSummary }: {
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
       <div className="grid gap-3 md:grid-cols-3">
-        <MetricBlock label="Block rate" value={formatPercent(controlEffectiveness.metrics.block_rate_pct)} helper="Actionable alerts blocked" tone="zinc" />
-        <MetricBlock label="Fraud precision" value={formatPercent(controlEffectiveness.metrics.fraud_precision_proxy_pct)} helper="Decision quality proxy" tone="zinc" />
-        <MetricBlock label="Decision coverage" value={formatCompact(controlEffectiveness.metrics.decision_coverage)} helper="Resolved cases" tone="zinc" />
+        <MetricBlock label="Block rate" value={formatPercent(controlEffectiveness.metrics.block_rate_pct)} helper="Actionable alerts blocked" tone="teal" />
+        <MetricBlock label="Fraud precision" value={formatPercent(controlEffectiveness.metrics.fraud_precision_proxy_pct)} helper="Decision quality proxy" tone="teal" />
+        <MetricBlock label="Decision coverage" value={formatCompact(controlEffectiveness.metrics.decision_coverage)} helper="Resolved cases" tone="teal" />
       </div>
-      <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
         <p className="text-sm font-semibold text-white">Reporting summary</p>
-        <div className="mt-3 space-y-3 text-sm text-zinc-300">
+        <div className="mt-3 space-y-3 text-sm text-slate-300">
           <p>Alerts: {formatCompact(reportingSummary?.kpis.alerts_total ?? 0)}</p>
           <p>Blocked value: {reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-"}</p>
           <p>Notifications failed: {formatCompact(reportingSummary?.kpis.notifications_failed ?? 0)}</p>
@@ -3161,7 +3161,7 @@ function ReportingSummaryPanel({ reportingSummary, controlEffectiveness, auditCo
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-      <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
@@ -3173,9 +3173,9 @@ function ReportingSummaryPanel({ reportingSummary, controlEffectiveness, auditCo
         </ResponsiveContainer>
       </div>
       <div className="grid gap-3">
-        <MetricBlock label="Audit completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Evidence coverage" tone="zinc" />
-        <MetricBlock label="Block rate" value={controlEffectiveness ? formatPercent(controlEffectiveness.metrics.block_rate_pct) : "-"} helper="Compliance outcomes" tone="zinc" />
-        <MetricBlock label="Blocked value" value={formatEth(reportingSummary.kpis.blocked_value_eth)} helper="Live risk impact" tone="zinc" />
+        <MetricBlock label="Audit completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Evidence coverage" tone="teal" />
+        <MetricBlock label="Block rate" value={controlEffectiveness ? formatPercent(controlEffectiveness.metrics.block_rate_pct) : "-"} helper="Compliance outcomes" tone="teal" />
+        <MetricBlock label="Blocked value" value={formatEth(reportingSummary.kpis.blocked_value_eth)} helper="Live risk impact" tone="teal" />
       </div>
     </div>
   );
@@ -3189,11 +3189,11 @@ function AlertList({ alerts }: { alerts: Alert[] }) {
   return (
     <div className="space-y-2">
       {alerts.slice(0, 8).map((alert) => (
-        <div key={alert.alert_id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+        <div key={alert.alert_id} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-white">{alert.message}</p>
-              <p className="mt-1 text-xs text-zinc-500">{formatAddress(alert.wallet_address)} · {alert.alert_type}</p>
+              <p className="mt-1 text-xs text-slate-500">{formatAddress(alert.wallet_address)} · {alert.alert_type}</p>
             </div>
             <SeverityPill severity={alert.severity} />
           </div>
@@ -3211,15 +3211,15 @@ function BlockedTransferList({ blockedTransfers }: { blockedTransfers: BlockedTr
   return (
     <div className="space-y-2">
       {blockedTransfers.slice(0, 8).map((item) => (
-        <div key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+        <div key={item.id} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-white">{formatAddress(item.sender_address)} → {formatAddress(item.receiver_address)}</p>
-              <p className="mt-1 text-xs text-zinc-500">{item.block_reason}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.block_reason}</p>
             </div>
             <div className="text-right">
               <p className="text-sm font-semibold text-white">{formatEth(item.amount_eth)}</p>
-              <p className="mt-1 text-xs text-zinc-500">Risk {item.risk_score.toFixed(1)}</p>
+              <p className="mt-1 text-xs text-slate-500">Risk {item.risk_score.toFixed(1)}</p>
             </div>
           </div>
         </div>
@@ -3233,13 +3233,13 @@ function MetricBlock({ label, value, helper, tone }: { label: string; value: str
     <div className={`rounded-2xl border p-4 ${TONAL_STYLES[tone]}`}>
       <p className="text-[11px] uppercase tracking-[0.28em] opacity-80">{label}</p>
       <p className="mt-2 text-xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-sm text-zinc-300">{helper}</p>
+      <p className="mt-1 text-sm text-slate-300">{helper}</p>
     </div>
   );
 }
 
 function EmptyState({ message }: { message: string }) {
-  return <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/60 px-4 py-8 text-center text-sm text-zinc-400">{message}</div>;
+  return <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/60 px-4 py-8 text-center text-sm text-slate-400">{message}</div>;
 }
 
 

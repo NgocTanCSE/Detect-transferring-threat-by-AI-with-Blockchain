@@ -56,12 +56,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-zinc-800 rounded-full;
+    @apply bg-slate-800 rounded-full;
     border: 1px solid rgba(255, 255, 255, 0.05);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-zinc-700;
+    @apply bg-slate-700;
   }
 }
 
@@ -71,7 +71,7 @@
   /* ====================== */
 
   .glass-card {
-    @apply bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/50;
+    @apply bg-slate-900/60 backdrop-blur-xl border border-slate-800/50;
     box-shadow:
       0 4px 24px -1px rgba(0, 0, 0, 0.4),
       0 2px 8px -2px rgba(0, 0, 0, 0.3),
@@ -93,7 +93,7 @@
 
   /* Legacy glass effect */
   .glass {
-    @apply bg-zinc-800/80 backdrop-blur-sm;
+    @apply bg-slate-800/80 backdrop-blur-sm;
   }
 
   /* ====================== */
@@ -178,7 +178,7 @@
   }
 
   .stat-card-cyan .stat-icon {
-    @apply bg-gradient-to-br from-zinc-700/20 to-zinc-800/10 border-zinc-700/30;
+    @apply bg-gradient-to-br from-slate-700/20 to-slate-800/10 border-slate-700/30;
   }
 
   .stat-card-orange {
@@ -187,7 +187,7 @@
   }
 
   .stat-card-orange .stat-icon {
-    @apply bg-gradient-to-br from-zinc-700/20 to-zinc-800/10 border-zinc-700/30;
+    @apply bg-gradient-to-br from-slate-700/20 to-slate-800/10 border-slate-700/30;
   }
 
   .stat-card-red {
@@ -196,7 +196,7 @@
   }
 
   .stat-card-red .stat-icon {
-    @apply bg-gradient-to-br from-zinc-500/20 to-zinc-600/10 border-zinc-500/30;
+    @apply bg-gradient-to-br from-slate-500/20 to-slate-600/10 border-slate-500/30;
   }
 
   .stat-card-purple {
@@ -205,7 +205,7 @@
   }
 
   .stat-card-purple .stat-icon {
-    @apply bg-gradient-to-br from-zinc-700/20 to-zinc-800/10 border-zinc-700/30;
+    @apply bg-gradient-to-br from-slate-700/20 to-slate-800/10 border-slate-700/30;
   }
 
   .stat-icon {
@@ -306,7 +306,7 @@
 
   /* Loading skeleton */
   .skeleton {
-    @apply bg-zinc-800 rounded;
+    @apply bg-slate-800 rounded;
     background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
@@ -325,7 +325,7 @@
   }
 
   .table-row-hover:hover {
-    @apply bg-zinc-800/50;
+    @apply bg-slate-800/50;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   }
 
@@ -363,7 +363,7 @@
   }
 
   .card-hover {
-    @apply transition-all duration-200 hover:bg-zinc-800/60;
+    @apply transition-all duration-200 hover:bg-slate-800/60;
   }
 
   .card-glow-hover {
@@ -375,22 +375,22 @@
   }
 
   .status-card-amber {
-    @apply border-zinc-500/30 bg-zinc-500/5;
+    @apply border-slate-500/30 bg-slate-500/5;
     box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.02);
   }
 
   .status-card-orange {
-    @apply border-zinc-500/30 bg-zinc-500/5;
+    @apply border-slate-500/30 bg-slate-500/5;
     box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.02);
   }
 
   .status-card-cyan {
-    @apply border-zinc-500/30 bg-zinc-500/5;
+    @apply border-slate-500/30 bg-slate-500/5;
     box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.02);
   }
 
   .status-card-red {
-    @apply border-zinc-500/30 bg-zinc-500/5;
+    @apply border-slate-500/30 bg-slate-500/5;
     box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.02);
   }
 

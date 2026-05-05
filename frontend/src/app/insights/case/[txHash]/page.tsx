@@ -59,19 +59,19 @@ function CaseInsightContent() {
   const backHref = `/${backQuery}`;
 
   return (
-    <div className="min-h-screen bg-zinc-950 p-4 md:p-6">
+    <div className="min-h-screen bg-slate-950 p-4 md:p-6">
       <div className="mx-auto max-w-4xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-white">Case Drill-down</h1>
-            <p className="mt-1 font-mono text-xs text-zinc-400 break-all">{txHash}</p>
+            <p className="mt-1 font-mono text-xs text-slate-400 break-all">{txHash}</p>
           </div>
-          <div className="text-xs text-zinc-500">
-            <Link href={backHref} className="hover:text-zinc-300">Dashboard</Link>
+          <div className="text-xs text-slate-500">
+            <Link href={backHref} className="hover:text-slate-300">Dashboard</Link>
             <span className="mx-2">/</span>
-            <span className="text-zinc-300">Case insight</span>
+            <span className="text-slate-300">Case insight</span>
           </div>
-          <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-zinc-400 transition hover:text-zinc-100">
+          <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
             Back to context
           </Link>
@@ -83,24 +83,24 @@ function CaseInsightContent() {
           <Metric title="History items" value={isLoading || !data ? "-" : String(data.history.length)} />
         </div>
 
-        <section className="rounded-2xl border border-zinc-700 bg-zinc-900/70 p-4">
+        <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
           <h2 className="mb-3 text-lg font-semibold text-white">Case Action Timeline</h2>
-          {isLoading ? <p className="text-zinc-400">Loading case history...</p> : null}
+          {isLoading ? <p className="text-slate-400">Loading case history...</p> : null}
           {error ? <p className="text-red-300">Cannot load case history.</p> : null}
           {!isLoading && !error ? (
             <div className="space-y-2">
               {(data?.history || []).map((entry) => (
-                <div key={entry.id} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3 text-sm">
+                <div key={entry.id} className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-2 text-zinc-100">
-                      <History className="h-4 w-4 text-zinc-400" />
+                    <span className="inline-flex items-center gap-2 text-slate-100">
+                      <History className="h-4 w-4 text-slate-400" />
                       {entry.action}
                     </span>
                     <span className="text-cyan-300">{entry.state}</span>
                   </div>
-                  <p className="mt-1 text-xs text-zinc-500">Analyst: {entry.analyst_id || "-"}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{formatDateTime(entry.created_at)}</p>
-                  {entry.note ? <p className="mt-2 text-sm text-zinc-300">{entry.note}</p> : null}
+                  <p className="mt-1 text-xs text-slate-500">Analyst: {entry.analyst_id || "-"}</p>
+                  <p className="mt-1 text-xs text-slate-500">{formatDateTime(entry.created_at)}</p>
+                  {entry.note ? <p className="mt-2 text-sm text-slate-300">{entry.note}</p> : null}
                 </div>
               ))}
             </div>
@@ -113,7 +113,7 @@ function CaseInsightContent() {
 
 function InsightFallback({ title }: { title: string }) {
   return (
-    <div className="min-h-screen bg-zinc-950 p-4 md:p-6 text-zinc-400">
+    <div className="min-h-screen bg-slate-950 p-4 md:p-6 text-slate-400">
       {title} loading...
     </div>
   );
@@ -121,8 +121,8 @@ function InsightFallback({ title }: { title: string }) {
 
 function Metric({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-zinc-700 bg-zinc-900/70 p-4">
-      <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{title}</p>
+    <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{title}</p>
       <p className="mt-2 text-lg font-semibold text-white break-all">{value}</p>
     </div>
   );
