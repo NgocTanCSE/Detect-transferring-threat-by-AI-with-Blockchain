@@ -297,8 +297,8 @@ def _detect_question_intent(question: str, context: Dict[str, Any]) -> str:
         "operational_guidance": {
             "keywords": [
                 "nên làm", "ưu tiên", "tiếp theo", "next", "recommendation", "suggest",
-                "policy", "case", "action", "decision", "control", "audit", "compliance",
-                "report", "báo cáo", "đề xuất"
+                "policy", "rule", "case", "dismiss", "escalate", "under_review", "pending", "fraud",
+                "action", "decision", "control", "audit", "compliance", "report", "báo cáo", "đề xuất"
             ],
             "weight": 1.0,
         },
@@ -450,6 +450,88 @@ def _build_dynamic_dashboard_answer(
         f"- {overview.get('total_blocked', 0)} giao dịch đã chặn\n"
         f"- Hôm nay: {overview.get('alerts_today', 0)} alerts, "
         f"{overview.get('blocked_today', 0)} blocked"
+    )
+
+
+def _build_operational_guidance_answer(
+    question: str,
+    context: Dict[str, Any],
+) -> str:
+    """
+    Build answers for operational questions such as policy, case handling,
+    escalation, dismiss, and review workflows.
+    """
+    q_lower = question.lower()
+    overview = context.get("overview", {})
+    recent_cases = context.get("recent_high_priority_cases", [])
+    active_policies = context.get("active_policies", [])
+    wallet_focus = context.get("wallet_focus", {}) if isinstance(context.get("wallet_focus"), dict) else {}
+
+    if any(term in q_lower for term in ["policy", "rule", "quy tắc", "luật"]):
+        active_count = len(active_policies)
+        policy_names = [item.get("name") for item in active_policies[:3] if item.get("name")]
+        policy_part = f"Các policy đang bật: {', '.join(policy_names)}" if policy_names else "Chưa có policy active đủ dữ liệu."
+        return (
+            f"Có {active_count} policy đang active trong hệ thống.\n"
+            f"- {policy_part}\n"
+            f"- Policy thường ảnh hưởng mạnh nhất là policy có rule_count cao hoặc đang chặn nhiều giao dịch.\n"
+            f"- Nếu bạn muốn, mình có thể giúp lọc policy theo mức rủi ro hoặc theo wallet đang chọn."
+        )
+
+    if any(term in q_lower for term in ["case", "case nào", "dismiss", "escalate", "escalation", "under_review", "fraud", "pending"]):
+        case_count = len(recent_cases)
+        top_case = recent_cases[0] if recent_cases else {}
+        top_case_text = (
+            f"Case ưu tiên gần nhất: {top_case.get('case_id')} ({top_case.get('status')}, {top_case.get('case_type')})"
+            if top_case
+            else "Chưa có case ưu tiên nào trong ngữ cảnh hiện tại."
+        )
+        wallet_line = ""
+        if wallet_focus.get("address"):
+            wallet_line = (
+                f"Wallet đang chọn: {wallet_focus.get('address')} | status: {wallet_focus.get('account_status')} | "
+                f"risk: {wallet_focus.get('risk_score', 0):.1f}"
+            )
+
+        if any(term in q_lower for term in ["dismiss"]):
+            return (
+                f"Nên dismiss khi case đã được kiểm tra xong và không còn tín hiệu rủi ro đáng kể.\n"
+                f"- Hiện có {case_count} case ưu tiên cần chú ý trong hệ thống.\n"
+                f"- {top_case_text}\n"
+                f"- Ưu tiên giữ lại case nếu wallet vẫn còn under_review, risk cao, hoặc policy vẫn đang chặn."
+            )
+
+        if any(term in q_lower for term in ["escalate", "escalation"]):
+            return (
+                f"Nên escalate khi case có dấu hiệu rủi ro cao, mẫu hành vi lặp lại, hoặc ảnh hưởng nhiều wallet.\n"
+                f"- Hiện có {case_count} case ưu tiên cần xử lý.\n"
+                f"- {top_case_text}\n"
+                f"- {wallet_line if wallet_line else 'Chưa có wallet focus cụ thể.'}"
+            )
+
+        return (
+            f"Với nhóm case hiện tại, mình thấy {case_count} case ưu tiên đang chờ xử lý.\n"
+            f"- {top_case_text}\n"
+            f"- Nếu wallet đang under_review hoặc risk cao, nên kiểm tra thêm trước khi dismiss.\n"
+            f"- Nếu case ảnh hưởng nhiều policy hoặc nhiều giao dịch, nên escalate trước."
+        )
+
+    if any(term in q_lower for term in ["ưu tiên", "nên làm", "next", "recommend", "đề xuất", "action"]):
+        critical = overview.get("critical_alerts", 0)
+        blocked = overview.get("blocked_today", 0)
+        alerts_today = overview.get("alerts_today", 0)
+        return (
+            "Ưu tiên hành động ngay theo dữ liệu hiện có:\n"
+            f"- Critical alerts: {critical}\n"
+            f"- Alerts hôm nay: {alerts_today}\n"
+            f"- Giao dịch bị chặn hôm nay: {blocked}\n"
+            "- Bước tiếp theo: rà case critical trước, rồi xét policy đang tạo nhiều chặn nhất."
+        )
+
+    return (
+        "Mình có thể hỗ trợ các câu hỏi vận hành như policy, case, dismiss, escalate, under_review hoặc hành động tiếp theo.\n"
+        "- Hãy hỏi cụ thể hơn về wallet/case/policy để mình trả lời đúng ngữ cảnh.\n"
+        "- Nếu có ví đang chọn, mình sẽ ưu tiên phân tích theo wallet đó."
     )
 
 

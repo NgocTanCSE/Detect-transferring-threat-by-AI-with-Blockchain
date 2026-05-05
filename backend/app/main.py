@@ -30,6 +30,7 @@ from app.services.ai_agent_improvements import (
     _detect_question_intent,
     _build_dynamic_account_support_answer,
     _build_dynamic_dashboard_answer,
+    _build_operational_guidance_answer,
 )
 from app.admin_diagnostics import (
     diagnostic_logger,
@@ -966,6 +967,20 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
 
         if not normalized_answer or _is_low_quality_answer(normalized_answer):
             normalized_answer = _build_dynamic_dashboard_answer(message, context)
+    elif question_intent == "operational_guidance":
+        if analyst.enabled:
+            answer = analyst.answer_general_question(
+                question=message,
+                context=context,
+                knowledge_snippets=knowledge_snippets,
+                conversation_history=conversation_history,
+            )
+            normalized_answer = _normalize_assistant_answer(answer)
+        else:
+            normalized_answer = None
+
+        if not normalized_answer or _is_low_quality_answer(normalized_answer):
+            normalized_answer = _build_operational_guidance_answer(message, context)
     else:
         if analyst.enabled:
             answer = analyst.answer_open_domain_question(

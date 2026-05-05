@@ -501,6 +501,30 @@ HÃY TRẢ LỜI TỰ NHIÊN, NGẮN GỌN, CÓ ÍCH, TỐI ĐA 5 GẠCH ĐẦU 
 
         # Broad open-domain heuristics so local/offline mode still feels useful.
         if any(term in q_lower for term in ["explain", "giải thích", "define", "what is", "là gì"]):
+            if "recursion" in q_lower or "đệ quy" in q_lower:
+                return (
+                    "Đệ quy là cách một hàm tự gọi lại chính nó để giải quyết bài toán bằng các bài toán nhỏ hơn.\n"
+                    "- Cần có điều kiện dừng để tránh lặp vô hạn.\n"
+                    "- Thường dùng cho cây, chuỗi, và các bài toán chia để trị.\n"
+                    "- Ví dụ: tính giai thừa, duyệt cây, tìm kiếm nhị phân."
+                )
+
+            if "tcp" in q_lower and "udp" in q_lower:
+                return (
+                    "TCP và UDP khác nhau ở cách truyền dữ liệu:\n"
+                    "- TCP: có kết nối, tin cậy hơn, kiểm tra lỗi và đảm bảo thứ tự gói tin.\n"
+                    "- UDP: nhanh hơn, nhẹ hơn, nhưng không đảm bảo thứ tự hay truyền lại.\n"
+                    "- Dùng TCP cho web, email, file; dùng UDP cho streaming, game, real-time."
+                )
+
+            if "rule-based" in q_lower or ("llm" in q_lower and "assistant" in q_lower):
+                return (
+                    "So sánh ngắn gọn giữa rule-based và LLM:\n"
+                    "- Rule-based: dễ kiểm soát, ổn định, nhưng chỉ tốt với các tình huống đã định nghĩa trước.\n"
+                    "- LLM: linh hoạt hơn, hiểu ngôn ngữ tự nhiên tốt hơn, nhưng có thể tốn chi phí và cần kiểm soát đầu ra.\n"
+                    "- Nếu cần an toàn và chắc chắn, chọn rule-based; nếu cần linh hoạt và phủ rộng câu hỏi, chọn LLM hoặc kết hợp cả hai."
+                )
+
             return (
                 "Mình hiểu câu hỏi này theo hướng giải thích khái niệm:\n"
                 "- Nói ngắn gọn: đây là một chủ đề/khái niệm cần được định nghĩa trước.\n"
