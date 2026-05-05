@@ -202,131 +202,130 @@ export default function DashboardAssistantPanel({
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(panelStorageKey);
     }
-    placeholder = "Ask anything about the system or a general topic..."
+  }
 
-    return (
-      <section className="rounded-3xl border border-zinc-800 bg-zinc-950/95 p-4 shadow-2xl shadow-black/30">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Assistant</p>
-            <h3 className="mt-1 text-lg font-semibold text-zinc-50">Global Operator Assistant</h3>
-            <p className="mt-1 text-sm text-zinc-400">
-              Role: {roleLabel} · Scope: {SCOPE_LABELS[currentScope as AssistantScope] || currentScope}
-            </p>
+  return (
+    <section className="rounded-3xl border border-zinc-800 bg-zinc-950/95 p-4 shadow-2xl shadow-black/30">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Assistant</p>
+          <h3 className="mt-1 text-lg font-semibold text-zinc-50">Global Operator Assistant</h3>
+          <p className="mt-1 text-sm text-zinc-400">
+            Role: {roleLabel} · Scope: {SCOPE_LABELS[currentScope as AssistantScope] || currentScope}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={clearChat}
+          className="inline-flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-600 hover:text-white"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Clear chat
+        </button>
+      </div>
+
+      <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-[160px_1fr] md:items-center">
+        <label className="text-xs uppercase tracking-[0.24em] text-zinc-500">Scope</label>
+        <select
+          value={currentScope}
+          onChange={(event) => onScopeChange(event.target.value as AssistantScope)}
+          className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-zinc-500"
+        >
+          <option value="dashboard">Dashboard</option>
+          <option value="wallet">Wallet</option>
+          <option value="case">Case</option>
+          <option value="policy">Policy</option>
+          <option value="tracking">Tracking</option>
+        </select>
+      </div>
+
+      {context.overview || context.dashboard_role ? (
+        <div className="mb-3 rounded-2xl border border-zinc-800 bg-zinc-900/55 p-3 text-xs text-zinc-300">
+          <div className="flex flex-wrap items-center gap-2 text-zinc-400">
+            <span className="uppercase tracking-[0.24em]">Loaded context</span>
+            {context.dashboard_role ? <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px]">Role: {context.dashboard_role}</span> : null}
+            {typeof context.dashboard_feature_index === "number" ? <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px]">Feature: {context.dashboard_feature_index}</span> : null}
+            {context.dashboard_feature_label ? <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px]">{context.dashboard_feature_label}</span> : null}
           </div>
-          <button
-            type="button"
-            onClick={clearChat}
-            className="inline-flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-300 transition hover:border-zinc-600 hover:text-white"
-          >
-            <RotateCcw className="h-4 w-4" />
-            Clear chat
-          </button>
-        </div>
-
-        <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-[160px_1fr] md:items-center">
-          <label className="text-xs uppercase tracking-[0.24em] text-zinc-500">Scope</label>
-          <select
-            value={currentScope}
-            onChange={(event) => onScopeChange(event.target.value as AssistantScope)}
-            className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-zinc-500"
-          >
-            <option value="dashboard">Dashboard</option>
-            <option value="wallet">Wallet</option>
-            <option value="case">Case</option>
-            <option value="policy">Policy</option>
-            <option value="tracking">Tracking</option>
-          </select>
-        </div>
-
-        {context.overview || context.dashboard_role ? (
-          <div className="mb-3 rounded-2xl border border-zinc-800 bg-zinc-900/55 p-3 text-xs text-zinc-300">
-            <div className="flex flex-wrap items-center gap-2 text-zinc-400">
-              <span className="uppercase tracking-[0.24em]">Loaded context</span>
-              {context.dashboard_role ? <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px]">Role: {context.dashboard_role}</span> : null}
-              {typeof context.dashboard_feature_index === "number" ? <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px]">Feature: {context.dashboard_feature_index}</span> : null}
-              {context.dashboard_feature_label ? <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px]">{context.dashboard_feature_label}</span> : null}
+          {context.overview ? (
+            <div className="mt-2 grid gap-2 md:grid-cols-5">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Wallets: {context.overview.total_wallets}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Alerts: {context.overview.total_alerts}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Critical: {context.overview.critical_alerts}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Today: {context.overview.alerts_today}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Blocked: {context.overview.total_blocked}</div>
             </div>
-            {context.overview ? (
-              <div className="mt-2 grid gap-2 md:grid-cols-5">
-                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Wallets: {context.overview.total_wallets}</div>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Alerts: {context.overview.total_alerts}</div>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Critical: {context.overview.critical_alerts}</div>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Today: {context.overview.alerts_today}</div>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2">Blocked: {context.overview.total_blocked}</div>
-              </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="max-h-96 space-y-2 overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+        {messages.map((message, index) => (
+          <div
+            key={`${message.role}-${index}`}
+            className={[
+              "rounded-xl px-3 py-3 text-sm leading-relaxed whitespace-pre-wrap",
+              message.role === "assistant"
+                ? "border border-zinc-700 bg-zinc-800/80 text-zinc-50"
+                : "border border-zinc-800 bg-zinc-900/60 text-zinc-300",
+            ].join(" ")}
+          >
+            {message.content}
+            {message.role === "assistant" && message.sources && message.sources.length ? (
+              <p className="mt-2 border-t border-white/20 pt-2 text-[11px] text-white/80">
+                Sources: {message.sources.join(" | ")}
+              </p>
+            ) : null}
+            {message.role === "assistant" && message.knowledgeSources && message.knowledgeSources.length ? (
+              <p className="mt-2 text-[11px] text-zinc-400">
+                Docs: {dedupeStrings(message.knowledgeSources.map((item) => item.source)).join(" | ")}
+              </p>
             ) : null}
           </div>
-        ) : null}
+        ))}
+      </div>
 
-        <div className="max-h-96 space-y-2 overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
-          {messages.map((message, index) => (
-            <div
-              key={`${message.role}-${index}`}
-              className={[
-                "rounded-xl px-3 py-3 text-sm leading-relaxed whitespace-pre-wrap",
-                message.role === "assistant"
-                  ? "border border-zinc-700 bg-zinc-800/80 text-zinc-50"
-                  : "border border-zinc-800 bg-zinc-900/60 text-zinc-300",
-              ].join(" ")}
-            >
-              {message.content}
-              {message.role === "assistant" && message.sources && message.sources.length ? (
-                <p className="mt-2 border-t border-white/20 pt-2 text-[11px] text-white/80">
-                  Sources: {message.sources.join(" | ")}
-                </p>
-              ) : null}
-              {message.role === "assistant" && message.knowledgeSources && message.knowledgeSources.length ? (
-                <p className="mt-2 text-[11px] text-zinc-400">
-                  Docs: {dedupeStrings(message.knowledgeSources.map((item) => item.source)).join(" | ")}
-                </p>
-              ) : null}
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-3 grid grid-cols-1 gap-2">
+      <div className="mt-3 grid grid-cols-1 gap-2">
+        <input
+          type="text"
+          value={walletInputValue}
+          onChange={(event) => setWalletInputValue(event.target.value)}
+          placeholder="(Optional) Wallet focus, e.g. 0xabc..."
+          className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-500"
+        />
+        <div className="flex gap-2">
           <input
             type="text"
-            value={walletInputValue}
-            onChange={(event) => setWalletInputValue(event.target.value)}
-            placeholder="(Optional) Wallet focus, e.g. 0xabc..."
-            className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-500"
+            value={inputValue}
+            onChange={(event) => setInputValue(event.target.value)}
+            placeholder="Ask anything about the system or a general topic..."
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void sendQuestion();
+              }
+            }}
+            className="min-w-0 flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-3 text-base text-zinc-100 outline-none transition focus:border-zinc-500"
           />
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(event) => setInputValue(event.target.value)}
-              placeholder="Ask anything about the system or a general topic..."
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void sendQuestion();
-                }
-              }}
-              className="min-w-0 flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-3 text-base text-zinc-100 outline-none transition focus:border-zinc-500"
-            />
-            <button
-              type="button"
-              onClick={() => void sendQuestion()}
-              disabled={isLoading || !inputValue.trim()}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <SendHorizonal className="h-5 w-5" />
-              {isLoading ? "Đang trả lời..." : "Gửi"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => void sendQuestion()}
+            disabled={isLoading || !inputValue.trim()}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <SendHorizonal className="h-5 w-5" />
+            {isLoading ? "Đang trả lời..." : "Gửi"}
+          </button>
         </div>
+      </div>
 
-        <div className="mt-3 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Knowledge sources</p>
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-300">
-            <span className="rounded-full border border-zinc-700 px-2 py-1">README.md</span>
-            <span className="rounded-full border border-zinc-700 px-2 py-1">DEPLOY_HF_SUPABASE.md</span>
-            <span className="rounded-full border border-zinc-700 px-2 py-1">role-based-rearchitecture-plan.md</span>
-          </div>
+      <div className="mt-3 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3">
+        <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Knowledge sources</p>
+        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-300">
+          <span className="rounded-full border border-zinc-700 px-2 py-1">README.md</span>
+          <span className="rounded-full border border-zinc-700 px-2 py-1">DEPLOY_HF_SUPABASE.md</span>
+          <span className="rounded-full border border-zinc-700 px-2 py-1">role-based-rearchitecture-plan.md</span>
         </div>
-      </section>
-    );
-  }
+      </div>
+    </section>
+  );
