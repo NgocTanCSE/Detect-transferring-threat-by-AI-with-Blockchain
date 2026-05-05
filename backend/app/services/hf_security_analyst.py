@@ -212,9 +212,9 @@ class HFSecurityAnalyst:
                     last_error = f"({version}/{model_name}) {str(e)[:50]}"
                     logger.debug(f"Exception with {model_name}: {e}")
 
-        # All API calls failed - return helpful message
+        # All API calls failed - raise so callers can route to deterministic fallback answers
         logger.error(f"All Gemini API attempts failed. Last error: {last_error}")
-        return f"AI model tạm thời không khả dụng. Vui lòng kiểm tra GEMINI_API_KEY hoặc thử lại sau. (Chi tiết: {last_error})"
+        raise RuntimeError(f"Gemini API unavailable: {last_error}")
 
     def _construct_dashboard_chat_prompt(
         self,
