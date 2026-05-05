@@ -63,33 +63,33 @@ export default function LoginPage() {
       <div className="mx-auto flex min-h-screen w-full max-w-md items-center">
         <div className="w-full">
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-200 to-zinc-500 shadow-lg shadow-white/10">
-              <Shield className="h-7 w-7 text-zinc-950" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-200 to-slate-500 shadow-lg shadow-white/10">
+              <Shield className="h-7 w-7 text-slate-950" />
             </div>
             <h1 className="text-2xl font-bold text-white">Blockchain Sentinel</h1>
-            <p className="mt-1 text-zinc-400">Đăng nhập hệ thống giám sát</p>
+            <p className="mt-1 text-slate-400">Đăng nhập hệ thống giám sát</p>
           </div>
 
-          <Card className="border-zinc-800/80 bg-zinc-900/60 backdrop-blur-xl">
+          <Card className="border-slate-800/80 bg-slate-900/60 backdrop-blur-xl">
             <CardHeader>
               <CardTitle className="text-white">Đăng nhập</CardTitle>
-              <CardDescription className="text-zinc-400">Dùng username hoặc email đã đăng ký.</CardDescription>
+              <CardDescription className="text-slate-400">Dùng username hoặc email đã đăng ký.</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-zinc-300">Username / Email</Label>
+                  <Label htmlFor="username" className="text-slate-300">Username / Email</Label>
                   <Input
                     id="username"
                     value={username}
                     onChange={(event) => setUsername(event.target.value)}
                     placeholder="Tên đăng nhập hoặc email"
-                    className="border-zinc-800 bg-zinc-950 text-zinc-100 focus:border-white/40"
+                    className="border-slate-800 bg-slate-950 text-slate-100 focus:border-white/40"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-zinc-300">Mật khẩu</Label>
+                  <Label htmlFor="password" className="text-slate-300">Mật khẩu</Label>
                   <Input
                     id="password"
                     type="password"
@@ -97,16 +97,16 @@ export default function LoginPage() {
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="current-password"
                     placeholder="Tối thiểu 6 ký tự"
-                    className="border-zinc-800 bg-zinc-950 text-zinc-100 focus:border-white/40"
+                    className="border-slate-800 bg-slate-950 text-slate-100 focus:border-white/40"
                   />
-                  <p className="text-[11px] text-zinc-500">Mật khẩu phải có ít nhất 6 ký tự.</p>
+                  <p className="text-[11px] text-slate-500">Mật khẩu phải có ít nhất 6 ký tự.</p>
                 </div>
 
                 {error ? (
-                  <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-sm text-zinc-300">{error}</div>
+                  <div className="rounded-lg border border-slate-500/30 bg-slate-500/10 px-3 py-2 text-sm text-slate-300">{error}</div>
                 ) : null}
 
-                <Button type="submit" className="w-full bg-white text-zinc-950 hover:bg-zinc-200 transition-colors" disabled={!canSubmit || isSubmitting}>
+                <Button type="submit" className="w-full bg-white text-slate-950 hover:bg-slate-200 transition-colors" disabled={!canSubmit || isSubmitting}>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -121,10 +121,10 @@ export default function LoginPage() {
                 </Button>
               </form>
 
-              <div className="mt-4 flex flex-col gap-3 text-sm text-zinc-400">
+              <div className="mt-4 flex flex-col gap-3 text-sm text-slate-400">
                 <p>
                   Chưa có tài khoản?{" "}
-                  <Link href="/register" className="text-zinc-100 underline decoration-zinc-700 underline-offset-4 hover:decoration-white transition-all">
+                  <Link href="/register" className="text-slate-100 underline decoration-slate-700 underline-offset-4 hover:decoration-white transition-all">
                     Tạo tài khoản
                   </Link>
                 </p>

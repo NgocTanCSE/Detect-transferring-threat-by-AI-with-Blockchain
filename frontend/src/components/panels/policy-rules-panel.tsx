@@ -56,18 +56,18 @@ function MetricBlock({
 }) {
   const toneClass =
     tone === "amber"
-      ? "border-zinc-500/30 bg-zinc-500/10"
+      ? "border-slate-500/30 bg-slate-500/10"
       : tone === "rose"
-        ? "border-zinc-500/30 bg-zinc-500/10"
+        ? "border-slate-500/30 bg-slate-500/10"
         : tone === "violet"
-          ? "border-zinc-500/30 bg-zinc-500/10"
-          : "border-zinc-500/30 bg-zinc-500/10";
+          ? "border-slate-500/30 bg-slate-500/10"
+          : "border-slate-500/30 bg-slate-500/10";
 
   return (
     <div className={`rounded-2xl border p-3 ${toneClass}`}>
-      <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-400">{label}</p>
+      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">{label}</p>
       <p className="mt-2 text-xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-xs text-zinc-400">{helper}</p>
+      <p className="mt-1 text-xs text-slate-400">{helper}</p>
     </div>
   );
 }
@@ -95,7 +95,7 @@ function TablePager({
   const end = Math.min(itemCount, page * pageSize);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
       <span>
         Showing {start}-{end} of {itemCount}
       </span>
@@ -104,7 +104,7 @@ function TablePager({
           <select
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
-            className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-300 outline-none"
+            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-300 outline-none"
           >
             {pageSizeOptions.map((size) => (
               <option key={size} value={size}>
@@ -117,7 +117,7 @@ function TablePager({
           type="button"
           onClick={onPrev}
           disabled={page <= 1}
-          className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-zinc-500"
+          className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500"
         >
           Prev
         </button>
@@ -128,7 +128,7 @@ function TablePager({
           type="button"
           onClick={onNext}
           disabled={page >= totalPages}
-          className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-zinc-500"
+          className="rounded-md border border-slate-700 px-2 py-1 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50 hover:border-slate-500"
         >
           Next
         </button>
@@ -345,42 +345,42 @@ export default function PolicyRulesPanel({
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-500/20 bg-zinc-800/40 px-4 text-sm font-medium text-zinc-100 transition hover:border-zinc-400/60"
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-500/20 bg-slate-800/40 px-4 text-sm font-medium text-slate-100 transition hover:border-slate-400/60"
           >
             <Plus className="h-4 w-4" />
             Add policy
           </button>
-          <DialogContent className="border-zinc-800 bg-zinc-950/90 text-zinc-100 backdrop-blur-xl sm:max-w-[480px]">
+          <DialogContent className="border-slate-800 bg-slate-950/90 text-slate-100 backdrop-blur-xl sm:max-w-[480px]">
             <DialogHeader>
               <DialogTitle className="text-xl font-semibold">Create New Policy Rule</DialogTitle>
-              <DialogDescription className="text-zinc-400">
+              <DialogDescription className="text-slate-400">
                 Define a new guardrail for automated transaction enforcement.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-5 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="rule_name" className="text-xs uppercase tracking-wider text-zinc-500">Rule Name</Label>
+                <Label htmlFor="rule_name" className="text-xs uppercase tracking-wider text-slate-500">Rule Name</Label>
                 <Input
                   id="rule_name"
                   placeholder="e.g. Block High Velocity Wallet"
                   value={newPolicy.rule_name}
                   onChange={(e) => setNewPolicy({ ...newPolicy, rule_name: e.target.value })}
-                  className="border-zinc-800 bg-zinc-900/50"
+                  className="border-slate-800 bg-slate-900/50"
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="description" className="text-xs uppercase tracking-wider text-zinc-500">Description (Optional)</Label>
+                <Label htmlFor="description" className="text-xs uppercase tracking-wider text-slate-500">Description (Optional)</Label>
                 <Input
                   id="description"
                   placeholder="Detailed rationale for this rule"
                   value={newPolicy.description}
                   onChange={(e) => setNewPolicy({ ...newPolicy, description: e.target.value })}
-                  className="border-zinc-800 bg-zinc-900/50"
+                  className="border-slate-800 bg-slate-900/50"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="min_risk" className="text-xs uppercase tracking-wider text-zinc-500">Min Risk Score (0-100)</Label>
+                  <Label htmlFor="min_risk" className="text-xs uppercase tracking-wider text-slate-500">Min Risk Score (0-100)</Label>
                   <Input
                     id="min_risk"
                     type="number"
@@ -388,17 +388,17 @@ export default function PolicyRulesPanel({
                     max="100"
                     value={newPolicy.min_risk_score}
                     onChange={(e) => setNewPolicy({ ...newPolicy, min_risk_score: Number(e.target.value) })}
-                    className="border-zinc-800 bg-zinc-900/50"
+                    className="border-slate-800 bg-slate-900/50"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="priority" className="text-xs uppercase tracking-wider text-zinc-500">Priority</Label>
+                  <Label htmlFor="priority" className="text-xs uppercase tracking-wider text-slate-500">Priority</Label>
                   <Input
                     id="priority"
                     type="number"
                     value={newPolicy.priority}
                     onChange={(e) => setNewPolicy({ ...newPolicy, priority: Number(e.target.value) })}
-                    className="border-zinc-800 bg-zinc-900/50"
+                    className="border-slate-800 bg-slate-900/50"
                   />
                 </div>
               </div>
@@ -407,14 +407,14 @@ export default function PolicyRulesPanel({
               <Button
                 variant="outline"
                 onClick={() => setIsModalOpen(false)}
-                className="border-zinc-700 bg-transparent text-zinc-300 hover:bg-zinc-800"
+                className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
               >
                 Cancel
               </Button>
               <Button
                 disabled={isMutating}
                 onClick={() => void handleCreatePolicySubmit()}
-                className="bg-zinc-100 text-black hover:bg-white"
+                className="bg-slate-100 text-black hover:bg-white"
               >
                 {isMutating ? "Creating..." : "Create Policy"}
               </Button>
@@ -423,7 +423,7 @@ export default function PolicyRulesPanel({
         </Dialog>
 
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <input
             value={searchTerm}
             onChange={(event) => {
@@ -431,7 +431,7 @@ export default function PolicyRulesPanel({
               setPage(1);
             }}
             placeholder="Search rule name or description"
-            className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-200 outline-none transition focus:border-zinc-500/50"
+            className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-slate-500/50"
           />
         </div>
         <select
@@ -440,7 +440,7 @@ export default function PolicyRulesPanel({
             setActiveFilter(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-200 outline-none"
+          className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
         >
           <option value="all">All policies</option>
           <option value="active">Active only</option>
@@ -448,9 +448,9 @@ export default function PolicyRulesPanel({
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-700">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">
                 <button type="button" onClick={() => onSort("rule")} className="hover:text-white">
@@ -476,7 +476,7 @@ export default function PolicyRulesPanel({
               <th className="px-4 py-3 text-left font-medium">Detail</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {pagedPolicies.map((policy) => (
               <tr key={policy.id}>
                 <td className="px-4 py-3">{policy.rule_name}</td>
@@ -489,7 +489,7 @@ export default function PolicyRulesPanel({
                       type="button"
                       disabled={isMutating}
                       onClick={() => void handleTogglePolicy(policy)}
-                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
+                      className="rounded-md border border-slate-500/40 bg-slate-500/10 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-60"
                     >
                       {policy.is_active ? "Disable" : "Enable"}
                     </button>
@@ -497,7 +497,7 @@ export default function PolicyRulesPanel({
                       type="button"
                       disabled={isMutating}
                       onClick={() => void handleDeletePolicy(policy)}
-                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
+                      className="rounded-md border border-slate-500/40 bg-slate-500/10 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-60"
                     >
                       Delete
                     </button>
@@ -506,7 +506,7 @@ export default function PolicyRulesPanel({
                 <td className="px-4 py-3">
                   <Link
                     href={`/insights/policy/${encodeURIComponent(policy.id)}${contextQuery}`}
-                    className="inline-flex items-center gap-1 text-zinc-300 hover:text-zinc-200"
+                    className="inline-flex items-center gap-1 text-slate-300 hover:text-slate-200"
                   >
                     Policy
                     <ExternalLink className="h-3.5 w-3.5" />
@@ -516,7 +516,7 @@ export default function PolicyRulesPanel({
             ))}
             {pagedPolicies.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-sm text-zinc-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
                   No policies match current filters.
                 </td>
               </tr>

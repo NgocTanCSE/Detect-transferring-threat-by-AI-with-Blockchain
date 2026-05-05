@@ -59,80 +59,80 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 relative overflow-hidden p-4">
+    <div className="min-h-screen bg-slate-950 relative overflow-hidden p-4">
       {/* Dynamic Background Overlay */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-zinc-500/5 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-zinc-500/5 blur-[120px]" />
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-slate-500/5 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-slate-500/5 blur-[120px]" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_0%,transparent_70%)]" />
       </div>
 
       <div className="mx-auto relative z-10 flex min-h-screen w-full max-w-lg items-center">
         <div className="w-full">
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-200 to-zinc-500 shadow-lg shadow-white/10">
-              <Shield className="h-7 w-7 text-zinc-950" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-200 to-slate-500 shadow-lg shadow-white/10">
+              <Shield className="h-7 w-7 text-slate-950" />
             </div>
             <h1 className="text-2xl font-bold text-white">Tạo tài khoản</h1>
-            <p className="mt-1 text-zinc-400">Đăng ký để theo dõi và bảo vệ giao dịch.</p>
+            <p className="mt-1 text-slate-400">Đăng ký để theo dõi và bảo vệ giao dịch.</p>
           </div>
 
-          <Card className="border-zinc-800/80 bg-zinc-900/60 backdrop-blur-xl">
+          <Card className="border-slate-800/80 bg-slate-900/60 backdrop-blur-xl">
             <CardHeader>
               <CardTitle className="text-white">Đăng ký</CardTitle>
-              <CardDescription className="text-zinc-400">Thông tin cơ bản để tạo tài khoản mới.</CardDescription>
+              <CardDescription className="text-slate-400">Thông tin cơ bản để tạo tài khoản mới.</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-zinc-300">Username</Label>
+                  <Label htmlFor="username" className="text-slate-300">Username</Label>
                   <Input
                     id="username"
                     value={username}
                     onChange={(event) => setUsername(event.target.value)}
                     placeholder="Tối thiểu 3 ký tự"
-                    className="border-zinc-800 bg-zinc-950 text-zinc-100 focus:border-white/40"
+                    className="border-slate-800 bg-slate-950 text-slate-100 focus:border-white/40"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-zinc-300">Email</Label>
+                  <Label htmlFor="email" className="text-slate-300">Email</Label>
                   <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     placeholder="you@example.com"
-                    className="border-zinc-800 bg-zinc-950 text-zinc-100 focus:border-white/40"
+                    className="border-slate-800 bg-slate-950 text-slate-100 focus:border-white/40"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-zinc-300">Mật khẩu</Label>
+                  <Label htmlFor="password" className="text-slate-300">Mật khẩu</Label>
                   <Input
                     id="password"
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="Tối thiểu 6 ký tự"
-                    className="border-zinc-800 bg-zinc-950 text-zinc-100 focus:border-white/40"
+                    className="border-slate-800 bg-slate-950 text-slate-100 focus:border-white/40"
                   />
                 </div>
 
 
 
                 {error ? (
-                  <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-sm text-zinc-300">{error}</div>
+                  <div className="rounded-lg border border-slate-500/30 bg-slate-500/10 px-3 py-2 text-sm text-slate-300">{error}</div>
                 ) : null}
 
                 {success ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-sm text-zinc-300">
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-500/30 bg-slate-500/10 px-3 py-2 text-sm text-slate-300">
                     <CheckCircle2 className="h-4 w-4" />
                     {success}
                   </div>
                 ) : null}
 
-                <Button type="submit" className="w-full bg-white text-zinc-950 hover:bg-zinc-200 transition-colors" disabled={!canSubmit || isSubmitting}>
+                <Button type="submit" className="w-full bg-white text-slate-950 hover:bg-slate-200 transition-colors" disabled={!canSubmit || isSubmitting}>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -147,9 +147,9 @@ export default function RegisterPage() {
                 </Button>
               </form>
 
-              <p className="mt-4 text-sm text-zinc-400">
+              <p className="mt-4 text-sm text-slate-400">
                 Đã có tài khoản?{" "}
-                <Link href="/login" className="text-zinc-100 underline decoration-zinc-700 underline-offset-4 hover:decoration-white transition-all">
+                <Link href="/login" className="text-slate-100 underline decoration-slate-700 underline-offset-4 hover:decoration-white transition-all">
                   Đăng nhập ngay
                 </Link>
               </p>

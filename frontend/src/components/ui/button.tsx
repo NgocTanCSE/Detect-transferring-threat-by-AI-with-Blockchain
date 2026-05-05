@@ -10,22 +10,22 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-white text-black hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.1)]",
+          "bg-white text-black hover:bg-slate-200 shadow-[0_0_20px_rgba(255,255,255,0.1)]",
         destructive:
-          "bg-zinc-800 text-white hover:bg-zinc-700 shadow-none",
+          "bg-slate-800 text-white hover:bg-slate-700 shadow-none",
         outline:
-          "border border-zinc-700 bg-transparent hover:bg-zinc-800 hover:border-zinc-500 hover:text-white",
+          "border border-slate-700 bg-transparent hover:bg-slate-800 hover:border-slate-500 hover:text-white",
         secondary:
-          "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-700",
+          "bg-slate-800 text-slate-100 hover:bg-slate-700 border border-slate-700",
         ghost:
-          "hover:bg-zinc-800 hover:text-white",
-        link: "text-zinc-100 underline-offset-4 hover:underline",
+          "hover:bg-slate-800 hover:text-white",
+        link: "text-slate-100 underline-offset-4 hover:underline",
         neon:
-          "bg-transparent border-2 border-zinc-100 text-zinc-100 hover:bg-zinc-100/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-all duration-300",
+          "bg-transparent border-2 border-slate-100 text-slate-100 hover:bg-slate-100/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-all duration-300",
         "neon-red":
-          "bg-transparent border-2 border-zinc-400 text-zinc-400 hover:bg-zinc-400/10 shadow-none transition-all duration-300",
+          "bg-transparent border-2 border-slate-400 text-slate-400 hover:bg-slate-400/10 shadow-none transition-all duration-300",
         "neon-green":
-          "bg-transparent border-2 border-zinc-200 text-zinc-200 hover:bg-zinc-200/10 shadow-none transition-all duration-300",
+          "bg-transparent border-2 border-slate-200 text-slate-200 hover:bg-slate-200/10 shadow-none transition-all duration-300",
       },
       size: {
         default: "h-10 px-4 py-2",

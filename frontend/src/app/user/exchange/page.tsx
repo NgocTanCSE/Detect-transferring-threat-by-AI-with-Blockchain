@@ -257,15 +257,15 @@ export default function UserExchange() {
     <div className="min-h-[calc(100vh-4rem)] bg-transparent p-6 relative z-10">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Send Form */}
-        <Card className="border-zinc-800 bg-zinc-900/50 backdrop-blur-sm animate-slide-up">
+        <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm animate-slide-up">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                <Send className="h-5 w-5 text-zinc-400" />
+                <Send className="h-5 w-5 text-slate-400" />
                 Send {selectedAsset}
-                <div className="ml-auto flex items-center gap-2 bg-zinc-500/10 border border-zinc-500/30 rounded-full px-3 py-1.5">
-                  <ShieldCheck className="h-4 w-4 text-zinc-400" />
-                  <span className="text-sm text-zinc-400 font-medium">
+                <div className="ml-auto flex items-center gap-2 bg-slate-500/10 border border-slate-500/30 rounded-full px-3 py-1.5">
+                  <ShieldCheck className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-400 font-medium">
                     AI Protected
                   </span>
                 </div>
@@ -278,7 +278,7 @@ export default function UserExchange() {
                     setSelectedChain(chain);
                     setSelectedAsset(chain === "bsc" ? "BNB" : "ETH");
                   }}
-                  className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-100 text-sm font-medium hover:border-zinc-700 focus:outline-none focus:border-white/20"
+                  className="px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-100 text-sm font-medium hover:border-slate-700 focus:outline-none focus:border-white/20"
                 >
                   <option value="ethereum">Ethereum (ETH)</option>
                   <option value="bsc">BSC (BNB)</option>
@@ -288,14 +288,14 @@ export default function UserExchange() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Security Notice */}
-            <div className="bg-zinc-500/5 border border-zinc-800 rounded-lg p-4">
+            <div className="bg-slate-500/5 border border-slate-800 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-zinc-500 shrink-0 mt-0.5" />
+                <Info className="h-5 w-5 text-slate-500 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm text-zinc-100 font-medium">
+                  <p className="text-sm text-slate-100 font-medium">
                     Hệ thống bảo vệ AI đang hoạt động
                   </p>
-                  <p className="text-xs text-zinc-400 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     Mọi giao dịch đều được kiểm tra qua hệ thống phát hiện gian lận AI.
                     Giao dịch tới các ví có rủi ro cao (score &gt; 80) sẽ bị chặn tự động.
                   </p>
@@ -311,33 +311,33 @@ export default function UserExchange() {
                 placeholder="0x..."
                 value={fromWalletId}
                 onChange={(e) => setFromWalletId(e.target.value)}
-                className="font-mono bg-zinc-950 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-white/20"
+                className="font-mono bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-white/20"
               />
               {/* Sender Balance Info */}
               {senderBalanceLoading && (
-                <div className="flex items-center gap-2 text-zinc-500 text-sm">
+                <div className="flex items-center gap-2 text-slate-500 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Đang kiểm tra ví...</span>
                 </div>
               )}
               {senderBalanceError && (
-                <div className="flex items-center gap-2 text-zinc-500 text-sm">
+                <div className="flex items-center gap-2 text-slate-500 text-sm">
                   <XCircle className="h-4 w-4" />
                   <span>{senderBalanceError}</span>
                 </div>
               )}
               {senderBalance && !senderBalanceLoading && (
-                <div className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-3 mt-2">
+                <div className="bg-slate-950/50 border border-slate-800 rounded-lg p-3 mt-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-zinc-500" />
-                      <span className="text-sm text-zinc-400">Số dư khả dụng:</span>
+                      <Wallet className="h-4 w-4 text-slate-500" />
+                      <span className="text-sm text-slate-400">Số dư khả dụng:</span>
                     </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-lg font-bold text-white">
                         {senderBalance.balance_eth.toFixed(4)}
                       </span>
-                      <span className="text-sm text-zinc-500">{selectedAsset}</span>
+                      <span className="text-sm text-slate-500">{selectedAsset}</span>
                     </div>
                   </div>
                 </div>
@@ -359,9 +359,9 @@ export default function UserExchange() {
                     setToAddress(value);
                   }
                 }}
-                className="font-mono bg-zinc-950 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-white/20"
+                className="font-mono bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-white/20"
               />
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-slate-500">
                 Nhập địa chỉ ví Ethereum (0x...) hoặc Wallet ID của người nhận
               </p>
             </div>
@@ -371,36 +371,36 @@ export default function UserExchange() {
 
             {/* Receiver Risk Assessment - Shown below To Wallet ID */}
             {receiverRiskLoading && (
-              <div className="flex items-center gap-2 text-zinc-400 text-sm -mt-2">
+              <div className="flex items-center gap-2 text-slate-400 text-sm -mt-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>Đang kiểm tra độ an toàn...</span>
               </div>
             )}
             {receiverRiskError && (
-              <div className="flex items-center gap-2 text-zinc-400 text-sm -mt-2">
+              <div className="flex items-center gap-2 text-slate-400 text-sm -mt-2">
                 <AlertTriangle className="h-4 w-4" />
                 <span>{receiverRiskError}</span>
               </div>
             )}
             {receiverRisk && !receiverRiskLoading && (
               <div className={`border rounded-lg p-3 -mt-2 ${receiverRisk.risk_score >= 80
-                ? 'bg-zinc-500/10 border-zinc-500/30'
+                ? 'bg-slate-500/10 border-slate-500/30'
                 : receiverRisk.risk_score >= 60
-                  ? 'bg-zinc-500/10 border-zinc-500/30'
+                  ? 'bg-slate-500/10 border-slate-500/30'
                   : receiverRisk.risk_score >= 40
-                    ? 'bg-zinc-500/10 border-zinc-500/30'
-                    : 'bg-zinc-500/10 border-zinc-500/30'
+                    ? 'bg-slate-500/10 border-slate-500/30'
+                    : 'bg-slate-500/10 border-slate-500/30'
                 }`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {receiverRisk.risk_score >= 60 ? (
-                      <ShieldAlert className={`h-5 w-5 ${receiverRisk.risk_score >= 80 ? 'text-zinc-400' : 'text-zinc-400'
+                      <ShieldAlert className={`h-5 w-5 ${receiverRisk.risk_score >= 80 ? 'text-slate-400' : 'text-slate-400'
                         }`} />
                     ) : (
-                      <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-zinc-400' : 'text-zinc-400'
+                      <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-slate-400' : 'text-slate-400'
                         }`} />
                     )}
-                    <span className="text-sm font-medium text-zinc-100">
+                    <span className="text-sm font-medium text-slate-100">
                       {receiverRisk.risk_score >= 80
                         ? '⚠️ Địa chỉ nguy hiểm!'
                         : receiverRisk.risk_score >= 60
@@ -411,18 +411,18 @@ export default function UserExchange() {
                     </span>
                   </div>
                   <Badge variant="outline" className={`${receiverRisk.risk_score >= 80
-                    ? 'border-zinc-500 text-zinc-400'
+                    ? 'border-slate-500 text-slate-400'
                     : receiverRisk.risk_score >= 60
-                      ? 'border-zinc-500 text-zinc-400'
+                      ? 'border-slate-500 text-slate-400'
                       : receiverRisk.risk_score >= 40
-                        ? 'border-zinc-500 text-zinc-400'
-                        : 'border-zinc-500 text-zinc-400'
+                        ? 'border-slate-500 text-slate-400'
+                        : 'border-slate-500 text-slate-400'
                     }`}>
                     Risk: {receiverRisk.risk_score.toFixed(0)}%
                   </Badge>
                 </div>
                 {receiverRisk.risk_score >= 60 && (
-                  <p className="text-xs text-zinc-400 mt-2">
+                  <p className="text-xs text-slate-400 mt-2">
                     {receiverRisk.risk_score >= 80
                       ? 'Giao dịch đến địa chỉ này sẽ bị chặn tự động!'
                       : 'Bạn sẽ nhận được cảnh báo nếu tiếp tục giao dịch.'}
@@ -443,14 +443,14 @@ export default function UserExchange() {
                   placeholder="0.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="pr-16 bg-zinc-950 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-white/20"
+                  className="pr-16 bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-white/20"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
                   {selectedAsset}
                 </span>
               </div>
               {senderBalance && (
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-slate-500">
                   Khả dụng: {senderBalance.balance_eth.toFixed(4)} {selectedAsset}
                 </p>
               )}
@@ -459,7 +459,7 @@ export default function UserExchange() {
             {/* Send Button */}
             {/* Send Button */}
             <Button
-              className="w-full h-12 text-lg bg-white text-black hover:bg-zinc-200 border-none"
+              className="w-full h-12 text-lg bg-white text-black hover:bg-slate-200 border-none"
               onClick={handleSend}
               disabled={
                 transferMutation.isPending ||
@@ -486,20 +486,20 @@ export default function UserExchange() {
         </Card>
 
         {/* Recent Transactions */}
-        <Card className="border-zinc-800 bg-zinc-900/50 backdrop-blur-sm animate-slide-up stagger-2">
+        <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm animate-slide-up stagger-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-zinc-100">
-              <Clock className="h-5 w-5 text-zinc-500" />
+            <CardTitle className="flex items-center gap-2 text-slate-100">
+              <Clock className="h-5 w-5 text-slate-500" />
               Giao dịch gần đây
             </CardTitle>
           </CardHeader>
           <CardContent>
             {(fromWalletId ? senderTxLoading : txLoading) ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-500" />
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-slate-500" />
               </div>
             ) : (fromWalletId ? senderTransactions : transactions)?.length === 0 ? (
-              <div className="text-center py-8 text-zinc-500">
+              <div className="text-center py-8 text-slate-500">
                 <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No transactions yet</p>
               </div>
@@ -512,23 +512,23 @@ export default function UserExchange() {
                   return (
                     <div
                       key={tx.tx_hash}
-                      className="flex items-center justify-between p-4 rounded-lg bg-zinc-950/50 border border-zinc-800"
+                      className="flex items-center justify-between p-4 rounded-lg bg-slate-950/50 border border-slate-800"
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className={`p-2 rounded-lg bg-zinc-500/10 border-zinc-800 border`}
+                          className={`p-2 rounded-lg bg-slate-500/10 border-slate-800 border`}
                         >
                           {isSent ? (
-                            <ArrowUpRight className="h-5 w-5 text-zinc-400" />
+                            <ArrowUpRight className="h-5 w-5 text-slate-400" />
                           ) : (
-                            <ArrowDownLeft className="h-5 w-5 text-zinc-400" />
+                            <ArrowDownLeft className="h-5 w-5 text-slate-400" />
                           )}
                         </div>
                         <div>
-                          <p className="font-medium text-zinc-100">
+                          <p className="font-medium text-slate-100">
                             {isSent ? "Sent" : "Received"}
                           </p>
-                          <p className="text-sm text-zinc-500 font-mono">
+                          <p className="text-sm text-slate-500 font-mono">
                             {isSent
                               ? `To: ${formatAddress(tx.to_address)}`
                               : `From: ${formatAddress(tx.from_address)}`}
@@ -537,12 +537,12 @@ export default function UserExchange() {
                       </div>
                       <div className="text-right">
                         <p
-                          className={`font-bold text-zinc-100`}
+                          className={`font-bold text-slate-100`}
                         >
                           {isSent ? "-" : "+"}
                           {formatEth(tx.value_wei)} ETH
                         </p>
-                        <p className="text-xs text-zinc-500">
+                        <p className="text-xs text-slate-500">
                           {formatDate(tx.timestamp)}
                         </p>
                       </div>
@@ -564,7 +564,7 @@ export default function UserExchange() {
       <Dialog open={showWarningDialog} onOpenChange={setShowWarningDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-zinc-400">
+            <DialogTitle className="flex items-center gap-2 text-slate-400">
               <AlertTriangle className="h-6 w-6" />
               Risk Warning
             </DialogTitle>
@@ -599,43 +599,43 @@ export default function UserExchange() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold text-zinc-400">
+                  <span className="text-3xl font-bold text-slate-400">
                     {transferResponse?.receiver_risk?.toFixed(0) || 0}
                   </span>
-                  <span className="text-xs text-zinc-400">Risk Score</span>
+                  <span className="text-xs text-slate-400">Risk Score</span>
                 </div>
               </div>
             </div>
 
             {/* Warning Message */}
-            <div className="bg-zinc-500/10 border border-zinc-800 rounded-lg p-4">
-              <p className="text-sm text-zinc-100">
+            <div className="bg-slate-500/10 border border-slate-800 rounded-lg p-4">
+              <p className="text-sm text-slate-100">
                 {transferResponse?.message}
               </p>
             </div>
 
             {/* Warning Count */}
             <div className="flex items-center justify-center gap-2">
-              <span className="text-sm text-zinc-500">Warnings:</span>
+              <span className="text-sm text-slate-500">Warnings:</span>
               <div className="flex items-center gap-1">
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
                     className={`w-3 h-3 rounded-full ${i <= currentWarnings
-                      ? "bg-zinc-400"
-                      : "bg-zinc-800"
+                      ? "bg-slate-400"
+                      : "bg-slate-800"
                       }`}
                   />
                 ))}
               </div>
-              <span className="text-sm text-zinc-400 font-medium">
+              <span className="text-sm text-slate-400 font-medium">
                 {transferResponse?.warning_text}
               </span>
             </div>
 
             {currentWarnings >= 2 && (
-              <div className="bg-zinc-500/10 border border-zinc-500/30 rounded-lg p-3">
-                <p className="text-sm text-zinc-400 flex items-center gap-2">
+              <div className="bg-slate-500/10 border border-slate-500/30 rounded-lg p-3">
+                <p className="text-sm text-slate-400 flex items-center gap-2">
                   <ShieldAlert className="h-4 w-4" />
                   Final warning! Your account will be suspended if you proceed.
                 </p>
@@ -662,7 +662,7 @@ export default function UserExchange() {
       <Dialog open={showBlockedDialog} onOpenChange={setShowBlockedDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-zinc-400">
+            <DialogTitle className="flex items-center gap-2 text-slate-400">
               <AlertOctagon className="h-6 w-6" />
               Transfer Blocked
             </DialogTitle>
@@ -672,22 +672,22 @@ export default function UserExchange() {
             {/* Blocked Icon */}
             <div className="flex items-center justify-center">
               <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-zinc-500/20 flex items-center justify-center animate-pulse">
-                  <XCircle className="h-12 w-12 text-zinc-400" />
+                <div className="w-24 h-24 rounded-full bg-slate-500/20 flex items-center justify-center animate-pulse">
+                  <XCircle className="h-12 w-12 text-slate-400" />
                 </div>
               </div>
             </div>
 
             {/* Block Reason */}
-            <div className="bg-zinc-500/10 border border-zinc-800 rounded-lg p-4">
-              <p className="text-sm text-zinc-100 text-center">
+            <div className="bg-slate-500/10 border border-slate-800 rounded-lg p-4">
+              <p className="text-sm text-slate-100 text-center">
                 {transferResponse?.message ||
                   "This transfer has been blocked due to high risk."}
               </p>
             </div>
 
             <div className="text-center">
-              <p className="text-zinc-500 text-sm">
+              <p className="text-slate-500 text-sm">
                 The recipient wallet has a critical risk score and has been
                 identified as potentially fraudulent.
               </p>
@@ -713,7 +713,7 @@ export default function UserExchange() {
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-zinc-400">
+            <DialogTitle className="flex items-center gap-2 text-slate-400">
               <CheckCircle2 className="h-6 w-6" />
               Transfer Successful
             </DialogTitle>
@@ -722,17 +722,17 @@ export default function UserExchange() {
           <div className="space-y-4 py-4">
             {/* Success Icon */}
             <div className="flex items-center justify-center">
-              <div className="w-24 h-24 rounded-full bg-zinc-500/20 flex items-center justify-center">
-                <CheckCircle2 className="h-12 w-12 text-zinc-400" />
+              <div className="w-24 h-24 rounded-full bg-slate-500/20 flex items-center justify-center">
+                <CheckCircle2 className="h-12 w-12 text-slate-400" />
               </div>
             </div>
 
             <div className="text-center">
-              <p className="text-zinc-100">
+              <p className="text-slate-100">
                 Your transfer has been processed successfully.
               </p>
               {transferResponse?.tx_hash && (
-                <p className="text-sm text-zinc-500 mt-2 font-mono">
+                <p className="text-sm text-slate-500 mt-2 font-mono">
                   TX: {formatAddress(transferResponse.tx_hash, 10)}
                 </p>
               )}
@@ -741,7 +741,7 @@ export default function UserExchange() {
 
           <DialogFooter>
             <Button
-              className="w-full bg-zinc-600 hover:bg-zinc-700"
+              className="w-full bg-slate-600 hover:bg-slate-700"
               onClick={() => setShowSuccessDialog(false)}
             >
               Done
