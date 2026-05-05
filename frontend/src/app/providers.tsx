@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth-context";
@@ -26,9 +26,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AuthProvider>
           <TooltipProvider>
             {children}
-            <Suspense fallback={null}>
-              <GlobalAssistantWidget />
-            </Suspense>
+            <GlobalAssistantWidget />
           </TooltipProvider>
         </AuthProvider>
       </QueryClientProvider>

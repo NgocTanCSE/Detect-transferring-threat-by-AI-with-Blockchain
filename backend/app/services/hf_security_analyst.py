@@ -86,7 +86,7 @@ class HFSecurityAnalyst:
             conversation_history=conversation_history or [],
         )
         try:
-            response = self._generate_text(prompt=prompt, max_new_tokens=1000, temperature=0.45)
+            response = self._generate_text(prompt=prompt, max_new_tokens=320, temperature=0.4)
 
             # Check if response is an error message (when API fails but no exception is raised)
             if response and ("tạm thời không khả dụng" in response.lower() or
@@ -130,7 +130,7 @@ class HFSecurityAnalyst:
             conversation_history=conversation_history or [],
         )
         try:
-            response = self._generate_text(prompt=prompt, max_new_tokens=900, temperature=0.55)
+            response = self._generate_text(prompt=prompt, max_new_tokens=360, temperature=0.55)
 
             # Check if response is an error message (when API fails but no exception is raised)
             if response and ("tạm thời không khả dụng" in response.lower() or
@@ -152,6 +152,51 @@ class HFSecurityAnalyst:
             return self._fallback_general_answer(
                 question=question,
                 context=context,
+                conversation_history=conversation_history,
+                knowledge_snippets=knowledge_snippets,
+            )
+
+    def answer_open_domain_question(
+        self,
+        question: str,
+        knowledge_snippets: Optional[List[KnowledgeSnippet]] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
+        """Answer broad questions outside the product scope using general knowledge."""
+        if not self.enabled:
+            return self._fallback_general_answer(
+                question=question,
+                context={},
+                conversation_history=conversation_history,
+                knowledge_snippets=knowledge_snippets,
+            )
+
+        prompt = self._construct_open_domain_chat_prompt(
+            question=question,
+            knowledge_snippets=knowledge_snippets or [],
+            conversation_history=conversation_history or [],
+        )
+
+        try:
+            response = self._generate_text(prompt=prompt, max_new_tokens=420, temperature=0.65)
+            if response and ("tạm thời không khả dụng" in response.lower() or
+                           "gặp lỗi" in response.lower() or
+                           '"error"' in response or
+                           '"code":' in response):
+                logger.warning("API returned error response for open-domain question, triggering fallback")
+                return self._fallback_general_answer(
+                    question=question,
+                    context={},
+                    conversation_history=conversation_history,
+                    knowledge_snippets=knowledge_snippets,
+                )
+
+            return response
+        except Exception as error:
+            logger.error(f"Gemini open-domain chat failed: {error}")
+            return self._fallback_general_answer(
+                question=question,
+                context={},
                 conversation_history=conversation_history,
                 knowledge_snippets=knowledge_snippets,
             )
@@ -223,9 +268,11 @@ class HFSecurityAnalyst:
         knowledge_snippets: List[KnowledgeSnippet],
         conversation_history: List[Dict[str, str]],
     ) -> str:
-        context_json = json.dumps(context, ensure_ascii=False, indent=2)
-        knowledge_text = render_snippets_for_prompt(knowledge_snippets)
-        history_text = json.dumps(conversation_history[-6:], ensure_ascii=False, indent=2)
+        context_json = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
+        if len(context_json) > 2400:
+            context_json = context_json[:2400] + "..."
+        knowledge_text = render_snippets_for_prompt(knowledge_snippets[:2])
+        history_text = json.dumps(conversation_history[-2:], ensure_ascii=False, separators=(",", ":"))
         screen_scope = str(context.get("screen_scope", "dashboard"))
 
         # Extract key metrics for better guidance
@@ -273,7 +320,7 @@ TÀI LIỆU THAM KHẢO DỰ ÁN:
 CÂU HỎI TỪNG ĐƯỢC ĐẶT:
 {question}
 
-HÃY TRẢ LỜI NGẮN GỌN NHƯNG ĐẦY ĐỦ, KỂ KỀ SỐ LIỆU CỤ THỂ:
+    HÃY TRẢ LỜI RẤT NGẮN GỌN: tối đa 3 gạch đầu dòng, ưu tiên số liệu cụ thể, không lặp lại JSON:
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     def _construct_general_chat_prompt(
@@ -283,9 +330,11 @@ HÃY TRẢ LỜI NGẮN GỌN NHƯNG ĐẦY ĐỦ, KỂ KỀ SỐ LIỆU CỤ TH
         knowledge_snippets: List[KnowledgeSnippet],
         conversation_history: List[Dict[str, str]],
     ) -> str:
-        context_json = json.dumps(context, ensure_ascii=False, indent=2)
-        knowledge_text = render_snippets_for_prompt(knowledge_snippets)
-        history_text = json.dumps(conversation_history[-8:], ensure_ascii=False, indent=2)
+        context_json = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
+        if len(context_json) > 2200:
+            context_json = context_json[:2200] + "..."
+        knowledge_text = render_snippets_for_prompt(knowledge_snippets[:2])
+        history_text = json.dumps(conversation_history[-3:], ensure_ascii=False, separators=(",", ":"))
 
         # Extract overview if available for a "System Snapshot"
         overview = context.get("overview", {})
@@ -317,29 +366,29 @@ PHẠM VI KIẾN THỨC VÀ KHẢ NĂNG:
 3. Điểm rủi ro: Công thức scoring (Random Forest, Multi-Agent, Heuristics), cách đọc và diễn giải
 4. Kiến trúc hệ thống: Frontend React, Backend FastAPI, AI Engine, Database architecture, RBAC
 5. Quy trình vận hành: Cách xử lý cases, policies, compliance, audit
+6. Câu hỏi ngoài hệ thống: Vẫn trả lời theo kiến thức chung nếu câu hỏi không liên quan trực tiếp đến dashboard
 
 {system_snapshot}
 
-HƯỚNG DẪN TƯ DUY & PHẢN ỨNG (Chain of Thought):
-1. ĐỌC SNAPSHOT: Luôn kiểm tra SYSTEM SNAPSHOT trước để hiểu tình hình hiện tại
-2. HIỂU CÂU HỎI: Phân tích xem người dùng đang hỏi gì - phát hiện intent sâu hơn từ khóa
-3. LIÊN KẾT DỮ LIỆU: Nếu có dữ liệu trong context, phải trích dẫn số liệu cụ thể
-4. GIẢI THÍCH: Không chỉ nói "có vấn đề", mà giải thích CHI TIẾT bằng dữ liệu
-5. ĐỀ XUẤT: Đưa ra hành động cụ thể, không generic
-6. TRÁNH HALLUCINATE: Không bao giờ nói số liệu không có trong context
+HƯỚNG DẪN TRẢ LỜI:
+1. Nếu câu hỏi liên quan dashboard/wallet/system, ưu tiên dùng dữ liệu từ context và docs
+2. Nếu câu hỏi ngoài phạm vi hệ thống, trả lời theo kiến thức chung một cách trực tiếp, không ép vào dashboard
+3. Nếu thiếu dữ liệu hệ thống, nói rõ phần nào đang thiếu và vẫn đưa ra câu trả lời hữu ích nhất có thể
+4. Tránh trả lời cụt, tránh lặp lại prompt, tránh chỉ nói "không có dữ liệu"
 
 HẠNG MỤC CÂU HỎI THỨ NHẤT:
 - Nếu hỏi về dashboard/alerts/metrics → dùng dữ liệu từ SYSTEM SNAPSHOT
 - Nếu hỏi về ví cụ thể → dùng wallet_focus context
 - Nếu hỏi về hệ thống → dùng kiến thức kiến trúc và dự án documentation
 - Nếu hỏi về account/đăng nhập → giải thích vấn đề phổ biến và cách fix
+ - Nếu hỏi về chủ đề khác → trả lời best effort bằng kiến thức chung, ngắn gọn và đúng trọng tâm
 
 ĐỊNH DẠN OUTPUT:
 - Sử dụng tiếng Việt chuẩn mực
 - Dùng dấu gạch đầu dòng (-) cho danh sách
 - Tránh từ mơ hồ như "tương đối", "khá", "khoảng"
-- Cấu trúc: Mô tả vấn đề → Dữ liệu cụ thể → Phân tích → Đề xuất
-- Giữ độ dài phù hợp (100-400 từ)
+- Cấu trúc: Trả lời trực tiếp → Giải thích ngắn gọn → Gợi ý tiếp theo nếu cần
+- Giữ độ dài ngắn gọn (60-220 từ), ưu tiên hữu ích hơn là rập khuôn
 
 <|eot_id|><|start_header_id|>user<|end_header_id|>
 NGỮ CẢNH HỆ THỐNG ĐẦY ĐỦ:
@@ -354,8 +403,42 @@ DỮ LIỆU TRI THỨC TỪ DOCS:
 CÂU HỎI TỪ NGƯỜI DÙNG:
 {question}
 
-HÃY TRẢ LỜI NGẮN GỌN VÀ CHÍNH XÁC, SỬ DỤNG DỮ LIỆU THỰC:
+    HÃY TRẢ LỜI NGẮN GỌN VÀ CHÍNH XÁC, TỐI ĐA 3-4 GẠCH ĐẦU DÒNG, KHÔNG QUÁ 180 TỪ:
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+
+    def _construct_open_domain_chat_prompt(
+        self,
+        question: str,
+        knowledge_snippets: List[KnowledgeSnippet],
+        conversation_history: List[Dict[str, str]],
+    ) -> str:
+        knowledge_text = render_snippets_for_prompt(knowledge_snippets[:1])
+        history_text = json.dumps(conversation_history[-2:], ensure_ascii=False, separators=(",", ":"))
+
+        return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+{self.persona}
+
+MỤC TIÊU: Trả lời trực tiếp câu hỏi của người dùng bằng kiến thức chung hữu ích, không ép vào dashboard hay hệ thống nếu câu hỏi không liên quan.
+
+QUY TẮC TRẢ LỜI:
+1. Trả lời đúng trọng tâm câu hỏi ngay từ câu đầu tiên.
+2. Nếu câu hỏi là kiến thức chung, giải thích bình thường, rõ ràng, dễ hiểu.
+3. Nếu liên quan nhẹ đến sản phẩm thì liên kết ngắn gọn với ngữ cảnh dự án.
+4. Nếu thiếu chắc chắn, nói rõ mức độ chắc chắn và gợi ý cách kiểm tra thêm.
+5. Không trả lời cụt, không lặp lại prompt, không nhắc đến JSON context.
+
+TÀI LIỆU THAM KHẢO CÓ LIÊN QUAN (NẾU CÓ):
+{knowledge_text or "Không có tài liệu cụ thể."}
+
+LỊCH SỬ HỘI THOẠI NGẮN:
+{history_text}
+
+CÂU HỎI:
+{question}
+
+HÃY TRẢ LỜI TỰ NHIÊN, NGẮN GỌN, CÓ ÍCH, TỐI ĐA 5 GẠCH ĐẦU DÒNG HOẶC 220 TỪ:
+<|eot_id|><|start_header_id|>assistant<end_header_id|>"""
 
     def _fallback_dashboard_answer(
         self,
@@ -444,7 +527,7 @@ HÃY TRẢ LỜI NGẮN GỌN VÀ CHÍNH XÁC, SỬ DỤNG DỮ LIỆU THỰC:
             snippet_hint = f"\n\nTham khảo: {top_snippet.source} - {top_snippet.heading}"
 
         return (
-            "Mình chưa có lời giải thích AI chi tiết cho câu hỏi này, nhưng tôi có thể giúp về:\n"
+            "Mình chưa có câu trả lời AI chi tiết cho phần hệ thống này, nhưng tôi có thể giúp về:\n"
             "- Dashboard metrics & alerts\n"
             "- Wallet analysis & risk scoring\n"
             "- Hệ thống architecture\n"

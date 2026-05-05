@@ -118,14 +118,12 @@ export default function GlobalAssistantWidget() {
             roleKey={dashboardRoleKey}
             roleLabel={roleLabel}
             currentScope={currentScope}
-            walletAddress={user?.wallet_address ?? null}
+            walletAddress={user?.wallet_address}
             context={assistantContext}
-            onScopeChange={setCurrentScope}
+            onScopeChange={(nextScope) => setCurrentScope(nextScope)}
           />
         </DialogContent>
       </Dialog>
     </>
   );
 }
-
-

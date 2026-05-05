@@ -125,7 +125,7 @@ def _dedupe_preserve_order(values: List[str]) -> List[str]:
 
 def _is_low_quality_answer(answer: str) -> bool:
     text = (answer or "").strip()
-    if len(text) < 25:
+    if not text:
         return True
 
     # CRITICAL: Check for error/API failure responses (these are ALWAYS low quality)
@@ -168,12 +168,6 @@ def _is_low_quality_answer(answer: str) -> bool:
         last_line = text.split("\n")[-1]
         if len(last_line.strip()) < 20:
             return True
-
-    # Check for minimal content (just headers without substance)
-    lines = text.split("\n")
-    substance_lines = [l for l in lines if l.strip() and not l.strip().startswith("-") and not l.strip().startswith("•")]
-    if len(substance_lines) <= 1 and len(text) < 100:
-        return True
 
     return False
 
@@ -860,8 +854,6 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         )
         raise HTTPException(status_code=400, detail="Missing message")
 
-    # We no longer intercept these early. We let the AI Analyst handle them
-    # to provide more contextual answers, using these as fallbacks later if needed.
     is_support_q = _is_account_support_question(message)
     is_system_q = _is_system_component_question(message)
 
@@ -944,11 +936,9 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         )
         knowledge_snippets = []
 
-    # IMPROVED: Detect question intent for smarter routing
     question_intent = _detect_question_intent(message, context)
 
     if question_intent == "account_support":
-        # Account support questions - use dynamic answers with context
         if analyst.enabled:
             answer = analyst.answer_general_question(
                 question=message,
@@ -960,11 +950,9 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         else:
             normalized_answer = None
 
-        # If AI doesn't provide good answer OR is disabled, use dynamic support builder
         if not normalized_answer or _is_low_quality_answer(normalized_answer):
             normalized_answer = _build_dynamic_account_support_answer(message, context, database_session)
     elif question_intent == "dashboard_analytics":
-        # Dashboard analytics - use dashboard-specific analysis
         if analyst.enabled:
             answer = analyst.answer_dashboard_question(
                 question=message,
@@ -976,15 +964,12 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         else:
             normalized_answer = None
 
-        # If AI doesn't help OR is disabled, use dynamic dashboard builder
         if not normalized_answer or _is_low_quality_answer(normalized_answer):
             normalized_answer = _build_dynamic_dashboard_answer(message, context)
     else:
-        # General questions - system architecture, operational guidance, etc.
         if analyst.enabled:
-            answer = analyst.answer_general_question(
+            answer = analyst.answer_open_domain_question(
                 question=message,
-                context=context,
                 knowledge_snippets=knowledge_snippets,
                 conversation_history=conversation_history,
             )
@@ -996,40 +981,13 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             if _is_system_component_question(message):
                 normalized_answer = _build_system_component_answer(message)
             else:
-                normalized_answer = _build_structured_context_answer(message, context)
+                normalized_answer = analyst._fallback_general_answer(  # noqa: SLF001
+                    question=message,
+                    context=context,
+                    conversation_history=conversation_history,
+                    knowledge_snippets=knowledge_snippets,
+                )
 
-    raw_knowledge_sources = [
-        {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}
-        for snippet in knowledge_snippets
-    ]
-    seen_knowledge = set()
-    knowledge_sources = []
-    for item in raw_knowledge_sources:
-        key = (str(item.get("source", "")).strip(), str(item.get("heading", "")).strip())
-        if key in seen_knowledge:
-            continue
-        seen_knowledge.add(key)
-        knowledge_sources.append(item)
-
-    log_diagnostic(
-        DiagnosticLogType.AI_SERVICE,
-        "General assistant response generated",
-        details={"message_length": len(message), "answer_length": len(normalized_answer)},
-        status_code=200,
-        endpoint="/assistant/chat"
-    )
-
-    # Build sources list
-    sources = [
-        "overview: wallets/alerts/blocked_transfers",
-        "flow_7d: transactions",
-        "top_risky_wallets: wallets",
-    ]
-    if wallet_address:
-        sources.append("wallet_focus: wallets/transactions/alerts")
-    deduped_sources = _dedupe_preserve_order(sources)
-
-    # Process knowledge sources
     raw_knowledge_sources = [
         {"source": snippet.source, "heading": snippet.heading, "score": snippet.score}
         for snippet in knowledge_snippets
@@ -1042,6 +1000,15 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             continue
         seen_knowledge.add(key)
         deduplicated_knowledge_sources.append(item)
+
+    sources = [
+        "overview: wallets/alerts/blocked_transfers",
+        "flow_7d: transactions",
+        "top_risky_wallets: wallets",
+    ]
+    if wallet_address:
+        sources.append("wallet_focus: wallets/transactions/alerts")
+    deduped_sources = _dedupe_preserve_order(sources)
 
     response = {
         "answer": normalized_answer,
@@ -1064,8 +1031,6 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         endpoint="/assistant/chat"
     )
     return response
-
-
 @app.get("/diagnostics/alchemy/{wallet_address}", tags=["Diagnostics"])
 def diagnose_alchemy_wallet(wallet_address: str, chain: str = Query("ethereum")) -> Dict[str, Any]:
     """Check whether Alchemy returns fresh transfer data for a wallet address."""

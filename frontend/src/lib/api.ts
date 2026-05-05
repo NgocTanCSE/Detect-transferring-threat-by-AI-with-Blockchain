@@ -172,6 +172,52 @@ function unwrapApiResponse<T>(payload: unknown): T {
   return payload as T;
 }
 
+export async function askDashboardAssistant(
+  message: string,
+  role: string,
+  walletAddress?: string,
+  conversationHistory?: Array<{ role: string; content: string }>,
+  screenScope = "dashboard",
+  assistantContext?: Record<string, unknown>
+): Promise<AssistantChatResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/assistant/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        role,
+        wallet_address: walletAddress || null,
+        screen_scope: screenScope,
+        conversation_history: conversationHistory || [],
+        context: assistantContext || null,
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn(`Assistant chat response not ok: ${res.status}`);
+      return {
+        answer: `Không thể lấy câu trả lời từ trợ lý (lỗi ${res.status}). Vui lòng thử lại.`,
+        context: { role, screen_scope: screenScope, overview: { total_wallets: 0, total_alerts: 0, critical_alerts: 0, alerts_today: 0, total_blocked: 0 }, top_risky_wallets: [] },
+        sources: [],
+        knowledge_sources: [],
+        model_enabled: false,
+      };
+    }
+
+    return res.json();
+  } catch (error) {
+    console.error("Assistant chat error:", error);
+    return {
+      answer: "Không thể kết nối với trợ lý. Vui lòng kiểm tra kết nối mạng và thử lại.",
+      context: { role, screen_scope: screenScope, overview: { total_wallets: 0, total_alerts: 0, critical_alerts: 0, alerts_today: 0, total_blocked: 0 }, top_risky_wallets: [] },
+      sources: [],
+      knowledge_sources: [],
+      model_enabled: false,
+    };
+  }
+}
+
 // API Functions
 export async function fetchDashboardStats(chain = "ethereum"): Promise<DashboardStats> {
   const res = await fetch(`${API_BASE}/statistics/dashboard?chain=${chain}`);
@@ -424,48 +470,3 @@ export async function analyzeAddress(address: string): Promise<{
   return unwrapApiResponse(payload);
 }
 
-export async function askDashboardAssistant(
-  message: string,
-  role: string,
-  walletAddress?: string,
-  conversationHistory?: Array<{ role: string; content: string }>,
-  screenScope = "dashboard",
-  assistantContext?: Record<string, unknown>
-): Promise<AssistantChatResponse> {
-  try {
-    const res = await fetch(`${API_BASE}/assistant/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        role,
-        wallet_address: walletAddress || null,
-        screen_scope: screenScope,
-        conversation_history: conversationHistory || [],
-        context: assistantContext || null,
-      }),
-    });
-
-    if (!res.ok) {
-      console.warn(`Assistant chat response not ok: ${res.status}`);
-      return {
-        answer: `Không thể lấy câu trả lời từ trợ lý (lỗi ${res.status}). Vui lòng thử lại.`,
-        context: { role, screen_scope: screenScope, overview: { total_wallets: 0, total_alerts: 0, critical_alerts: 0, alerts_today: 0, total_blocked: 0 }, top_risky_wallets: [] },
-        sources: [],
-        knowledge_sources: [],
-        model_enabled: false,
-      };
-    }
-
-    return res.json();
-  } catch (error) {
-    console.error("Assistant chat error:", error);
-    return {
-      answer: "Không thể kết nối với trợ lý. Vui lòng kiểm tra kết nối mạng và thử lại.",
-      context: { role, screen_scope: screenScope, overview: { total_wallets: 0, total_alerts: 0, critical_alerts: 0, alerts_today: 0, total_blocked: 0 }, top_risky_wallets: [] },
-      sources: [],
-      knowledge_sources: [],
-      model_enabled: false,
-    };
-  }
-}
