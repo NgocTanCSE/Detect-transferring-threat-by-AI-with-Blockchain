@@ -104,7 +104,7 @@ export default function AdminDiagnosticsDashboard() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <p className="text-zinc-400">Loading diagnostics...</p>
+          <p className="text-slate-400">Loading diagnostics...</p>
         </div>
       </div>
     );
@@ -113,7 +113,7 @@ export default function AdminDiagnosticsDashboard() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-zinc-400">System Diagnostics</h1>
+        <h1 className="text-3xl font-bold text-slate-100">System Diagnostics</h1>
         <Button onClick={fetchStatus} variant="outline" size="sm">
           <RefreshCw className="w-4 h-4 mr-2" />
           Refresh
@@ -142,10 +142,10 @@ export default function AdminDiagnosticsDashboard() {
                   >
                     {systemStatus.database.health.status}
                   </Badge>
-                  <span className="text-xs text-zinc-400">{systemStatus.database.url}</span>
+                  <span className="text-xs text-slate-400">{systemStatus.database.url}</span>
                 </div>
                 {systemStatus.database.health.error && (
-                  <p className="text-xs text-zinc-400 mt-2">{systemStatus.database.health.error}</p>
+                  <p className="text-xs text-slate-400 mt-2">{systemStatus.database.health.error}</p>
                 )}
               </CardContent>
             </Card>
@@ -158,7 +158,7 @@ export default function AdminDiagnosticsDashboard() {
                 <Badge variant={systemStatus.ai_service.gemini_api_key_configured ? "default" : "secondary"}>
                   {systemStatus.ai_service.gemini_api_key_configured ? "Configured" : "Not Configured"}
                 </Badge>
-                <p className="text-xs text-zinc-400 mt-2">
+                <p className="text-xs text-slate-400 mt-2">
                   {systemStatus.ai_service.gemini_api_key_configured
                     ? `GEMINI_API_KEY is set (${systemStatus.ai_service.gemini_model || "default model"})`
                     : "GEMINI_API_KEY missing - fallback mode"}
@@ -174,14 +174,14 @@ export default function AdminDiagnosticsDashboard() {
             </CardHeader>
             <CardContent>
               {systemStatus.recent_errors.length === 0 ? (
-                <p className="text-sm text-zinc-400">✓ No recent errors</p>
+                <p className="text-sm text-slate-400">✓ No recent errors</p>
               ) : (
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {systemStatus.recent_errors.map((error, idx) => (
-                    <div key={idx} className="p-2 bg-zinc-900/20 rounded border border-zinc-700/50">
-                      <p className="text-xs font-mono text-zinc-300">{error.message}</p>
-                      <p className="text-xs text-zinc-400">{error.endpoint}</p>
-                      <p className="text-xs text-zinc-500">{new Date(error.timestamp).toLocaleString()}</p>
+                    <div key={idx} className="p-2 bg-slate-900/30 rounded border border-slate-700/50">
+                      <p className="text-xs font-mono text-slate-200">{error.message}</p>
+                      <p className="text-xs text-slate-400">{error.endpoint}</p>
+                      <p className="text-xs text-slate-500">{new Date(error.timestamp).toLocaleString()}</p>
                     </div>
                   ))}
                 </div>
@@ -200,15 +200,15 @@ export default function AdminDiagnosticsDashboard() {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {Object.entries(systemStatus.seed_data).map(([key, count]) => (
-                  <div key={key} className="p-3 bg-zinc-900 rounded border border-zinc-500/20">
-                    <p className="text-xs text-zinc-400 capitalize">{key.replace(/_/g, " ")}</p>
-                    <p className="text-2xl font-bold text-zinc-400">{count}</p>
+                  <div key={key} className="p-3 bg-slate-900 rounded border border-teal-400/20">
+                    <p className="text-xs text-slate-400 capitalize">{key.replace(/_/g, " ")}</p>
+                    <p className="text-2xl font-bold text-teal-300">{count}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-4 p-3 bg-zinc-900/20 border border-zinc-700/50 rounded">
-                <p className="text-xs text-zinc-300">
+              <div className="mt-4 p-3 bg-slate-900/30 border border-slate-700/50 rounded">
+                <p className="text-xs text-slate-300">
                   ℹ️ Production-Grade Seed: ~1000 wallets, ~5000 transactions, ~150 alerts, ~60 blocked transfers, ~120 nodes, ~500 metrics
                 </p>
               </div>
@@ -226,11 +226,11 @@ export default function AdminDiagnosticsDashboard() {
             <CardContent>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {Object.entries(systemStatus.endpoints).map(([endpoint, stats]) => (
-                  <div key={endpoint} className="p-3 bg-zinc-900 rounded border border-zinc-500/20">
+                  <div key={endpoint} className="p-3 bg-slate-900 rounded border border-slate-700/50">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <p className="text-sm font-mono text-zinc-400">{endpoint}</p>
-                        <p className="text-xs text-zinc-400">
+                        <p className="text-sm font-mono text-slate-400">{endpoint}</p>
+                        <p className="text-xs text-slate-400">
                           Total: {stats.total_calls} | Success: {stats.success_count} | Errors: {stats.error_count}
                         </p>
                         {stats.last_status_code && (
@@ -241,9 +241,9 @@ export default function AdminDiagnosticsDashboard() {
                             {stats.last_status_code}
                           </Badge>
                         )}
-                        {stats.last_error && <p className="text-xs text-zinc-400 mt-2">{stats.last_error}</p>}
+                        {stats.last_error && <p className="text-xs text-slate-400 mt-2">{stats.last_error}</p>}
                         {stats.last_called && (
-                          <p className="text-xs text-zinc-500 mt-2">
+                          <p className="text-xs text-slate-500 mt-2">
                             Last: {new Date(stats.last_called).toLocaleTimeString()}
                           </p>
                         )}
@@ -288,26 +288,26 @@ export default function AdminDiagnosticsDashboard() {
             <CardContent>
               <div className="space-y-2 max-h-96 overflow-y-auto font-mono text-xs">
                 {logs.length === 0 ? (
-                  <p className="text-zinc-400">No logs</p>
+                  <p className="text-slate-400">No logs</p>
                 ) : (
                   logs.map((log, idx) => (
                     <div
                       key={idx}
                       className={`p-2 rounded border ${log.type === "error" || log.type === "api_error"
-                        ? "bg-zinc-900/20 border-zinc-700/50 text-zinc-300"
+                        ? "bg-amber-900/20 border-amber-700/50 text-amber-100"
                         : log.type === "warning"
-                          ? "bg-zinc-900/20 border-zinc-700/50 text-zinc-300"
-                          : "bg-zinc-900/20 border-zinc-700/50 text-zinc-300"
+                          ? "bg-amber-900/20 border-amber-700/50 text-amber-100"
+                          : "bg-slate-900/20 border-slate-700/50 text-slate-200"
                         }`}
                     >
                       <div className="flex justify-between">
                         <span>{log.message}</span>
-                        <span className="text-zinc-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                        <span className="text-slate-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
                       </div>
-                      {log.endpoint && <p className="text-zinc-400 mt-1">{log.endpoint}</p>}
-                      {log.status_code && <p className="text-zinc-400 mt-1">Status: {log.status_code}</p>}
+                      {log.endpoint && <p className="text-slate-400 mt-1">{log.endpoint}</p>}
+                      {log.status_code && <p className="text-slate-400 mt-1">Status: {log.status_code}</p>}
                       {Object.keys(log.details).length > 0 && (
-                        <pre className="text-zinc-500 mt-1 text-[10px] overflow-auto max-h-20">
+                        <pre className="text-slate-500 mt-1 text-[10px] overflow-auto max-h-20">
                           {JSON.stringify(log.details, null, 2)}
                         </pre>
                       )}

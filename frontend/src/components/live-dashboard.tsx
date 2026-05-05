@@ -264,32 +264,32 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
     key: "system_admin",
     label: "System Admin",
     shortLabel: "SYS",
-    accentClass: "border-zinc-400/40 bg-zinc-400/10 text-zinc-50",
-    highlightClass: "from-zinc-400/20 via-zinc-500/10 to-transparent",
+    accentClass: "border-teal-400/40 bg-teal-400/10 text-teal-50",
+    highlightClass: "from-teal-400/20 via-teal-500/10 to-transparent",
     sidebarFeatures: ["Health", "Availability", "Node Ops", "Pipeline Ops", "Diagnostics Logs", "SLO Data"],
   },
   {
     key: "ai_data_engineer",
     label: "AI Data Engineer",
     shortLabel: "AI",
-    accentClass: "border-zinc-400/40 bg-zinc-400/10 text-zinc-50",
-    highlightClass: "from-zinc-400/20 via-zinc-500/10 to-transparent",
+    accentClass: "border-amber-400/40 bg-amber-400/10 text-amber-50",
+    highlightClass: "from-amber-400/20 via-amber-500/10 to-transparent",
     sidebarFeatures: ["Model State", "Feature State", "Feature Ops", "Model Ops", "Feature Data", "Registry Data"],
   },
   {
     key: "security_analyst",
     label: "Security Analyst",
     shortLabel: "SEC",
-    accentClass: "border-zinc-400/40 bg-zinc-400/10 text-zinc-50",
-    highlightClass: "from-zinc-400/20 via-zinc-500/10 to-transparent",
+    accentClass: "border-slate-300/40 bg-slate-300/10 text-slate-50",
+    highlightClass: "from-slate-300/20 via-slate-400/10 to-transparent",
     sidebarFeatures: ["Alert Queue", "Case Queue", "Case Actions", "Notifications", "Alert Data", "Case Data"],
   },
   {
     key: "compliance_risk_manager",
     label: "Compliance Risk Manager",
     shortLabel: "CMP",
-    accentClass: "border-zinc-400/40 bg-zinc-400/10 text-zinc-50",
-    highlightClass: "from-zinc-400/20 via-zinc-500/10 to-transparent",
+    accentClass: "border-teal-300/40 bg-teal-300/10 text-teal-50",
+    highlightClass: "from-teal-300/20 via-teal-400/10 to-transparent",
     sidebarFeatures: ["Policy State", "Audit State", "Policy Actions", "Reporting", "Policy Data", "Audit Data"],
   },
 ];
@@ -303,10 +303,10 @@ const SIDEBAR_GROUPS: Array<{ title: string; start: number; end: number }> = [
 const ROLE_ICONS = [Gauge, ChartColumn, Brain, Shield, FileCheck2, Wallet];
 
 const ROLE_COLORS: Record<RoleKey, string[]> = {
-  system_admin: ["#22d3ee", "#3b82f6", "#6366f1"], // Cyan, Blue, Indigo
-  ai_data_engineer: ["#a855f7", "#ec4899", "#f43f5e"], // Purple, Pink, Rose
-  security_analyst: ["#f59e0b", "#f97316", "#ef4444"], // Amber, Orange, Red
-  compliance_risk_manager: ["#10b981", "#06b6d4", "#3b82f6"], // Emerald, Cyan, Blue
+  system_admin: ["#0f766e", "#14b8a6", "#5eead4"],
+  ai_data_engineer: ["#d97706", "#f59e0b", "#fbbf24"],
+  security_analyst: ["#475569", "#94a3b8", "#cbd5e1"],
+  compliance_risk_manager: ["#0f766e", "#d97706", "#f59e0b"],
 };
 
 const QUICK_ROUTES = [
@@ -317,13 +317,13 @@ const QUICK_ROUTES = [
 ];
 
 const TONAL_STYLES: Record<string, string> = {
-  zinc: "border-zinc-500/20 bg-zinc-900/40 text-zinc-100",
-  blue: "border-blue-500/20 bg-blue-500/10 text-blue-100",
-  red: "border-red-500/20 bg-red-500/10 text-red-100",
-  green: "border-green-500/20 bg-green-500/10 text-green-100",
+  zinc: "border-slate-500/20 bg-slate-900/50 text-slate-100",
+  blue: "border-teal-400/20 bg-teal-500/10 text-teal-100",
+  red: "border-amber-500/20 bg-amber-500/10 text-amber-100",
+  green: "border-teal-500/20 bg-teal-500/10 text-teal-100",
   amber: "border-amber-500/20 bg-amber-500/10 text-amber-100",
-  purple: "border-purple-500/20 bg-purple-500/10 text-purple-100",
-  emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
+  purple: "border-slate-400/20 bg-slate-500/10 text-slate-100",
+  emerald: "border-teal-400/20 bg-teal-500/10 text-teal-100",
 };
 
 async function fetchJson<T>(path: string, defaultValue: T | null = null): Promise<T> {
@@ -405,13 +405,13 @@ function SeverityPill({ severity }: { severity: string }) {
 
 function CardShell({ title, subtitle, children, icon: Icon }: { title: string; subtitle: string; children: React.ReactNode; icon?: React.ComponentType<{ className?: string }> }) {
   return (
-    <section className="animate-in fade-in zoom-in-[0.98] slide-in-from-bottom-2 duration-300 ease-out rounded-3xl border border-zinc-800/80 bg-zinc-900/60 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+    <section className="animate-in fade-in zoom-in-[0.98] slide-in-from-bottom-2 duration-300 ease-out rounded-3xl border border-slate-800/80 bg-slate-950/65 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-white">{title}</h3>
-          <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>
+          <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
         </div>
-        {Icon ? <Icon className="h-5 w-5 text-zinc-500" /> : null}
+        {Icon ? <Icon className="h-5 w-5 text-teal-400" /> : null}
       </div>
       {children}
     </section>
@@ -423,7 +423,7 @@ export default function LiveDashboard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { isAuthenticated, user } = useAuth();
-   const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
+  const [activeRole, setActiveRole] = useState<RoleKey>("system_admin");
   const { notify } = useToast();
   const [roleSwitchingKey, setRoleSwitchingKey] = useState<RoleKey | null>(null);
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
@@ -541,7 +541,7 @@ export default function LiveDashboard() {
   useEffect(() => {
     const roleParam = searchParams.get("role") as RoleKey | null;
     const fallbackRole = mapUserRoleToDashboardRole(user?.role);
-    
+
     // 1. If we have a valid role in the URL, use it.
     if (roleParam && ROLE_DEFINITIONS.some((entry) => entry.key === roleParam)) {
       if (roleParam !== activeRole) {
@@ -554,7 +554,7 @@ export default function LiveDashboard() {
     if (fallbackRole !== activeRole) {
       setActiveRole(fallbackRole);
     }
-    
+
     // 3. Ensure the URL reflects the active role.
     if (fallbackRole !== roleParam) {
       updateQuery({ role: fallbackRole, feature: 0 });
@@ -933,43 +933,43 @@ export default function LiveDashboard() {
   ]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#08080a] text-zinc-100">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.03),_transparent_40%),radial-gradient(circle_at_top_right,_rgba(255,255,255,0.02),_transparent_30%)]" />
+    <div className="relative min-h-screen overflow-hidden bg-[#08080a] text-slate-100">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.10),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(217,119,6,0.08),_transparent_30%)]" />
       <div className="absolute inset-0 opacity-10 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:72px_72px]" />
 
       <div className="relative mx-auto max-w-[1600px] px-4 py-4 md:px-6 md:py-6">
-        <header className="mb-4 rounded-[32px] border border-zinc-700/70 bg-zinc-950/70 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl md:p-5">
+        <header className="mb-4 rounded-[32px] border border-slate-800/70 bg-slate-950/78 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl md:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-start gap-4">
-              <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-100 via-zinc-400 to-zinc-600 shadow-[0_16px_40px_rgba(255,255,255,0.1)]">
+              <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-teal-300 via-slate-100 to-amber-300 shadow-[0_16px_40px_rgba(20,184,166,0.18)]">
                 <Shield className="h-8 w-8 text-black" />
                 <div className="absolute inset-0 bg-white/10" />
               </div>
               <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-zinc-400/20 bg-zinc-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-zinc-100">
+                <div className="inline-flex items-center gap-2 rounded-full border border-teal-400/20 bg-teal-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-teal-50">
                   <Sparkles className="h-3.5 w-3.5" />
                   Live data only
                 </div>
-                <h1 className="mt-3 text-2xl font-semibold text-white md:text-4xl">Blockchain AI Operations Console</h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400 md:text-base">
+                <h1 className="mt-3 text-2xl font-semibold text-slate-50 md:text-4xl">Blockchain AI Operations Console</h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400 md:text-base">
                   Real-time blockchain diagnostics and role-specific AI controls.
                 </p>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 rounded-xl border border-zinc-700 bg-zinc-950/50 p-1">
+              <div className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/50 p-1">
                 <button
                   type="button"
                   onClick={() => setCurrentChain("ethereum")}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${currentChain === "ethereum" ? "bg-zinc-100 text-black shadow-lg" : "text-zinc-400 hover:text-zinc-200"}`}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${currentChain === "ethereum" ? "bg-teal-300 text-slate-950 shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
                 >
                   ETH
                 </button>
                 <button
                   type="button"
                   onClick={() => setCurrentChain("bsc")}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${currentChain === "bsc" ? "bg-zinc-100 text-black shadow-lg" : "text-zinc-400 hover:text-zinc-200"}`}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${currentChain === "bsc" ? "bg-amber-300 text-slate-950 shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
                 >
                   BSC
                 </button>
@@ -977,7 +977,7 @@ export default function LiveDashboard() {
               <button
                 type="button"
                 onClick={() => void loadLiveData(activeRole, "manual")}
-                className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:bg-zinc-700"
+                className="inline-flex items-center gap-2 rounded-xl border border-teal-400/30 bg-slate-900/80 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-teal-300 hover:bg-slate-800"
               >
                 <RefreshCcw className="h-4 w-4" />
                 Refresh live data
@@ -1006,7 +1006,7 @@ export default function LiveDashboard() {
                     }}
                     className={[
                       "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-80",
-                      isActive ? `${entry.accentClass} shadow-[0_0_0_1px_rgba(255,255,255,0.1)]` : "border-zinc-700 bg-zinc-800/70 text-zinc-300 hover:border-zinc-500 hover:text-white",
+                      isActive ? `${entry.accentClass} shadow-[0_0_0_1px_rgba(20,184,166,0.18)]` : "border-slate-800 bg-slate-900/70 text-slate-300 hover:border-teal-400/40 hover:text-slate-50",
                     ].join(" ")}
                   >
                     {isSwitching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -1016,14 +1016,14 @@ export default function LiveDashboard() {
               })}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-2">
-              <span className="px-2 text-xs uppercase tracking-[0.25em] text-zinc-500">Quick routes</span>
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900/50 p-2">
+              <span className="px-2 text-xs uppercase tracking-[0.25em] text-slate-500">Quick routes</span>
               {visibleRoutes.map((route) => (
                 <Link
                   key={route.href}
                   href={route.href}
                   prefetch={false}
-                  className="inline-flex items-center gap-1 rounded-xl border border-zinc-700 bg-zinc-800/70 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-zinc-500/50 hover:text-white"
+                  className="inline-flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-teal-400/40 hover:text-slate-50"
                 >
                   {route.label}
                 </Link>
@@ -1033,15 +1033,15 @@ export default function LiveDashboard() {
         </header>
 
         {error ? (
-          <div className="mb-4 rounded-2xl border border-zinc-500/30 bg-zinc-500/10 px-4 py-3 text-sm text-zinc-100">Live data error: {error}</div>
+          <div className="mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">Live data error: {error}</div>
         ) : null}
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_1fr]">
-          <aside className="rounded-[30px] border border-zinc-700/70 bg-zinc-950/65 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+          <aside className="rounded-[30px] border border-slate-800/70 bg-slate-950/70 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Sidebar functions</p>
-                <h2 className="mt-2 text-lg font-semibold text-white">{role.label}</h2>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Sidebar functions</p>
+                <h2 className="mt-2 text-lg font-semibold text-slate-50">{role.label}</h2>
               </div>
               <span className={["rounded-xl border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide", role.accentClass].join(" ")}>{role.shortLabel}</span>
             </div>
@@ -1049,7 +1049,7 @@ export default function LiveDashboard() {
             <div className="space-y-4">
               {SIDEBAR_GROUPS.map((group) => (
                 <div key={group.title} className="space-y-2">
-                  <p className="px-1 text-[11px] uppercase tracking-[0.3em] text-zinc-500">{group.title}</p>
+                  <p className="px-1 text-[11px] uppercase tracking-[0.3em] text-slate-500">{group.title}</p>
                   {role.sidebarFeatures.slice(group.start, group.end).map((feature, offset) => {
                     const index = group.start + offset;
                     const Icon = sidebarIcons[index % sidebarIcons.length];
@@ -1066,17 +1066,17 @@ export default function LiveDashboard() {
                         className={[
                           "w-full rounded-2xl border px-3 py-3 text-left transition",
                           isActiveFeature
-                            ? "border-zinc-500 bg-zinc-800/90 text-white shadow-[0_12px_24px_rgba(0,0,0,0.4)]"
-                            : "border-zinc-800 bg-zinc-900/40 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900/70",
+                            ? "border-teal-400/60 bg-slate-800/90 text-slate-50 shadow-[0_12px_24px_rgba(20,184,166,0.12)]"
+                            : "border-slate-800 bg-slate-900/40 text-slate-300 hover:border-amber-400/40 hover:bg-slate-900/80",
                         ].join(" ")}
                       >
                         <div className="flex items-center gap-3">
-                          <span className={["flex h-9 w-9 items-center justify-center rounded-xl border", isActiveFeature ? role.highlightClass : "border-zinc-700 bg-zinc-950/70 text-zinc-400"].join(" ")}>
+                          <span className={["flex h-9 w-9 items-center justify-center rounded-xl border", isActiveFeature ? role.highlightClass : "border-slate-800 bg-slate-950/70 text-slate-400"].join(" ")}>
                             <Icon className="h-4 w-4" />
                           </span>
                           <div className="min-w-0">
                             <p className="text-sm font-medium">{feature}</p>
-                            <p className="text-xs text-zinc-500">{isActiveFeature ? "Open live panel" : "Switch view"}</p>
+                            <p className="text-xs text-slate-500">{isActiveFeature ? "Open live panel" : "Switch view"}</p>
                           </div>
                         </div>
                       </button>
@@ -1087,7 +1087,7 @@ export default function LiveDashboard() {
             </div>
           </aside>
 
-          <main className="min-h-[600px] space-y-4 rounded-[30px] border border-zinc-700/70 bg-zinc-950/65 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl md:p-5">
+          <main className="min-h-[600px] space-y-4 rounded-[30px] border border-slate-800/70 bg-slate-950/70 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl md:p-5">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {roleMetricCards.map((card, i) => (
                 <div key={card.label} className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" style={{ animationDelay: `${i * 100}ms` }}>
@@ -1109,9 +1109,9 @@ export default function LiveDashboard() {
 function MetricCard({ label, value, hint, accentClass }: { label: string; value: string; hint: string; accentClass: string }) {
   return (
     <div className={`rounded-2xl border p-4 ${accentClass}`}>
-      <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-400">{label}</p>
-      <p className="mt-2 text-xl font-semibold text-white md:text-2xl">{value}</p>
-      <p className="mt-1 text-sm text-zinc-300/80">{hint}</p>
+      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">{label}</p>
+      <p className="mt-2 text-xl font-semibold text-slate-50 md:text-2xl">{value}</p>
+      <p className="mt-1 text-sm text-slate-300/80">{hint}</p>
     </div>
   );
 }
@@ -1124,19 +1124,19 @@ function NodeGrid({ nodes }: { nodes: NodeEndpointItem[] }) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {nodes.map((node, i) => (
-        <div key={node.id} className="rounded-2xl border border-zinc-700 bg-zinc-900/70 p-4 animate-in fade-in slide-in-from-bottom-2 duration-500 fill-mode-both" style={{ animationDelay: `${i * 50}ms` }}>
+        <div key={node.id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 animate-in fade-in slide-in-from-bottom-2 duration-500 fill-mode-both" style={{ animationDelay: `${i * 50}ms` }}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-white">{node.provider_name}</p>
-              <p className="mt-1 text-xs text-zinc-400">{node.chain} · {node.protocol}</p>
+              <p className="mt-1 text-xs text-slate-400">{node.chain} · {node.protocol}</p>
             </div>
             <SeverityPill severity={node.health_status.toUpperCase()} />
           </div>
-          <div className="mt-3 space-y-2 text-sm text-zinc-300">
+          <div className="mt-3 space-y-2 text-sm text-slate-300">
             <p>Endpoint: {node.endpoint_url}</p>
             <p>Priority: {node.priority}</p>
             <p>Checked: {formatDateTime(node.last_checked_at)}</p>
-            {node.last_error ? <p className="text-zinc-100 bg-zinc-800 px-2 py-1 rounded">Error: {node.last_error}</p> : null}
+            {node.last_error ? <p className="rounded bg-amber-400/10 px-2 py-1 text-amber-50">Error: {node.last_error}</p> : null}
           </div>
         </div>
       ))}
@@ -1247,7 +1247,7 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
           type="button"
           disabled={isSubmitting}
           onClick={() => void handleCreateNode()}
-className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
+          className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
         >
           Add node endpoint
         </button>
@@ -1262,13 +1262,13 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
         type="button"
         disabled={isSubmitting}
         onClick={() => void handleCreateNode()}
-className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
+        className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
       >
         Add node endpoint
       </button>
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-800">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Provider</th>
               <th className="px-4 py-3 text-left font-medium">Chain</th>
@@ -1277,7 +1277,7 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
               <th className="px-4 py-3 text-left font-medium">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {mutableNodes.map((node, i) => (
               <tr key={node.id} className="animate-in fade-in slide-in-from-bottom-1 duration-500 fill-mode-both" style={{ animationDelay: `${i * 30}ms` }}>
                 <td className="px-4 py-3">{node.provider_name}</td>
@@ -1290,7 +1290,7 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => void handleUpdateHealth(node, "healthy")}
-                      className="rounded-md border border-zinc-400/40 bg-zinc-400/10 px-2 py-1 text-[11px] text-zinc-100 disabled:opacity-60"
+                      className="rounded-md border border-teal-400/40 bg-teal-400/10 px-2 py-1 text-[11px] text-teal-50 disabled:opacity-60"
                     >
                       Healthy
                     </button>
@@ -1298,7 +1298,7 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => void handleUpdateHealth(node, "degraded")}
-                      className="rounded-md border border-zinc-600/40 bg-zinc-600/10 px-2 py-1 text-[11px] text-zinc-300 disabled:opacity-60"
+                      className="rounded-md border border-slate-500/40 bg-slate-500/10 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-60"
                     >
                       Degraded
                     </button>
@@ -1306,7 +1306,7 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => void handleUpdateHealth(node, "down")}
-                      className="rounded-md border border-zinc-500/40 bg-zinc-500/10 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-60"
+                      className="rounded-md border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-50 disabled:opacity-60"
                     >
                       Down
                     </button>
@@ -1325,14 +1325,14 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <MetricCard label="Points" value={summary ? formatCompact(summary.total_points) : "-"} hint="Pipeline samples" accentClass="border-zinc-700 bg-zinc-900/70" />
-        <MetricCard label="Avg TPS" value={summary?.avg_throughput_tps != null ? summary.avg_throughput_tps.toFixed(1) : "-"} hint="Throughput" accentClass="border-zinc-500/20 bg-zinc-500/10" />
-        <MetricCard label="Ingest latency" value={summary?.avg_ingestion_latency_ms != null ? `${summary.avg_ingestion_latency_ms.toFixed(0)} ms` : "-"} hint="Average" accentClass="border-zinc-500/20 bg-zinc-500/10" />
-        <MetricCard label="Last block" value={summary?.last_block_number != null ? formatCompact(summary.last_block_number) : "-"} hint="Latest signal" accentClass="border-zinc-500/20 bg-zinc-500/10" />
+        <MetricCard label="Points" value={summary ? formatCompact(summary.total_points) : "-"} hint="Pipeline samples" accentClass="border-slate-800 bg-slate-900/70" />
+        <MetricCard label="Avg TPS" value={summary?.avg_throughput_tps != null ? summary.avg_throughput_tps.toFixed(1) : "-"} hint="Throughput" accentClass="border-teal-400/20 bg-teal-500/10" />
+        <MetricCard label="Ingest latency" value={summary?.avg_ingestion_latency_ms != null ? `${summary.avg_ingestion_latency_ms.toFixed(0)} ms` : "-"} hint="Average" accentClass="border-amber-400/20 bg-amber-500/10" />
+        <MetricCard label="Last block" value={summary?.last_block_number != null ? formatCompact(summary.last_block_number) : "-"} hint="Latest signal" accentClass="border-slate-500/20 bg-slate-500/10" />
       </div>
-      <div className="overflow-hidden rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400">
+      <div className="overflow-hidden rounded-2xl border border-slate-800">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Chain</th>
               <th className="px-4 py-3 text-left font-medium">Block</th>
@@ -1341,7 +1341,7 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
               <th className="px-4 py-3 text-left font-medium">Decode</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {metrics.slice(0, 8).map((metric, i) => (
               <tr key={metric.id} className="animate-in fade-in slide-in-from-bottom-1 duration-500 fill-mode-both" style={{ animationDelay: `${i * 30}ms` }}>
                 <td className="px-4 py-3">{metric.chain}</td>
@@ -1398,13 +1398,13 @@ function DiagnosticsLogsPanel({
   }, [includeArchived]);
 
   const logTypeColors: Record<string, string> = {
-    error: "bg-red-500/20 text-red-300 border-red-500/30",
-    info: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-    api_call: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
-    api_error: "bg-red-500/20 text-red-300 border-red-500/30",
-    ai_service: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-    success: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-    warning: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    error: "bg-amber-500/20 text-amber-200 border-amber-500/30",
+    info: "bg-teal-500/20 text-teal-100 border-teal-500/30",
+    api_call: "bg-slate-500/20 text-slate-200 border-slate-500/30",
+    api_error: "bg-amber-500/20 text-amber-200 border-amber-500/30",
+    ai_service: "bg-slate-500/20 text-slate-200 border-slate-500/30",
+    success: "bg-teal-500/20 text-teal-100 border-teal-500/30",
+    warning: "bg-amber-500/20 text-amber-200 border-amber-500/30",
   };
 
   const filteredLogs = mutableLogs.filter((log) => {
@@ -1483,9 +1483,9 @@ function DiagnosticsLogsPanel({
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
         <MetricBlock label="Total logs" value={formatCompact(mutableLogs.length)} helper="All diagnostic entries" tone="zinc" />
-        <MetricBlock label="Errors" value={formatCompact(errorCount)} helper="Error logs" tone={errorCount > 0 ? "zinc" : "zinc"} />
-        <MetricBlock label="Endpoints" value={formatCompact(new Set(mutableLogs.map((log) => log.endpoint).filter(Boolean)).size)} helper="Unique endpoints" tone="zinc" />
-        <MetricBlock label="Log types" value={formatCompact(uniqueTypes.length)} helper="Different log categories" tone="zinc" />
+        <MetricBlock label="Errors" value={formatCompact(errorCount)} helper="Error logs" tone={errorCount > 0 ? "red" : "zinc"} />
+        <MetricBlock label="Endpoints" value={formatCompact(new Set(mutableLogs.map((log) => log.endpoint).filter(Boolean)).size)} helper="Unique endpoints" tone="blue" />
+        <MetricBlock label="Log types" value={formatCompact(uniqueTypes.length)} helper="Different log categories" tone="amber" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -1493,13 +1493,13 @@ function DiagnosticsLogsPanel({
           type="date"
           value={exportDate}
           onChange={(event) => setExportDate(event.target.value)}
-          className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-200 outline-none"
+          className="h-10 rounded-xl border border-slate-800 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
         />
         <button
           type="button"
           disabled={isExporting}
           onClick={() => void handleExport()}
-          className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-teal-400/50 hover:text-slate-50 disabled:opacity-60"
         >
           <Download className="h-3.5 w-3.5" />
           {isExporting ? "Exporting..." : "Export CSV"}
@@ -1508,7 +1508,7 @@ function DiagnosticsLogsPanel({
           type="button"
           disabled={isArchiving || filteredLogs.length === 0}
           onClick={() => void handleArchivefiltered(true)}
-          className="inline-flex items-center gap-2 rounded-xl border border-zinc-600/40 bg-zinc-600/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/60 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-teal-400/40 bg-teal-400/10 px-3 py-2 text-xs font-medium text-teal-50 transition hover:border-teal-300/60 disabled:opacity-60"
         >
           <Archive className="h-3.5 w-3.5" />
           {isArchiving ? "Archiving..." : `Archive filtered (${filteredLogs.length})`}
@@ -1517,12 +1517,12 @@ function DiagnosticsLogsPanel({
           type="button"
           disabled={isArchiving || filteredLogs.length === 0}
           onClick={() => void handleArchivefiltered(false)}
-          className="inline-flex items-center gap-2 rounded-xl border border-zinc-600/40 bg-zinc-600/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/60 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs font-medium text-amber-50 transition hover:border-amber-300/60 disabled:opacity-60"
         >
           <Archive className="h-3.5 w-3.5" />
           {isArchiving ? "Updating..." : "Unarchive filtered"}
         </button>
-        <label className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-300">
+        <label className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-300">
           <input
             type="checkbox"
             checked={includeArchived}
@@ -1535,23 +1535,23 @@ function DiagnosticsLogsPanel({
           />
           Include archived
         </label>
-        {isReloading ? <span className="text-xs text-zinc-500">Reloading logs...</span> : null}
+        {isReloading ? <span className="text-xs text-slate-500">Reloading logs...</span> : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-400" />
           <input
             value={searchFilter}
             onChange={(event) => setSearchFilter(event.target.value)}
             placeholder="Search message or endpoint..."
-            className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-200 outline-none transition focus:border-zinc-500/50"
+            className="h-10 w-full rounded-xl border border-slate-800 bg-slate-950 pl-9 pr-3 text-sm text-slate-200 outline-none transition focus:border-teal-400/50"
           />
         </div>
         <select
           value={typeFilter}
           onChange={(event) => setTypeFilter(event.target.value)}
-          className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-200 outline-none"
+          className="h-10 rounded-xl border border-slate-800 bg-slate-950 px-3 text-sm text-slate-200 outline-none"
         >
           <option value="all">All types</option>
           {uniqueTypes.map((type) => (
@@ -1562,9 +1562,9 @@ function DiagnosticsLogsPanel({
         </select>
       </div>
 
-      <div className="overflow-auto rounded-2xl border border-zinc-700">
-        <table className="min-w-full divide-y divide-zinc-800 text-sm">
-          <thead className="bg-zinc-900/80 text-zinc-400 sticky top-0">
+      <div className="overflow-auto rounded-2xl border border-slate-800">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="sticky top-0 bg-slate-900/80 text-slate-400">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Timestamp</th>
               <th className="px-4 py-3 text-left font-medium">Type</th>
@@ -1573,24 +1573,24 @@ function DiagnosticsLogsPanel({
               <th className="px-4 py-3 text-left font-medium">Endpoint</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
             {filteredLogs.slice(0, 50).map((log, idx) => (
-              <tr key={idx} className="hover:bg-zinc-900/30">
-                <td className="px-4 py-3 whitespace-nowrap text-xs text-zinc-400">{new Date(log.timestamp).toLocaleTimeString()}</td>
+              <tr key={idx} className="hover:bg-slate-900/30">
+                <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-400">{new Date(log.timestamp).toLocaleTimeString()}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-block rounded-lg border px-2 py-1 text-xs font-medium ${logTypeColors[(log.log_type || "").toLowerCase()] || "bg-zinc-700/50 text-zinc-300"}`}>
+                  <span className={`inline-block rounded-lg border px-2 py-1 text-xs font-medium ${logTypeColors[(log.log_type || "").toLowerCase()] || "bg-slate-700/50 text-slate-200"}`}>
                     {(log.log_type || "unknown").toUpperCase()}
                   </span>
                 </td>
-                <td className="px-4 py-3 max-w-sm truncate text-zinc-300">{log.message}</td>
+                <td className="px-4 py-3 max-w-sm truncate text-slate-300">{log.message}</td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   {log.status_code ? (
                     <span
                       className={`inline-block rounded px-2 py-1 text-xs font-semibold ${log.status_code >= 200 && log.status_code < 300
-                        ? "bg-zinc-500/20 text-zinc-300"
+                        ? "bg-teal-500/20 text-teal-100"
                         : log.status_code >= 400
-                          ? "bg-zinc-500/20 text-zinc-300"
-                          : "bg-zinc-700/20 text-zinc-300"
+                          ? "bg-amber-500/20 text-amber-100"
+                          : "bg-slate-700/20 text-slate-300"
                         }`}
                     >
                       {log.status_code}
@@ -1599,12 +1599,12 @@ function DiagnosticsLogsPanel({
                     "-"
                   )}
                 </td>
-                <td className="px-4 py-3 max-w-xs truncate text-xs text-zinc-400">{log.endpoint || "-"}</td>
+                <td className="px-4 py-3 max-w-xs truncate text-xs text-slate-400">{log.endpoint || "-"}</td>
               </tr>
             ))}
             {filteredLogs.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
                   No logs match current filters.
                 </td>
               </tr>
@@ -1613,7 +1613,7 @@ function DiagnosticsLogsPanel({
         </table>
       </div>
 
-      <div className="text-xs text-zinc-500">
+      <div className="text-xs text-slate-500">
         Showing {Math.min(50, filteredLogs.length)} of {filteredLogs.length} logs • Total in system: {mutableLogs.length}
       </div>
     </div>
@@ -1718,13 +1718,13 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
   }
 
   return (
-    <div className="rounded-2xl border border-zinc-700 bg-zinc-950/60 p-4">
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-white">Data integrity controls</p>
-          <p className="mt-1 text-xs text-zinc-400">DB-first readiness for role modules and controls</p>
+          <p className="mt-1 text-xs text-slate-400">DB-first readiness for role modules and controls</p>
         </div>
-        <span className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${report.overall_ok ? "border-zinc-500/40 bg-zinc-500/10 text-zinc-200" : "border-zinc-500/40 bg-zinc-500/10 text-zinc-200"}`}>
+        <span className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${report.overall_ok ? "border-teal-400/40 bg-teal-400/10 text-teal-50" : "border-amber-400/40 bg-amber-400/10 text-amber-50"}`}>
           {report.overall_ok ? "ALL OK" : `${missing.length} GAPS`}
         </span>
       </div>
@@ -1741,7 +1741,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
           type="button"
           onClick={() => void handleAutoFix()}
           disabled={isFixing || missing.length === 0}
-          className="inline-flex items-center gap-2 rounded-xl border border-zinc-600/40 bg-zinc-600/10 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/60 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-teal-400/40 bg-teal-400/10 px-3 py-2 text-xs font-medium text-teal-50 transition hover:border-teal-300/60 disabled:opacity-60"
         >
           <RefreshCcw className="h-3.5 w-3.5" />
           {isFixing ? "Auto-fixing..." : `Auto-fix missing (${missing.length})`}
@@ -1750,7 +1750,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
           type="button"
           onClick={() => void handleExportIntegrity("csv")}
           disabled={isExporting}
-          className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-teal-400/50 hover:text-slate-50 disabled:opacity-60"
         >
           <Download className="h-3.5 w-3.5" />
           Export integrity CSV
@@ -1759,7 +1759,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
           type="button"
           onClick={() => void handleExportIntegrity("json")}
           disabled={isExporting}
-          className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500/50 hover:text-white disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-amber-400/50 hover:text-slate-50 disabled:opacity-60"
         >
           <Download className="h-3.5 w-3.5" />
           Export integrity JSON
@@ -1795,7 +1795,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
                   <Link
                     href={integrityRouteForKey(item.key, item.owner_role)}
                     prefetch={false}
-className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-xs font-medium text-white hover:border-white/40"
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-xs font-medium text-white hover:border-white/40"
                   >
                     Open owner view
                   </Link>
@@ -1913,7 +1913,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
           type="button"
           disabled={isSubmitting}
           onClick={() => void handleRegisterModel()}
-className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
+          className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
         >
           Register model
         </button>
@@ -1934,7 +1934,7 @@ className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 
         type="button"
         disabled={isSubmitting}
         onClick={() => void handleRegisterModel()}
-className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
+        className="inline-flex items-center rounded-xl border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:border-white/40 disabled:opacity-60"
       >
         Register model
       </button>
@@ -2643,7 +2643,7 @@ function CaseQueuePanel({
                       type="button"
                       disabled={actingTxHash === item.tx_hash}
                       onClick={() => void handleCaseAction(item.tx_hash, "ESCALATE")}
-className="rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[11px] text-white disabled:opacity-60"
+                      className="rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[11px] text-white disabled:opacity-60"
                     >
                       Escalate
                     </button>
@@ -3004,7 +3004,7 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
               onNext={() => setChecksPage((prev) => Math.min(checksTotalPages, prev + 1))}
               itemCount={checks.length}
               pageSize={pageSize}
-              onPageSizeChange={() => {}}
+              onPageSizeChange={() => { }}
             />
           </div>
         </div>
@@ -3028,7 +3028,7 @@ function AuditDataPanel({ auditCompleteness, auditGaps }: { auditCompleteness: A
               onNext={() => setMissingPage((prev) => Math.min(missingTotalPages, prev + 1))}
               itemCount={missingActions.length}
               pageSize={pageSize}
-              onPageSizeChange={() => {}}
+              onPageSizeChange={() => { }}
             />
           </div>
         </div>
