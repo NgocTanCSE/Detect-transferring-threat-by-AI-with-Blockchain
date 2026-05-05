@@ -500,6 +500,56 @@ HÃY TRẢ LỜI TỰ NHIÊN, NGẮN GỌN, CÓ ÍCH, TỐI ĐA 5 GẠCH ĐẦU 
         q_lower = (question or "").lower()
 
         # Broad open-domain heuristics so local/offline mode still feels useful.
+        if any(term in q_lower for term in ["database", "sql", "query", "schema", "postgres", "mysql", "sqlite"]):
+            return (
+                "Database là nơi lưu và truy vấn dữ liệu có cấu trúc.\n"
+                "- Schema định nghĩa bảng, cột, khóa và quan hệ.\n"
+                "- SQL dùng để `SELECT`, `INSERT`, `UPDATE`, `DELETE` dữ liệu.\n"
+                "- Chọn PostgreSQL khi cần mạnh về truy vấn và quan hệ; SQLite khi cần nhẹ và chạy local nhanh."
+            )
+
+        if any(term in q_lower for term in ["docker", "container", "image", "compose"]):
+            return (
+                "Docker giúp đóng gói ứng dụng và dependency vào container để chạy nhất quán ở mọi môi trường.\n"
+                "- Image là bản đóng gói; container là phiên chạy từ image.\n"
+                "- Docker Compose dùng để chạy nhiều service cùng lúc.\n"
+                "- Dùng Docker khi muốn deploy, test, hoặc tái tạo môi trường nhanh hơn."
+            )
+
+        if any(term in q_lower for term in ["git", "branch", "commit", "merge", "rebase", "pull request"]):
+            return (
+                "Git là công cụ quản lý phiên bản mã nguồn.\n"
+                "- `commit` lưu lại một trạng thái code.\n"
+                "- `branch` giúp làm việc song song, an toàn hơn.\n"
+                "- `merge` hoặc `rebase` dùng để gộp thay đổi.\n"
+                "- Quy tắc thực tế: commit nhỏ, message rõ, merge khi đã test xong."
+            )
+
+        if any(term in q_lower for term in ["prompt", "prompting", "system prompt", "few-shot"]):
+            return (
+                "Prompt tốt nên có 4 phần: mục tiêu, bối cảnh, ràng buộc, và định dạng đầu ra.\n"
+                "- Nói rõ bạn muốn AI làm gì.\n"
+                "- Thêm ví dụ nếu cần (few-shot).\n"
+                "- Chỉ rõ độ dài, ngôn ngữ, và phong cách trả lời.\n"
+                "- Nếu muốn kết quả ổn định hơn, thêm tiêu chí kiểm tra đầu ra."
+            )
+
+        if any(term in q_lower for term in ["network", "networking", "http", "api", "tcp", "udp"]):
+            if "tcp" in q_lower and "udp" in q_lower:
+                return (
+                    "TCP và UDP khác nhau ở cách truyền dữ liệu:\n"
+                    "- TCP: có kết nối, tin cậy hơn, kiểm tra lỗi và đảm bảo thứ tự gói tin.\n"
+                    "- UDP: nhanh hơn, nhẹ hơn, nhưng không đảm bảo thứ tự hay truyền lại.\n"
+                    "- Dùng TCP cho web, email, file; dùng UDP cho streaming, game, real-time."
+                )
+
+            return (
+                "Networking / API là cách các hệ thống giao tiếp với nhau qua mạng.\n"
+                "- HTTP thường dùng cho request/response của web và API.\n"
+                "- API là hợp đồng giao tiếp giữa frontend, backend hoặc service khác.\n"
+                "- Nếu cần, mình có thể giải thích sâu hơn về status code, latency hoặc auth."
+            )
+
         if any(term in q_lower for term in ["explain", "giải thích", "define", "what is", "là gì"]):
             if "recursion" in q_lower or "đệ quy" in q_lower:
                 return (
