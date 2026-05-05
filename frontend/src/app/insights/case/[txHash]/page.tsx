@@ -2,6 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -35,6 +36,14 @@ function formatDateTime(value: string | null): string {
 }
 
 export default function CaseInsightPage() {
+  return (
+    <Suspense fallback={<InsightFallback title="Case Drill-down" />}>
+      <CaseInsightContent />
+    </Suspense>
+  );
+}
+
+function CaseInsightContent() {
   const params = useParams<{ txHash: string }>();
   const txHash = decodeURIComponent(params.txHash || "");
 
@@ -98,6 +107,14 @@ export default function CaseInsightPage() {
           ) : null}
         </section>
       </div>
+    </div>
+  );
+}
+
+function InsightFallback({ title }: { title: string }) {
+  return (
+    <div className="min-h-screen bg-zinc-950 p-4 md:p-6 text-zinc-400">
+      {title} loading...
     </div>
   );
 }

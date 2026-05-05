@@ -2,6 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useSearchParams } from "next/navigation";
@@ -37,6 +38,14 @@ function formatDateTime(value: string | null): string {
 }
 
 export default function PolicyInsightPage() {
+  return (
+    <Suspense fallback={<InsightFallback title="Policy Drill-down" />}>
+      <PolicyInsightContent />
+    </Suspense>
+  );
+}
+
+function PolicyInsightContent() {
   const params = useParams<{ policyId: string }>();
   const searchParams = useSearchParams();
   const policyId = decodeURIComponent(params.policyId || "");
@@ -101,6 +110,14 @@ export default function PolicyInsightPage() {
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function InsightFallback({ title }: { title: string }) {
+  return (
+    <div className="min-h-screen bg-zinc-950 p-4 md:p-6 text-zinc-400">
+      {title} loading...
     </div>
   );
 }

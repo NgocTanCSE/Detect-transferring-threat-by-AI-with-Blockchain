@@ -2,6 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useSearchParams } from "next/navigation";
@@ -21,6 +22,14 @@ function formatDateTime(value: string | null | undefined): string {
 }
 
 export default function WalletInsightPage() {
+  return (
+    <Suspense fallback={<InsightFallback title="Wallet Drill-down" />}>
+      <WalletInsightContent />
+    </Suspense>
+  );
+}
+
+function WalletInsightContent() {
   const params = useParams<{ address: string }>();
   const searchParams = useSearchParams();
   const address = decodeURIComponent(params.address || "").toLowerCase();
@@ -122,6 +131,14 @@ export default function WalletInsightPage() {
           </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function InsightFallback({ title }: { title: string }) {
+  return (
+    <div className="min-h-screen bg-zinc-950 p-4 md:p-6 text-zinc-400">
+      {title} loading...
     </div>
   );
 }
