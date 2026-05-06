@@ -210,6 +210,7 @@ class Alert(Base):
     acknowledged = Column(Boolean, default=False)
     acknowledged_at = Column(DateTime(timezone=True), nullable=True)
     acknowledged_by = Column(String(255), nullable=True)
+    organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
 
     def __repr__(self) -> str:
         return f"<Alert(wallet={self.wallet_address[:10]}, severity={self.severity}, score={self.risk_score})>"
@@ -229,6 +230,7 @@ class BlockedTransfer(Base):
     chain_id = Column(String(50), default='ethereum', index=True)
     user_warning_count = Column(Integer, default=0)
     sender_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     blocked_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     def __repr__(self) -> str:

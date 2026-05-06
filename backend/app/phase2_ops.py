@@ -27,6 +27,7 @@ from app.models.models import (
     User,
 )
 from app.utils.api_response import api_success
+from app.utils.auth_utils import get_org_id
 
 router = APIRouter(prefix="/ops", tags=["Phase 2 Operations"])
 
@@ -306,8 +307,14 @@ def get_pipeline_metrics_summary(chain: Optional[str] = Query(default=None), db:
 
 
 @router.get("/ai/feature-store")
-def list_feature_configs(only_enabled: bool = Query(default=False), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def list_feature_configs(
+    only_enabled: bool = Query(default=False), 
+    db: Session = Depends(get_db),
+    org_id: str | None = Depends(get_org_id)
+) -> Dict[str, Any]:
     query = db.query(FeatureStoreConfig)
+    if org_id:
+        query = query.filter(FeatureStoreConfig.organization_id == org_id)
     if only_enabled:
         query = query.filter(FeatureStoreConfig.enabled.is_(True))
 
@@ -343,6 +350,7 @@ def create_feature_config(payload: FeatureConfigCreate, db: Session = Depends(ge
         enabled=payload.enabled,
         expression=payload.expression,
         owner_user_id=owner_uuid,
+        organization_id=org_id
     )
     db.add(item)
 

@@ -21,6 +21,7 @@ from app.models.models import (
 )
 from app.admin_diagnostics import log_diagnostic, DiagnosticLogType
 from app.utils.api_response import api_success
+from app.utils.auth_utils import get_org_id
 
 router = APIRouter(prefix="/ops", tags=["Phase 3 Governance"])
 logger = logging.getLogger(__name__)
@@ -91,13 +92,15 @@ class NotificationSendRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-@router.get("/compliance/policy-rules")
 def list_policy_rules(
     only_active: bool = Query(default=False),
     db: Session = Depends(get_db),
+    org_id: str | None = Depends(get_org_id)
 ) -> Dict[str, Any]:
     try:
         query = db.query(PolicyRule)
+        if org_id:
+            query = query.filter(PolicyRule.organization_id == org_id)
         if only_active:
             query = query.filter(PolicyRule.is_active.is_(True))
 
@@ -162,6 +165,7 @@ def create_policy_rule(payload: PolicyRuleCreate, db: Session = Depends(get_db))
         priority=payload.priority,
         is_active=payload.is_active,
         created_by=creator_uuid,
+        organization_id=org_id
     )
     db.add(item)
 
@@ -292,27 +296,22 @@ def evaluate_policy(payload: PolicyEvaluateRequest, db: Session = Depends(get_db
 
 
 @router.get("/security/case-summary")
-def get_case_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_case_summary(db: Session = Depends(get_db), org_id: str | None = Depends(get_org_id)) -> Dict[str, Any]:
     try:
-        totals = dict(
-            db.query(Transaction.case_status, func.count(Transaction.tx_hash))
-            .group_by(Transaction.case_status)
-            .all()
-        )
+        query = db.query(Transaction.case_status, func.count(Transaction.tx_hash))
+        if org_id:
+            query = query.filter(Transaction.organization_id == org_id)
+        totals = dict(query.group_by(Transaction.case_status).all())
 
-        unassigned = (
-            db.query(func.count(Transaction.tx_hash))
-            .filter(Transaction.assigned_to.is_(None))
-            .scalar()
-            or 0
-        )
+        unassigned_query = db.query(func.count(Transaction.tx_hash)).filter(Transaction.assigned_to.is_(None))
+        if org_id:
+            unassigned_query = unassigned_query.filter(Transaction.organization_id == org_id)
+        unassigned = unassigned_query.scalar() or 0
 
-        high_risk_unassigned = (
-            db.query(func.count(Transaction.tx_hash))
-            .filter(Transaction.assigned_to.is_(None), Transaction.normalized_risk_score >= 0.8)
-            .scalar()
-            or 0
-        )
+        high_risk_query = db.query(func.count(Transaction.tx_hash)).filter(Transaction.assigned_to.is_(None), Transaction.normalized_risk_score >= 0.8)
+        if org_id:
+            high_risk_query = high_risk_query.filter(Transaction.organization_id == org_id)
+        high_risk_unassigned = high_risk_query.scalar() or 0
 
         response = {
             "totals": {
@@ -414,18 +413,21 @@ def list_notification_events(
 
 
 @router.get("/security/alerts-summary")
-def get_alerts_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_alerts_summary(db: Session = Depends(get_db), org_id: str | None = Depends(get_org_id)) -> Dict[str, Any]:
     try:
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
-        by_severity = dict(
-            db.query(Alert.severity, func.count(Alert.id))
-            .group_by(Alert.severity)
-            .all()
-        )
+        alerts_query = db.query(Alert.severity, func.count(Alert.id))
+        if org_id:
+            alerts_query = alerts_query.filter(Alert.organization_id == org_id)
+        by_severity = dict(alerts_query.group_by(Alert.severity).all())
 
+        today_query = db.query(func.count(Alert.id)).filter(Alert.detected_at >= today_start)
+        if org_id:
+            today_query = today_query.filter(Alert.organization_id == org_id)
+        
         response = {
-            "today": int(db.query(func.count(Alert.id)).filter(Alert.detected_at >= today_start).scalar() or 0),
+            "today": int(today_query.scalar() or 0),
             "critical": int(by_severity.get("CRITICAL", 0)),
             "high": int(by_severity.get("HIGH", 0)),
             "medium": int(by_severity.get("MEDIUM", 0)),

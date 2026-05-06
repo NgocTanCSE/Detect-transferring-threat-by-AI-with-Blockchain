@@ -364,6 +364,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     wallet_address: Optional[str] = None
+    organization_id: Optional[str] = None
+    organization_name: Optional[str] = None
 
     @validator('username')
     def username_valid(cls, v):
@@ -656,13 +658,24 @@ def register_user(user_data: UserCreate, request: Request, db: Session = Depends
             detail="Username already registered"
         )
 
-    # Check if email exists
-    existing_email = db.query(User).filter(User.email == user_data.email).first()
-    if existing_email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
+    # Handle organization
+    org_id = user_data.organization_id
+    if not org_id and user_data.organization_name:
+        # Create new organization if name provided
+        from app.models.models import Organization
+        org_slug = user_data.organization_name.lower().replace(" ", "-")
+        existing_org = db.query(Organization).filter(Organization.name == user_data.organization_name).first()
+        if existing_org:
+            org_id = str(existing_org.id)
+        else:
+            new_org = Organization(
+                name=user_data.organization_name,
+                slug=org_slug,
+                is_active=True
+            )
+            db.add(new_org)
+            db.flush()
+            org_id = str(new_org.id)
 
     # If wallet not provided, auto-provision a unique wallet address.
     wallet_address = user_data.wallet_address.lower() if user_data.wallet_address else _generate_unique_wallet_address(db)
@@ -703,6 +716,7 @@ def register_user(user_data: UserCreate, request: Request, db: Session = Depends
         password_hash=get_password_hash(user_data.password),
         wallet_address=wallet_address,
         role="user",
+        organization_id=uuid.UUID(org_id) if org_id else None,
         is_active=True,
         warning_count=0
     )

@@ -147,6 +147,45 @@ def ensure_schema() -> None:
             )
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_logs_time ON audit_logs (timestamp DESC)"))
 
+            # Multi-tenant tables
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS organizations (
+                        id UUID PRIMARY KEY,
+                        name VARCHAR(255) NOT NULL,
+                        slug VARCHAR(100) NOT NULL UNIQUE,
+                        api_key VARCHAR(255) UNIQUE,
+                        webhook_url VARCHAR(1024),
+                        is_active BOOLEAN DEFAULT true,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS usage_logs (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        organization_id UUID REFERENCES organizations(id),
+                        user_id UUID,
+                        endpoint VARCHAR(255),
+                        method VARCHAR(10),
+                        status_code INTEGER,
+                        response_time_ms INTEGER,
+                        ip_address VARCHAR(45),
+                        user_agent TEXT,
+                        timestamp TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_usage_logs_org ON usage_logs (organization_id)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_usage_logs_time ON usage_logs (timestamp DESC)"))
+
             connection.execute(
                 text(
                     """
@@ -479,7 +518,17 @@ def ensure_schema() -> None:
             connection.execute(text("UPDATE blocked_transfers SET chain_id = 'ethereum' WHERE chain_id IS NULL"))
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_blocked_transfers_chain_id ON blocked_transfers (chain_id)"))
 
-            # Case-management constraints and indexes
+            # Multi-tenant organization_id columns
+            for table in ['wallets', 'transactions', 'alerts', 'blocked_transfers', 'diagnostic_events']:
+                org_col_exists = connection.execute(
+                    text(
+                        f"SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND column_name = 'organization_id' LIMIT 1"
+                    )
+                ).scalar()
+                if not org_col_exists:
+                    logger.warning(f"Applying schema fix: adding {table}.organization_id")
+                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN organization_id UUID REFERENCES organizations(id)"))
+                    connection.execute(text(f"CREATE INDEX IF NOT EXISTS idx_{table}_org_id ON {table} (organization_id)"))
             connection.execute(
                 text(
                     """

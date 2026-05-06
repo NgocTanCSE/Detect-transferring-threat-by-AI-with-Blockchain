@@ -112,6 +112,9 @@ def _normalize_assistant_answer(answer: str) -> str:
     return normalized or "Hiện chưa có đủ dữ liệu để trả lời chính xác."
 
 
+from app.utils.auth_utils import get_org_id
+
+
 def _dedupe_preserve_order(values: List[str]) -> List[str]:
     seen = set()
     deduped: List[str] = []
@@ -731,11 +734,11 @@ def _build_dashboard_assistant_context(
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Build overview first (these metrics should stay available even if other queries fail).
-    total_wallets = database_session.query(Wallet).count()
-    total_alerts = database_session.query(Alert).count()
-    critical_alerts = database_session.query(Alert).filter(Alert.severity == "CRITICAL").count()
-    alerts_today = database_session.query(Alert).filter(Alert.detected_at >= today_start).count()
-    total_blocked = database_session.query(BlockedTransfer).count()
+    total_wallets = database_session.query(Wallet).filter(Wallet.organization_id == org_id).count() if org_id else database_session.query(Wallet).count()
+    total_alerts = database_session.query(Alert).filter(Alert.organization_id == org_id).count() if org_id else database_session.query(Alert).count()
+    critical_alerts = database_session.query(Alert).filter(Alert.severity == "CRITICAL", Alert.organization_id == org_id).count() if org_id else database_session.query(Alert).filter(Alert.severity == "CRITICAL").count()
+    alerts_today = database_session.query(Alert).filter(Alert.detected_at >= today_start, Alert.organization_id == org_id).count() if org_id else database_session.query(Alert).filter(Alert.detected_at >= today_start).count()
+    total_blocked = database_session.query(BlockedTransfer).filter(BlockedTransfer.organization_id == org_id).count() if org_id else database_session.query(BlockedTransfer).count()
 
     flow_7d: List[Dict[str, Any]] = []
     try:

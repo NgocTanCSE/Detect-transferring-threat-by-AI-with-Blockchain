@@ -266,7 +266,7 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
     shortLabel: "SYS",
     accentClass: "border-teal-400/40 bg-teal-400/10 text-teal-50",
     highlightClass: "from-teal-400/20 via-teal-500/10 to-transparent",
-    sidebarFeatures: ["Health", "Availability", "Node Ops", "Pipeline Ops", "Diagnostics Logs", "SLO Data"],
+    sidebarFeatures: ["Health", "Organizations", "API Access", "Pipeline Ops", "Diagnostics Logs", "SLO Data"],
   },
   {
     key: "ai_data_engineer",
@@ -290,7 +290,7 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
     shortLabel: "CMP",
     accentClass: "border-teal-300/40 bg-teal-300/10 text-teal-50",
     highlightClass: "from-teal-300/20 via-teal-400/10 to-transparent",
-    sidebarFeatures: ["Policy State", "Audit State", "Policy Actions", "Reporting", "Policy Data", "Audit Data"],
+    sidebarFeatures: ["Policy State", "Audit State", "Batch Upload", "Reporting", "Policy Data", "Audit Data"],
   },
 ];
 
@@ -819,9 +819,17 @@ export default function LiveDashboard() {
             ),
           };
         case 1:
-          return { title: "Availability grid", description: "Node health and operational status pulled from the live ops API.", content: <NodeGrid nodes={nodeEndpoints} /> };
+          return {
+            title: "Organizations",
+            description: "Manage partner bank and exchange accounts (Multi-tenant).",
+            content: <OrganizationPanel />,
+          };
         case 2:
-          return { title: "Node operations", description: "Active endpoints and their control plane settings.", content: <NodeTable nodes={nodeEndpoints} /> };
+          return {
+            title: "API & Webhook Access",
+            description: "Provision API keys and monitor partner connection health.",
+            content: <ApiAccessPanel />,
+          };
         case 3:
           return { title: "Pipeline operations", description: "Throughput and decode latency from the ingest pipeline.", content: <PipelineTable metrics={pipelineMetrics} summary={pipelineSummary} /> };
         case 4:
@@ -896,7 +904,7 @@ export default function LiveDashboard() {
       case 1:
         return { title: "Audit state", description: "Evidence coverage and missing audit actions.", content: <AuditPanel auditCompleteness={auditCompleteness} auditGaps={auditGaps} /> };
       case 2:
-        return { title: "Policy actions", description: "Block decisions, coverage, and outcome quality.", content: <ControlEffectivenessPanel controlEffectiveness={controlEffectiveness} reportingSummary={reportingSummary} /> };
+        return { title: "Batch data upload", description: "Ingest large transaction datasets (CSV/Excel) for AI analysis.", content: <BatchUploadPanel /> };
       case 3:
         return { title: "Reporting", description: "30-day KPI export surface built from live records.", content: <ReportingSummaryPanel reportingSummary={reportingSummary} controlEffectiveness={controlEffectiveness} auditCompleteness={auditCompleteness} /> };
       case 4:
@@ -1354,6 +1362,178 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function OrganizationPanel() {
+  const [orgs, setOrgs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Mock fetch for now, will connect to backend later
+    setTimeout(() => {
+      setOrgs([
+        { id: "1", name: "Global Bank Vietnam", slug: "gbv", status: "Active", users: 12, api_calls: "1.2M" },
+        { id: "2", name: "DNTU Exchange", slug: "dntu", status: "Active", users: 5, api_calls: "450K" },
+        { id: "3", name: "SafeTrade Singapore", slug: "sts", status: "Suspended", users: 0, api_calls: "0" },
+      ]);
+      setIsLoading(false);
+    }, 800);
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-600 transition-colors shadow-lg shadow-teal-500/20">
+          Create New Organization
+        </button>
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/40">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+            <tr>
+              <th className="px-6 py-4 text-left">Organization Name</th>
+              <th className="px-6 py-4 text-left">Slug</th>
+              <th className="px-6 py-4 text-left">Status</th>
+              <th className="px-6 py-4 text-left">API Calls (30d)</th>
+              <th className="px-6 py-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/50">
+            {isLoading ? (
+              [1, 2, 3].map((i) => (
+                <tr key={i} className="animate-pulse">
+                  <td colSpan={5} className="px-6 py-4 bg-slate-900/20 h-16"></td>
+                </tr>
+              ))
+            ) : orgs.map((org) => (
+              <tr key={org.id} className="hover:bg-slate-800/30 transition-colors">
+                <td className="px-6 py-4 font-medium text-slate-100">{org.name}</td>
+                <td className="px-6 py-4 text-slate-400 font-mono text-xs">{org.slug}</td>
+                <td className="px-6 py-4">
+                  <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${org.status === "Active" ? "bg-teal-400/10 text-teal-400 border border-teal-400/20" : "bg-red-400/10 text-red-400 border border-red-400/20"}`}>
+                    {org.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-slate-300">{org.api_calls}</td>
+                <td className="px-6 py-4 text-right">
+                  <button className="text-slate-400 hover:text-white transition-colors">Edit</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ApiAccessPanel() {
+  const [keys] = useState([
+    { id: "1", name: "Production Gateway", key: "sk_live_....a4f2", created: "2024-05-01", usage: "High" },
+    { id: "2", name: "Developer Sandbox", key: "sk_test_....9e11", created: "2024-05-04", usage: "Low" },
+  ]);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-6">
+          <h3 className="text-lg font-semibold text-slate-100 mb-2">Active API Keys</h3>
+          <p className="text-sm text-slate-400 mb-6">Provisioned keys for programmatic access to the risk engine.</p>
+          <div className="space-y-4">
+            {keys.map((k) => (
+              <div key={k.id} className="flex items-center justify-between p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+                <div>
+                  <div className="text-sm font-medium text-slate-200">{k.name}</div>
+                  <div className="text-xs text-slate-500 font-mono mt-1">{k.key}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] uppercase font-bold text-slate-600">Created {k.created}</div>
+                  <button className="text-red-400 hover:text-red-300 text-xs mt-1">Revoke</button>
+                </div>
+              </div>
+            ))}
+            <button className="w-full py-3 rounded-xl border border-dashed border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300 transition-all text-sm font-medium">
+              + Generate New API Key
+            </button>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-6">
+          <h3 className="text-lg font-semibold text-slate-100 mb-2">Webhook Connectivity</h3>
+          <p className="text-sm text-slate-400 mb-6">Real-time alert delivery status for your organization endpoints.</p>
+          <div className="p-4 rounded-xl bg-amber-400/5 border border-amber-400/20 mb-4">
+             <div className="flex gap-3">
+               <div className="mt-1 h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+               <div>
+                 <div className="text-sm font-medium text-amber-200">Webhook Degraded</div>
+                 <p className="text-xs text-amber-200/60 mt-1">GBV production endpoint returned 503 (6 consecutive failures).</p>
+               </div>
+             </div>
+          </div>
+          <button className="w-full py-3 rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition-all text-sm font-medium">
+            Configure Webhook URL
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BatchUploadPanel() {
+  const [file, setFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const handleUpload = () => {
+    if (!file) return;
+    setIsUploading(true);
+    let p = 0;
+    const interval = setInterval(() => {
+      p += 10;
+      setProgress(p);
+      if (p >= 100) {
+        clearInterval(interval);
+        setTimeout(() => {
+          setIsUploading(false);
+          setFile(null);
+          setProgress(0);
+          notify("Batch ingestion complete. 4,502 transactions processed.", "success");
+        }, 500);
+      }
+    }, 200);
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-800 rounded-3xl bg-slate-950/20">
+      <div className="h-16 w-16 bg-teal-500/10 rounded-full flex items-center justify-center mb-6">
+        <svg className="w-8 h-8 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+      </div>
+      <h3 className="text-xl font-bold text-white mb-2">Upload Transaction Data</h3>
+      <p className="text-slate-400 text-center max-w-sm mb-8">Supported formats: .csv, .xlsx. Max file size: 100MB. Data will be analyzed for AML/Risk patterns instantly.</p>
+      
+      {isUploading ? (
+        <div className="w-full max-w-md space-y-4">
+          <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+             <div className="h-full bg-teal-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+          </div>
+          <p className="text-center text-xs text-slate-500 font-mono uppercase tracking-widest">Processing {progress}%</p>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-4">
+          <label className="cursor-pointer group">
+            <span className="rounded-2xl bg-teal-500/10 border border-teal-500/30 px-8 py-3 text-teal-400 font-semibold group-hover:bg-teal-500 group-hover:text-white transition-all duration-300">
+              {file ? file.name : "Select File"}
+            </span>
+            <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} accept=".csv,.xlsx" />
+          </label>
+          {file && (
+            <button onClick={handleUpload} className="text-sm text-slate-300 underline hover:text-white">
+              Confirm and Upload
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

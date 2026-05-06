@@ -23,6 +23,7 @@ from app.models.models import (
     SystemHealthSnapshot
 )
 from app.utils.api_response import api_success
+from app.utils.auth_utils import get_org_id
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,7 @@ def system_slo_metrics(
 def compliance_reporting_summary(
     days: int = Query(default=30, ge=1, le=365),
     db: Session = Depends(get_db),
+    org_id: str | None = Depends(get_org_id)
 ) -> Dict[str, Any]:
     now_utc = datetime.now(timezone.utc)
     
@@ -178,15 +180,15 @@ def compliance_reporting_summary(
     # Fallback to real-time calculation
     period_start = now_utc - timedelta(days=days)
 
-    alerts_total = int(
-        db.query(func.count(Alert.id)).filter(Alert.detected_at >= period_start).scalar() or 0
-    )
-    critical_alerts = int(
-        db.query(func.count(Alert.id))
-        .filter(Alert.detected_at >= period_start, Alert.severity == "CRITICAL")
-        .scalar()
-        or 0
-    )
+    alerts_query = db.query(func.count(Alert.id)).filter(Alert.detected_at >= period_start)
+    if org_id:
+        alerts_query = alerts_query.filter(Alert.organization_id == org_id)
+    alerts_total = int(alerts_query.scalar() or 0)
+
+    critical_query = db.query(func.count(Alert.id)).filter(Alert.detected_at >= period_start, Alert.severity == "CRITICAL")
+    if org_id:
+        critical_query = critical_query.filter(Alert.organization_id == org_id)
+    critical_alerts = int(critical_query.scalar() or 0)
 
     blocked_total = int(
         db.query(func.count(BlockedTransfer.id))
