@@ -250,21 +250,58 @@ app.post('/protected-transfer', async (req, res) => {
 });
 
 /**
- * GET /transfers/blocked
- * Get list of blocked transfers (Admin)
+ * POST /transfers/batch
+ * Process a batch of transfers (CSV/JSON)
  */
-app.get('/transfers/blocked', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM blocked_transfers ORDER BY blocked_at DESC LIMIT 100');
-    res.json(result.rows.map(r => ({
-      ...r,
-      id: r.id.toString(),
-      amount_eth: ethFromWei(r.amount)
-    })));
-  } catch (error) {
-    console.error('Error fetching blocked transfers:', error);
-    res.status(500).json({ error: 'Failed to fetch blocked transfers' });
+app.post('/transfers/batch', async (req, res) => {
+  const { transfers } = req.body; // Expects array of {sender, receiver, amount}
+
+  if (!transfers || !Array.isArray(transfers)) {
+    return res.status(400).json({ error: 'transfers array is required' });
   }
+
+  const results = {
+    total: transfers.length,
+    processed: 0,
+    blocked: 0,
+    failed: 0,
+    details: []
+  };
+
+  for (const tx of transfers) {
+    try {
+      // Internal call to process single transfer
+      // In production, this would be handled by a worker/queue
+      const normalizedSender = tx.sender.toLowerCase().trim();
+      const normalizedReceiver = tx.receiver.toLowerCase().trim();
+      const amountWei = weiFromEth(tx.amount);
+
+      // Check risk (simplified for batch)
+      const blacklistRes = await pool.query('SELECT * FROM blacklist WHERE LOWER(address) = $1', [normalizedReceiver]);
+      if (blacklistRes.rows.length > 0) {
+        results.blocked++;
+        results.details.push({ tx, status: 'blocked', reason: 'receiver_blacklisted' });
+        continue;
+      }
+
+      // Create transaction
+      const txHash = `batch_${Math.random().toString(36).substring(2, 15)}`;
+      await pool.query(
+        'INSERT INTO transactions (tx_hash, from_address, to_address, value, status, created_at) VALUES ($1, $2, $3, $4, 1, NOW())',
+        [txHash, normalizedSender, normalizedReceiver, amountWei]
+      );
+
+      results.processed++;
+      results.details.push({ tx, status: 'success', tx_hash: txHash });
+
+    } catch (error) {
+      console.error('Batch tx error:', error);
+      results.failed++;
+      results.details.push({ tx, status: 'failed', error: error.message });
+    }
+  }
+
+  res.json(results);
 });
 
 // Start server

@@ -153,12 +153,13 @@ async function verifyPassword(password, hash) {
   return bcryptjs.compare(password, hash);
 }
 
-function generateToken(userId, username, email, role) {
+function generateToken(userId, username, email, role, orgId) {
   const payload = {
     sub: userId,
     username,
     email,
     role: role || 'user',
+    org_id: orgId || null,
     iat: Math.floor(Date.now() / 1000),
   };
 
@@ -181,7 +182,7 @@ function verifyToken(token) {
 
 async function getUserById(db, userId) {
   const result = await db.query(
-    'SELECT id, username, email, wallet_address, created_at FROM users WHERE id = $1',
+    'SELECT id, username, email, wallet_address, role, organization_id, created_at FROM users WHERE id = $1',
     [userId]
   );
   return result.rows[0];
@@ -189,7 +190,7 @@ async function getUserById(db, userId) {
 
 async function getUserByUsername(db, username) {
   const result = await db.query(
-    'SELECT id, username, email, wallet_address, password_hash, role, is_active, warning_count, created_at FROM users WHERE LOWER(username) = LOWER($1)',
+    'SELECT id, username, email, wallet_address, password_hash, role, organization_id, is_active, warning_count, created_at FROM users WHERE LOWER(username) = LOWER($1)',
     [username]
   );
   return result.rows[0];
@@ -292,12 +293,29 @@ function createApp(dbPool = pool) {
       // Hash password
       const passwordHash = await hashPassword(password);
 
+      // Handle organization
+      let orgId = req.body.organization_id || null;
+      const organizationName = req.body.organization_name;
+
+      if (!orgId && organizationName) {
+        // Create new organization if name provided
+        const orgSlug = organizationName.toLowerCase().replace(/\s+/g, '-');
+        const orgResult = await dbPool.query(
+          `INSERT INTO organizations (name, slug, created_at)
+           VALUES ($1, $2, NOW())
+           ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`,
+          [organizationName, orgSlug]
+        );
+        orgId = orgResult.rows[0].id;
+      }
+
       // Create user
       const result = await dbPool.query(
-        `INSERT INTO users (username, email, password_hash, wallet_address, role, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
-       RETURNING id, username, email, wallet_address, created_at`,
-        [username, email, passwordHash, wallet_address || null, 'user']
+        `INSERT INTO users (username, email, password_hash, wallet_address, role, organization_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       RETURNING id, username, email, wallet_address, role, organization_id, created_at`,
+        [username, email, passwordHash, wallet_address || null, 'user', orgId]
       );
 
       const user = result.rows[0];
@@ -348,8 +366,8 @@ function createApp(dbPool = pool) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      // Generate token (include role)
-      const token = generateToken(user.id, user.username, user.email, user.role);
+      // Generate token (include role and organization_id)
+      const token = generateToken(user.id, user.username, user.email, user.role, user.organization_id);
 
       res.json({
         access_token: token,
@@ -359,6 +377,7 @@ function createApp(dbPool = pool) {
           username: user.username,
           email: user.email,
           role: user.role,
+          organization_id: user.organization_id,
           wallet_address: user.wallet_address,
           warning_count: user.warning_count || 0,
           is_active: user.is_active !== false,

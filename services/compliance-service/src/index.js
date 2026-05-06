@@ -186,18 +186,54 @@ app.put('/compliance/:id', async (req, res) => {
   }
 });
 
-// Delete policy rule
-app.delete('/compliance/:id', async (req, res) => {
-  const { id } = req.params;
+// Export SAR Report (Suspicious Activity Report)
+app.post('/compliance/sar/export', async (req, res) => {
+  const { case_id, format = 'csv' } = req.body;
+
   try {
-    const result = await pool.query('DELETE FROM policy_rules WHERE id = $1 RETURNING id', [id]);
+    // In a real system, we'd fetch case details, alerts, and transaction history
+    // For now, let's fetch based on the transaction hash if provided as case_id
+    const result = await pool.query(
+      `SELECT t.*, w.risk_score, w.account_status, a.severity, a.message as alert_message
+       FROM transactions t
+       LEFT JOIN wallets w ON LOWER(t.from_address) = LOWER(w.address)
+       LEFT JOIN alerts a ON LOWER(t.tx_hash) = LOWER(a.wallet_address) -- Simplified join
+       WHERE t.tx_hash = $1`,
+      [case_id]
+    );
+
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Policy rule not found' });
+      return res.status(404).json({ error: 'Case/Transaction not found' });
     }
-    res.json({ message: 'Policy rule deleted', id });
+
+    const data = result.rows[0];
+    
+    // Generate CSV content
+    const csvRows = [
+      ['Report Field', 'Value'],
+      ['Report ID', uuidv4()],
+      ['Generated At', new Date().toISOString()],
+      ['Transaction Hash', data.tx_hash],
+      ['From Address', data.from_address],
+      ['To Address', data.to_address],
+      ['Value (Wei)', data.value],
+      ['Risk Score', data.risk_score],
+      ['Account Status', data.account_status],
+      ['Alert Severity', data.severity],
+      ['Alert Message', data.alert_message],
+      ['Compliance Officer', req.headers['x-user-id'] || 'System'],
+      ['Organization ID', req.headers['x-org-id'] || 'None']
+    ];
+
+    const csvContent = csvRows.map(row => row.join(',')).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=SAR_Report_${case_id}.csv`);
+    res.status(200).send(csvContent);
+
   } catch (error) {
-    console.error('Error deleting policy rule:', error);
-    res.status(500).json({ error: 'Failed to delete policy rule' });
+    console.error('Error exporting SAR:', error);
+    res.status(500).json({ error: 'Failed to export SAR report' });
   }
 });
 

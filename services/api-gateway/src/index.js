@@ -7,7 +7,13 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const morgan = require('morgan');
 const logger = require('./utils/logger');
+const { Pool } = require('pg');
 require('dotenv').config();
+
+// Database connection for API Key validation
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -17,6 +23,35 @@ const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
 // Middleware
 app.use(helmet());
 app.use(cors());
+
+// Log usage to database
+const logUsage = async (req, res, responseTime) => {
+  if (!req.user && !req.headers['x-api-key']) return;
+  
+  try {
+    const orgId = req.user?.org_id || null;
+    const userId = req.user?.sub?.startsWith('api_key_') ? null : (req.user?.sub || null);
+    
+    await pool.query(
+      `INSERT INTO usage_logs (
+        organization_id, user_id, endpoint, method, 
+        status_code, response_time_ms, ip_address, user_agent, timestamp
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+      [
+        orgId,
+        userId,
+        req.path,
+        req.method,
+        res.statusCode,
+        responseTime,
+        req.ip || req.headers['x-forwarded-for'] || 'unknown',
+        req.headers['user-agent'] || 'unknown'
+      ]
+    );
+  } catch (error) {
+    console.error('[GATEWAY USAGE] Failed to log usage:', error.message);
+  }
+};
 
 // Correlation ID Middleware
 app.use((req, res, next) => {
@@ -59,10 +94,15 @@ const proxies = {};
 Object.entries(SERVICES).forEach(([key, url]) => {
   proxies[key] = httpProxy.createProxyServer({ target: url });
   
-  // Forward correlation ID to downstream services
+  // Forward correlation ID and user info to downstream services
   proxies[key].on('proxyReq', (proxyReq, req) => {
     if (req.correlationId) {
       proxyReq.setHeader('x-correlation-id', req.correlationId);
+    }
+    if (req.user) {
+      proxyReq.setHeader('x-user-id', req.user.sub || '');
+      proxyReq.setHeader('x-user-role', req.user.role || '');
+      proxyReq.setHeader('x-org-id', req.user.org_id || '');
     }
   });
 });
@@ -97,55 +137,47 @@ app.get('/ready', async (req, res) => {
   });
 });
 
-// Auth middleware
-const verifyToken = (req, res, next) => {
+// Auth middleware (supports JWT and API Key)
+const verifyAuth = async (req, res, next) => {
   if (req.method === 'OPTIONS') {
     return next();
   }
 
+  // Public routes
+  const publicRoutes = ['/health', '/ready', '/auth/register', '/auth/login', '/auth/validate'];
+  if (publicRoutes.some(route => req.path.startsWith(route))) {
+    return next();
+  }
+
+  // Check for API Key first
+  const apiKey = req.headers['x-api-key'];
+  if (apiKey) {
+    try {
+      const result = await pool.query(
+        'SELECT id, name, slug FROM organizations WHERE api_key = $1 AND is_active = TRUE',
+        [apiKey]
+      );
+      
+      if (result.rows.length > 0) {
+        const org = result.rows[0];
+        req.user = {
+          org_id: org.id,
+          org_name: org.name,
+          role: 'api_client',
+          sub: `api_key_${org.slug}`
+        };
+        console.log(`[GATEWAY AUTH] API Key validated for org: ${org.name}`);
+        return next();
+      }
+    } catch (error) {
+      console.error('[GATEWAY AUTH] API Key validation error:', error.message);
+    }
+  }
+
+  // Fallback to JWT
   const token = req.headers['authorization']?.split(' ')[1];
-
-  // Public routes that don't require auth
-  const publicRoutes = [
-    '/health',
-    '/ready',
-    '/auth/register',
-    '/auth/login',
-    '/auth/validate',
-    '/auth/health',
-    '/auth/ready',
-    // Admin Dashboard Routes
-    '/ops',
-    '/cases',
-    '/statistics',
-    '/analytics',
-    '/alerts',
-    '/blocked',
-    '/compliance',
-    '/admin',
-    '/assistant',
-    '/api',
-    '/socket.io'
-  ];
-  // Routes where auth header is forwarded to downstream service (auth service handles its own verification)
-  const authPassthroughRoutes = [
-    '/auth/me',
-    '/auth/profile',
-    '/auth/refresh',
-    '/auth/logout',
-  ];
-  if (publicRoutes.some((route) => req.path.startsWith(route))) {
-    return next();
-  }
-  // For auth passthrough routes, forward the request as-is (let the auth service verify the token)
-  if (authPassthroughRoutes.some((route) => req.path.startsWith(route))) {
-    return next();
-  }
-
-  // For debugging 401s
   if (!token) {
-    console.log(`[GATEWAY AUTH] Denied access to ${req.method} ${req.path} - No token provided`);
-    return res.status(401).json({ error: 'Access denied: No token provided' });
+    return res.status(401).json({ error: 'Access denied: No token or API key provided' });
   }
 
   try {
@@ -157,7 +189,7 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-app.use(verifyToken);
+app.use(verifyAuth);
 
 // Route mapping
 const ROUTE_MAP = {
@@ -232,12 +264,20 @@ app.all('*', (req, res) => {
 
   console.log(`→ Proxying ${req.method} ${req.path} to ${service} (${target})`);
 
+  const start = Date.now();
   proxy.web(req, res, (error) => {
+    const duration = Date.now() - start;
     console.error(`Proxy error for ${service}:`, error.message);
     res.status(503).json({
       error: 'Service unavailable',
       service,
     });
+    logUsage(req, res, duration);
+  });
+
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    logUsage(req, res, duration);
   });
 });
 

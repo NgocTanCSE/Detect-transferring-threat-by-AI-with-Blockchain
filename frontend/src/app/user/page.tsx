@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
-import { Shield, Wallet, Mail, User as UserIcon, ArrowRight } from "lucide-react";
+import { Shield, Wallet, Mail, User as UserIcon, ArrowRight, Upload, Key } from "lucide-react";
 
 export default function UserPage() {
   const router = useRouter();
@@ -140,19 +140,36 @@ export default function UserPage() {
             </CardHeader>
           </Card>
 
-          <Card className="border-slate-700/70 bg-slate-950/80 hover:border-white/30">
+          <Card className="border-slate-700/70 bg-slate-950/80 hover:border-white/30 cursor-pointer">
             <CardHeader
-              onClick={() => router.push("/user/history")}
+              onClick={() => router.push("/user/api")}
               className="pb-4"
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle className="text-lg text-white">Lịch sử</CardTitle>
+                  <CardTitle className="text-lg text-white">Quản lý API</CardTitle>
                   <CardDescription className="mt-1">
-                    Xem lịch sử hoạt động của tài khoản
+                    Quản lý API Key cho tổ chức của bạn
                   </CardDescription>
                 </div>
-                <ArrowRight className="h-5 w-5 text-slate-400" />
+                <Key className="h-5 w-5 text-slate-400" />
+              </div>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-slate-700/70 bg-slate-950/80 hover:border-white/30 cursor-pointer">
+            <CardHeader
+              onClick={() => router.push("/user/batch")}
+              className="pb-4"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="text-lg text-white">Tải lên hàng loạt</CardTitle>
+                  <CardDescription className="mt-1">
+                    Tải lên danh sách giao dịch (CSV/Excel)
+                  </CardDescription>
+                </div>
+                <Upload className="h-5 w-5 text-slate-400" />
               </div>
             </CardHeader>
           </Card>

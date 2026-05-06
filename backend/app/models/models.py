@@ -20,16 +20,38 @@ JSONB = JSON().with_variant(PG_JSONB(), "postgresql")
 INET = String(45).with_variant(PG_INET(), "postgresql")
 
 
+class Organization(Base):
+    """Multi-tenant organization (bank, exchange, etc.)."""
+
+    __tablename__ = "organizations"
+
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False, unique=True)
+    slug = Column(String(100), nullable=False, unique=True, index=True)
+    contact_email = Column(String(255), nullable=True)
+    api_key = Column(String(255), unique=True, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    users = relationship("User", back_populates="organization")
+    wallets = relationship("Wallet", back_populates="organization")
+
+    def __repr__(self) -> str:
+        return f"<Organization(name={self.name}, slug={self.slug})>"
+
+
 class User(Base):
     """Platform user account (admin, analyst, regular user)."""
 
     __tablename__ = "users"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     username = Column(String(100), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False, default='user')  # admin, analyst, user
+    organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     wallet_address = Column(String(255), unique=True, nullable=True, index=True)
     is_active = Column(Boolean, default=True)
     warning_count = Column(Integer, default=0)
@@ -37,10 +59,11 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    organization = relationship("Organization", back_populates="users")
     warnings = relationship("UserWarning", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
-        return f"<User(username={self.username}, role={self.role}, warnings={self.warning_count})>"
+        return f"<User(username={self.username}, role={self.role}, org={self.organization_id})>"
 
 
 class TokenTransfer(Base):
@@ -61,6 +84,7 @@ class TokenTransfer(Base):
     value = Column(DECIMAL(78, 0), nullable=False)
     value_decimal = Column(DECIMAL(38, 18), nullable=True)
     transfer_type = Column(String(20), default='ERC20')
+    organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     timestamp = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -77,6 +101,7 @@ class Wallet(Base):
     address = Column(String(255), unique=True, index=True, nullable=False)
     label = Column(String(255), nullable=True)
     entity_type = Column(String(50), default='Unknown')
+    organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     account_status = Column(String(20), default='active')  # active, suspended, frozen, under_review
     risk_score = Column(Float, default=0.0)
     risk_category = Column(String(50), nullable=True)  # money_laundering, manipulation, scam
@@ -93,6 +118,7 @@ class Wallet(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     risk_assessments = relationship("RiskAssessment", back_populates="wallet", cascade="all, delete-orphan")
+    organization = relationship("Organization", back_populates="wallets")
 
     def __repr__(self) -> str:
         return f"<Wallet(address={self.address}, status={self.account_status}, risk_score={self.risk_score})>"
@@ -120,6 +146,7 @@ class Transaction(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_flagged = Column(Boolean, default=False)
     flag_reason = Column(String(100), nullable=True)
+    organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     chain_id = Column(String(50), default='ethereum', index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -485,4 +512,24 @@ class AIThreatLog(Base):
     risk_score = Column(Float, nullable=False)
     details = Column(JSONB, nullable=True)
     detected_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class UsageLog(Base):
+    """Tracking API calls and system usage for billing and auditing."""
+
+    __tablename__ = "usage_logs"
+
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
+    user_id = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    endpoint = Column(String(255), nullable=False)
+    method = Column(String(10), nullable=False)
+    status_code = Column(Integer)
+    response_time_ms = Column(Integer)
+    ip_address = Column(String(45))
+    user_agent = Column(Text)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def __repr__(self) -> str:
+        return f"<UsageLog(org={self.organization_id}, endpoint={self.endpoint}, status={self.status_code})>"
 

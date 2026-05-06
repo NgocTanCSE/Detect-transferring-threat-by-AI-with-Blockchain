@@ -13,6 +13,8 @@ import {
   Loader2,
   LogOut,
   ShieldX,
+  Building2,
+  Key,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,6 +39,12 @@ const sidebarItems = [
     href: "/admin/history",
     icon: History,
     description: "Blocked Transfers",
+  },
+  {
+    title: "Organizations",
+    href: "/admin/organizations",
+    icon: Building2,
+    description: "Manage Tenants",
   },
   {
     title: "Logs",
