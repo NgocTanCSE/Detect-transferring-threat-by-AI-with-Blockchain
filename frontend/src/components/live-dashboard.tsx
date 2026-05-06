@@ -429,6 +429,8 @@ export default function LiveDashboard() {
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const activeOrgSlug = searchParams.get("org");
 
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [flowStats, setFlowStats] = useState<FlowStats[]>([]);
@@ -959,9 +961,17 @@ export default function LiveDashboard() {
                   Live data only
                 </div>
                 <h1 className="mt-3 text-2xl font-semibold text-slate-50 md:text-4xl">Blockchain AI Operations Console</h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400 md:text-base">
-                  Real-time blockchain diagnostics and role-specific AI controls.
-                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <p className="max-w-3xl text-sm leading-6 text-slate-400 md:text-base">
+                    Real-time blockchain diagnostics and role-specific AI controls.
+                  </p>
+                  {activeOrgSlug && (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-teal-500/40 bg-teal-500/10 px-3 py-1 text-xs font-semibold text-teal-300">
+                      <Globe2 className="h-3.5 w-3.5" />
+                      Tenant: {activeOrgSlug.toUpperCase()}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1044,14 +1054,23 @@ export default function LiveDashboard() {
           <div className="mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">Live data error: {error}</div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_1fr]">
-          <aside className="rounded-[30px] border border-slate-800/70 bg-slate-950/70 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+        <div className={`grid grid-cols-1 gap-4 transition-all duration-300 ${isSidebarCollapsed ? "xl:grid-cols-[80px_1fr]" : "xl:grid-cols-[300px_1fr]"}`}>
+          <aside className={`rounded-[30px] border border-slate-800/70 bg-slate-950/70 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-300 ${isSidebarCollapsed ? "items-center overflow-hidden" : ""}`}>
             <div className="mb-4 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Sidebar functions</p>
-                <h2 className="mt-2 text-lg font-semibold text-slate-50">{role.label}</h2>
-              </div>
-              <span className={["rounded-xl border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide", role.accentClass].join(" ")}>{role.shortLabel}</span>
+              {!isSidebarCollapsed && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Sidebar functions</p>
+                  <h2 className="mt-2 text-lg font-semibold text-slate-50">{role.label}</h2>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 text-slate-400 hover:text-slate-100"
+                title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              >
+                <RefreshCcw className={`h-4 w-4 transition-transform duration-500 ${isSidebarCollapsed ? "rotate-180" : ""}`} />
+              </button>
             </div>
 
             <div className="space-y-4">
@@ -1082,7 +1101,7 @@ export default function LiveDashboard() {
                           <span className={["flex h-9 w-9 items-center justify-center rounded-xl border", isActiveFeature ? role.highlightClass : "border-slate-800 bg-slate-950/70 text-slate-400"].join(" ")}>
                             <Icon className="h-4 w-4" />
                           </span>
-                          <div className="min-w-0">
+                          <div className={`min-w-0 transition-opacity duration-300 ${isSidebarCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-auto opacity-100"}`}>
                             <p className="text-sm font-medium">{feature}</p>
                             <p className="text-xs text-slate-500">{isActiveFeature ? "Open live panel" : "Switch view"}</p>
                           </div>
