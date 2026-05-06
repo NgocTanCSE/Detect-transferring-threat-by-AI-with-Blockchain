@@ -61,8 +61,14 @@ def ensure_schema() -> None:
     - `blacklist.verified_at` exists (TIMESTAMPTZ)
     - `blacklist.expires_at` exists (TIMESTAMPTZ)
     """
+    # Import models locally to ensure they are registered with Base before create_all
+    from app.models import models # noqa: F401
+
+    # Create tables if they don't exist (works for both SQLite and Postgres)
+    Base.metadata.create_all(bind=engine)
+
     if _IS_SQLITE:
-        logger.info("SQLite backend detected; skipping Postgres-specific ensure_schema migrations")
+        logger.info("SQLite backend detected; skipping Postgres-specific ALTER TABLE migrations")
         return
 
     try:

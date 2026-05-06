@@ -377,6 +377,7 @@ class FeatureStoreConfig(Base):
     enabled = Column(Boolean, default=True, index=True)
     expression = Column(Text, nullable=True)
     owner_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
+    organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -418,6 +419,7 @@ class PolicyRule(Base):
     priority = Column(Integer, nullable=False, default=100)
     is_active = Column(Boolean, default=True, index=True)
     created_by = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
