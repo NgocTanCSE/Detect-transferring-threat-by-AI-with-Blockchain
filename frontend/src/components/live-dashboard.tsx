@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { Alert, BlockedTransfer, DashboardStats, FlowStats } from "@/lib/api";
 import { fetchBlockedTransfers, fetchDashboardStats, fetchFlowStats, fetchRecentAlerts } from "@/lib/api";
+import { authFetch } from "@/lib/auth-fetch";
 import {
   Bar,
   BarChart,
@@ -328,7 +329,12 @@ const TONAL_STYLES: Record<string, string> = {
 
 async function fetchJson<T>(path: string, defaultValue: T | null = null): Promise<T> {
   try {
-    const response = await fetch(path, { cache: "no-store" });
+    const headers: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("auth_token");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
+    const response = await fetch(path, { cache: "no-store", headers });
     if (!response.ok) {
       console.warn(`API request failed: ${path} (${response.status})`);
       if (defaultValue !== null) return defaultValue;
@@ -1181,7 +1187,7 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
   }, [nodes]);
 
   async function reloadNodes() {
-    const response = await fetch("/api/ops/system/node-endpoints?only_active=true");
+    const response = await authFetch("/api/ops/system/node-endpoints?only_active=true");
     if (!response.ok) throw new Error("Failed to reload node endpoints");
     const payload = await response.json();
     const data = unwrapPayload<{ items: NodeEndpointItem[] }>(payload);
@@ -1203,7 +1209,7 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/ops/system/node-endpoints", {
+      const response = await authFetch("/api/ops/system/node-endpoints", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1233,7 +1239,7 @@ function NodeTable({ nodes }: { nodes: NodeEndpointItem[] }) {
     setIsSubmitting(true);
     try {
       const lastError = healthStatus === "down" ? (window.prompt("Last error (optional)") ?? "") : "";
-      const response = await fetch(`/api/ops/system/node-endpoints/${encodeURIComponent(node.id)}/health`, {
+      const response = await authFetch(`/api/ops/system/node-endpoints/${encodeURIComponent(node.id)}/health`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1388,23 +1394,65 @@ function PipelineTable({ metrics, summary }: { metrics: PipelineMetricItem[]; su
 function OrganizationPanel() {
   const [orgs, setOrgs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { notify } = useToast();
+
+  const fetchOrgs = async () => {
+    setIsLoading(true);
+    try {
+      const response = await authFetch("/api/ops/system/organizations");
+      if (!response.ok) throw new Error("Failed to fetch organizations");
+      const payload = await response.json();
+      const data = unwrapPayload<{ items: any[] }>(payload);
+      setOrgs(data.items || []);
+    } catch (err: any) {
+      console.error(err);
+      notify("Failed to fetch organizations", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Mock fetch for now, will connect to backend later
-    setTimeout(() => {
-      setOrgs([
-        { id: "1", name: "Global Bank Vietnam", slug: "gbv", status: "Active", users: 12, api_calls: "1.2M" },
-        { id: "2", name: "DNTU Exchange", slug: "dntu", status: "Active", users: 5, api_calls: "450K" },
-        { id: "3", name: "SafeTrade Singapore", slug: "sts", status: "Suspended", users: 0, api_calls: "0" },
-      ]);
-      setIsLoading(false);
-    }, 800);
+    fetchOrgs();
   }, []);
+
+  const handleCreateOrg = async () => {
+    const name = window.prompt("Enter Organization Name:");
+    if (!name || !name.trim()) return;
+    const slug = window.prompt("Enter Organization Slug (lowercase, unique):");
+    if (!slug || !slug.trim()) return;
+    const contactEmail = window.prompt("Enter Contact Email:");
+    if (!contactEmail || !contactEmail.trim()) return;
+
+    try {
+      const response = await authFetch("/api/ops/system/organizations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          slug: slug.trim().toLowerCase(),
+          contact_email: contactEmail.trim(),
+          is_active: true,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to create organization");
+      }
+      notify("Organization created successfully", "success");
+      fetchOrgs();
+    } catch (err: any) {
+      notify(err.message, "error");
+    }
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-600 transition-colors shadow-lg shadow-teal-500/20">
+        <button
+          onClick={handleCreateOrg}
+          className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-600 transition-colors shadow-lg shadow-teal-500/20"
+        >
           Create New Organization
         </button>
       </div>
@@ -1449,10 +1497,76 @@ function OrganizationPanel() {
 }
 
 function ApiAccessPanel() {
-  const [keys] = useState([
-    { id: "1", name: "Production Gateway", key: "sk_live_....a4f2", created: "2024-05-01", usage: "High" },
-    { id: "2", name: "Developer Sandbox", key: "sk_test_....9e11", created: "2024-05-04", usage: "Low" },
-  ]);
+  const [keys, setKeys] = useState<any[]>([]);
+  const [orgs, setOrgs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [selectedOrgId, setSelectedOrgId] = useState("");
+  const { notify } = useToast();
+
+  const fetchKeysAndOrgs = async () => {
+    setIsLoading(true);
+    try {
+      const keysResponse = await authFetch("/api/ops/system/api-keys");
+      const orgsResponse = await authFetch("/api/ops/system/organizations");
+      if (keysResponse.ok && orgsResponse.ok) {
+        const keysPayload = await keysResponse.json();
+        const orgsPayload = await orgsResponse.json();
+        const keysData = unwrapPayload<{ items: any[] }>(keysPayload);
+        const orgsData = unwrapPayload<{ items: any[] }>(orgsPayload);
+        setKeys(keysData.items || []);
+        setOrgs(orgsData.items || []);
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchKeysAndOrgs();
+  }, []);
+
+  const handleGenerateKey = async () => {
+    if (!selectedOrgId) {
+      notify("Please select an organization", "error");
+      return;
+    }
+
+    try {
+      const response = await authFetch(`/api/ops/system/api-keys?org_id=${encodeURIComponent(selectedOrgId)}`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to generate API key");
+      }
+      notify("API key generated successfully!", "success");
+      setShowGenerateModal(false);
+      fetchKeysAndOrgs();
+    } catch (err: any) {
+      notify(err.message, "error");
+    }
+  };
+
+  const handleRevokeKey = async (orgId: string) => {
+    if (!window.confirm("Are you sure you want to revoke this API key? This action is permanent!")) return;
+
+    try {
+      const response = await authFetch(`/api/ops/system/api-keys/${encodeURIComponent(orgId)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to revoke API key");
+      }
+      notify("API Key revoked successfully!", "success");
+      fetchKeysAndOrgs();
+    } catch (err: any) {
+      notify(err.message, "error");
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -1461,7 +1575,9 @@ function ApiAccessPanel() {
           <h3 className="text-lg font-semibold text-slate-100 mb-2">Active API Keys</h3>
           <p className="text-sm text-slate-400 mb-6">Provisioned keys for programmatic access to the risk engine.</p>
           <div className="space-y-4">
-            {keys.map((k) => (
+            {isLoading ? (
+              <div className="animate-pulse h-24 bg-slate-900/20 rounded-xl"></div>
+            ) : keys.map((k) => (
               <div key={k.id} className="flex items-center justify-between p-4 rounded-xl bg-slate-900/50 border border-slate-800">
                 <div>
                   <div className="text-sm font-medium text-slate-200">{k.name}</div>
@@ -1469,13 +1585,51 @@ function ApiAccessPanel() {
                 </div>
                 <div className="text-right">
                   <div className="text-[10px] uppercase font-bold text-slate-600">Created {k.created}</div>
-                  <button className="text-red-400 hover:text-red-300 text-xs mt-1">Revoke</button>
+                  <button
+                    onClick={() => handleRevokeKey(k.id)}
+                    className="text-red-400 hover:text-red-300 text-xs mt-1"
+                  >
+                    Revoke
+                  </button>
                 </div>
               </div>
             ))}
-            <button className="w-full py-3 rounded-xl border border-dashed border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300 transition-all text-sm font-medium">
-              + Generate New API Key
-            </button>
+
+            {showGenerateModal ? (
+              <div className="flex gap-2 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+                <select
+                  value={selectedOrgId}
+                  onChange={(e) => setSelectedOrgId(e.target.value)}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                >
+                  <option value="">Select Organization...</option>
+                  {orgs.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleGenerateKey}
+                  className="rounded-lg bg-teal-500 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-600 transition-colors"
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setShowGenerateModal(false)}
+                  className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors border border-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowGenerateModal(true)}
+                className="w-full py-3 rounded-xl border border-dashed border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300 transition-all text-sm font-medium"
+              >
+                + Generate New API Key
+              </button>
+            )}
           </div>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-6">
@@ -1581,7 +1735,7 @@ function DiagnosticsLogsPanel({
       const params = new URLSearchParams();
       params.set("limit", "200");
       if (archived) params.set("include_archived", "true");
-      const response = await fetch(`/api/admin/diagnostics/logs?${params.toString()}`);
+      const response = await authFetch(`/api/admin/diagnostics/logs?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to reload diagnostics logs");
       const payload = await response.json();
       const data = payload?.data ?? payload;
@@ -1627,7 +1781,7 @@ function DiagnosticsLogsPanel({
     try {
       const params = new URLSearchParams();
       if (exportDate) params.set("date", exportDate);
-      const response = await fetch(`/api/admin/diagnostics/logs/export?${params.toString()}`);
+      const response = await authFetch(`/api/admin/diagnostics/logs/export?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to export diagnostics logs");
       const payload = await response.json();
       const data = payload?.data ?? payload;
@@ -1651,7 +1805,7 @@ function DiagnosticsLogsPanel({
   async function handleArchivefiltered(archived: boolean) {
     setIsArchiving(true);
     try {
-      const response = await fetch("/api/admin/diagnostics/logs/archive", {
+      const response = await authFetch("/api/admin/diagnostics/logs/archive", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1865,7 +2019,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
   async function handleAutoFix() {
     setIsFixing(true);
     try {
-      const response = await fetch("/api/ops/system/data-integrity/auto-fix", {
+      const response = await authFetch("/api/ops/system/data-integrity/auto-fix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dry_run: false }),
@@ -1880,7 +2034,7 @@ function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport
   async function handleExportIntegrity(format: "csv" | "json") {
     setIsExporting(true);
     try {
-      const response = await fetch(`/api/ops/system/data-integrity/export?format=${format}`);
+      const response = await authFetch(`/api/ops/system/data-integrity/export?format=${format}`);
       if (!response.ok) throw new Error("Failed to export integrity report");
       const payload = await response.json();
       const data = payload?.data ?? payload;
@@ -2058,7 +2212,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/ops/ai/model-registry", {
+      const response = await authFetch("/api/ops/ai/model-registry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2086,7 +2240,7 @@ function ModelRegistryTable({ models, activeModels }: { models: ModelRegistryIte
   async function handleActivateModel(model: ModelRegistryItem) {
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/ops/ai/model-registry/${encodeURIComponent(model.id)}/activate`, {
+      const response = await authFetch(`/api/ops/ai/model-registry/${encodeURIComponent(model.id)}/activate`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -2193,7 +2347,7 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/ops/ai/feature-store", {
+      const response = await authFetch("/api/ops/ai/feature-store", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2207,7 +2361,7 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
         throw new Error(message || "Failed to create feature");
       }
 
-      const listResponse = await fetch("/api/ops/ai/feature-store");
+      const listResponse = await authFetch("/api/ops/ai/feature-store");
       if (!listResponse.ok) throw new Error("Failed to reload features");
       const payload = await listResponse.json();
       const data = unwrapPayload<{ items: FeatureConfigItem[] }>(payload);
@@ -2224,7 +2378,7 @@ function FeatureStoreTable({ features }: { features: FeatureConfigItem[] }) {
   async function handleToggleFeature(feature: FeatureConfigItem) {
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/ops/ai/feature-store/${encodeURIComponent(feature.id)}`, {
+      const response = await authFetch(`/api/ops/ai/feature-store/${encodeURIComponent(feature.id)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: !feature.enabled }),
@@ -2733,7 +2887,7 @@ function CaseQueuePanel({
   async function handleCaseAction(txHash: string, action: "CONFIRM_FRAUD" | "DISMISS" | "ESCALATE") {
     setActingTxHash(txHash);
     try {
-      const response = await fetch(`/api/cases/${encodeURIComponent(txHash)}/action`, {
+      const response = await authFetch(`/api/cases/${encodeURIComponent(txHash)}/action`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),

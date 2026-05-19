@@ -3,7 +3,7 @@
 -- Run after init.sql to populate realistic test data
 -- =====================================================
 
-BEGIN;
+
 
 -- Delete existing demo data (for clean re-seeding)
 DELETE FROM blocked_transfers;
@@ -992,7 +992,6 @@ VALUES (
 
 INSERT INTO
     alerts (
-        id,
         wallet_address,
         alert_type,
         severity,
@@ -1004,9 +1003,7 @@ INSERT INTO
     )
 VALUES
     -- Critical Alerts
-    (
-        uuid_generate_v4 (),
-        '0x098b716b8aaf21512996dc57eb0615e2383e2f96',
+    ('0x098b716b8aaf21512996dc57eb0615e2383e2f96',
         'OFAC_SANCTIONED',
         'CRITICAL',
         'Wallet on OFAC sanctions list - Ronin Bridge Exploiter',
@@ -1015,9 +1012,7 @@ VALUES
         NOW() - INTERVAL '30 days',
         false
     ),
-    (
-        uuid_generate_v4 (),
-        '0x53b6936513e738f44fb50d2b9476730c0ab3bfc1',
+    ('0x53b6936513e738f44fb50d2b9476730c0ab3bfc1',
         'STATE_ACTOR',
         'CRITICAL',
         'Wallet linked to Lazarus Group (DPRK)',
@@ -1026,9 +1021,7 @@ VALUES
         NOW() - INTERVAL '25 days',
         false
     ),
-    (
-        uuid_generate_v4 (),
-        '0x8589427373d6d84e98730d7795d8f6f8731fda16',
+    ('0x8589427373d6d84e98730d7795d8f6f8731fda16',
         'MIXER_USAGE',
         'CRITICAL',
         'Tornado Cash interaction detected',
@@ -1037,9 +1030,7 @@ VALUES
         NOW() - INTERVAL '20 days',
         true
     ),
-    (
-        uuid_generate_v4 (),
-        '0xa0c68c638235ee32657e8f720a23cec1bfc77c77',
+    ('0xa0c68c638235ee32657e8f720a23cec1bfc77c77',
         'PUMP_DUMP',
         'CRITICAL',
         'Coordinated pump and dump scheme detected',
@@ -1050,9 +1041,7 @@ VALUES
     ),
 
 -- High Alerts
-(
-    uuid_generate_v4 (),
-    '0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a',
+('0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a',
     'STRUCTURING',
     'HIGH',
     'Detected 12 transactions just under $10,000 threshold',
@@ -1061,9 +1050,7 @@ VALUES
     NOW() - INTERVAL '7 days',
     false
 ),
-(
-    uuid_generate_v4 (),
-    '0x7f367cc41522ce07553e823bf3be79a889debe1b',
+('0x7f367cc41522ce07553e823bf3be79a889debe1b',
     'LAYERING',
     'HIGH',
     'Complex transaction layering pattern detected',
@@ -1072,9 +1059,7 @@ VALUES
     NOW() - INTERVAL '5 days',
     false
 ),
-(
-    uuid_generate_v4 (),
-    '0x2fc617e933a52713247ce25730f6695920b3befe',
+('0x2fc617e933a52713247ce25730f6695920b3befe',
     'SMURFING',
     'HIGH',
     'High volume micro-transactions pattern',
@@ -1083,9 +1068,7 @@ VALUES
     NOW() - INTERVAL '10 days',
     true
 ),
-(
-    uuid_generate_v4 (),
-    '0x9bf4001d307dfd62b26a2f1307ee0c0307632d59',
+('0x9bf4001d307dfd62b26a2f1307ee0c0307632d59',
     'WASH_TRADING',
     'HIGH',
     'Self-trading loop detected',
@@ -1094,9 +1077,7 @@ VALUES
     NOW() - INTERVAL '3 days',
     false
 ),
-(
-    uuid_generate_v4 (),
-    '0x4b0f1812e5df2a09796481ff14017e6005508003',
+('0x4b0f1812e5df2a09796481ff14017e6005508003',
     'CHAIN_HOPPING',
     'HIGH',
     'Cross-chain bridge abuse for obfuscation',
@@ -1107,9 +1088,7 @@ VALUES
 ),
 
 -- Medium Alerts
-(
-    uuid_generate_v4 (),
-    '0x19aa5fe80d33a56d56c78e82ea5e50e5d80b4dff',
+('0x19aa5fe80d33a56d56c78e82ea5e50e5d80b4dff',
     'INTEGRATION',
     'MEDIUM',
     'Funds integration before exchange deposit',
@@ -1118,9 +1097,7 @@ VALUES
     NOW() - INTERVAL '2 days',
     false
 ),
-(
-    uuid_generate_v4 (),
-    '0x5a7a51ed600e34a53e1c70c78e8a1e86f9d8f8e3',
+('0x5a7a51ed600e34a53e1c70c78e8a1e86f9d8f8e3',
     'PEELING_CHAIN',
     'MEDIUM',
     'Classic peeling chain pattern identified',
@@ -1131,9 +1108,7 @@ VALUES
 ),
 
 -- Recent Alerts (Today)
-(
-    uuid_generate_v4 (),
-    '0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a',
+('0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a',
     'RAPID_MOVEMENT',
     'HIGH',
     'Large value moved within 1 hour to multiple wallets',
@@ -1142,9 +1117,7 @@ VALUES
     NOW() - INTERVAL '8 hours',
     false
 ),
-(
-    uuid_generate_v4 (),
-    '0x7f367cc41522ce07553e823bf3be79a889debe1b',
+('0x7f367cc41522ce07553e823bf3be79a889debe1b',
     'LAYERING',
     'HIGH',
     'Continuing layering activity detected',
@@ -1153,9 +1126,7 @@ VALUES
     NOW() - INTERVAL '6 hours',
     false
 ),
-(
-    uuid_generate_v4 (),
-    '0x9bf4001d307dfd62b26a2f1307ee0c0307632d59',
+('0x9bf4001d307dfd62b26a2f1307ee0c0307632d59',
     'WASH_TRADING',
     'HIGH',
     'Wash trading pattern continues',
@@ -1171,7 +1142,6 @@ VALUES
 
 INSERT INTO
     blocked_transfers (
-        id,
         sender_address,
         receiver_address,
         amount,
@@ -1182,9 +1152,7 @@ INSERT INTO
     )
 VALUES
     -- Alice tried to send to a suspicious wallet
-    (
-        uuid_generate_v4 (),
-        '0x742d35cc6634c0532925a3b844bc454e4438f44e',
+    ('0x742d35cc6634c0532925a3b844bc454e4438f44e',
         '0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a',
         5000000000000000000,
         92.00,
@@ -1193,9 +1161,7 @@ VALUES
         NOW() - INTERVAL '5 days'
     ),
     -- Bob tried to send to a known hacker
-    (
-        uuid_generate_v4 (),
-        '0x8ba1f109551bd432803012645ac136ddd64dba72',
+    ('0x8ba1f109551bd432803012645ac136ddd64dba72',
         '0x098b716b8aaf21512996dc57eb0615e2383e2f96',
         3000000000000000000,
         99.00,
@@ -1204,9 +1170,7 @@ VALUES
         NOW() - INTERVAL '3 days'
     ),
     -- Alice tried again after warning
-    (
-        uuid_generate_v4 (),
-        '0x742d35cc6634c0532925a3b844bc454e4438f44e',
+    ('0x742d35cc6634c0532925a3b844bc454e4438f44e',
         '0x7f367cc41522ce07553e823bf3be79a889debe1b',
         2500000000000000000,
         88.00,
@@ -1215,9 +1179,7 @@ VALUES
         NOW() - INTERVAL '2 days'
     ),
     -- Unknown user to sanctioned wallet
-    (
-        uuid_generate_v4 (),
-        '0xab5801a7d398351b8be11c439e05c5b3259aec9b',
+    ('0xab5801a7d398351b8be11c439e05c5b3259aec9b',
         '0x53b6936513e738f44fb50d2b9476730c0ab3bfc1',
         8500000000000000000,
         98.00,
@@ -1226,9 +1188,7 @@ VALUES
         NOW() - INTERVAL '1 day'
     ),
     -- Recent blocked attempt
-    (
-        uuid_generate_v4 (),
-        '0x8ba1f109551bd432803012645ac136ddd64dba72',
+    ('0x8ba1f109551bd432803012645ac136ddd64dba72',
         '0xa0c68c638235ee32657e8f720a23cec1bfc77c77',
         1200000000000000000,
         96.00,
@@ -1237,9 +1197,7 @@ VALUES
         NOW() - INTERVAL '12 hours'
     ),
     -- Today's blocked transfer
-    (
-        uuid_generate_v4 (),
-        '0x742d35cc6634c0532925a3b844bc454e4438f44e',
+    ('0x742d35cc6634c0532925a3b844bc454e4438f44e',
         '0x9bf4001d307dfd62b26a2f1307ee0c0307632d59',
         800000000000000000,
         94.00,
@@ -1301,7 +1259,6 @@ DELETE FROM blacklist;
 
 INSERT INTO
     blacklist (
-        id,
         address,
         category,
         source,
@@ -1311,9 +1268,7 @@ INSERT INTO
         reported_at,
         verified_at
     )
-VALUES (
-        uuid_generate_v4 (),
-        '0x098b716b8aaf21512996dc57eb0615e2383e2f96',
+VALUES ('0x098b716b8aaf21512996dc57eb0615e2383e2f96',
         'OFAC_SANCTIONS',
         'OFAC SDN List',
         'Ronin Bridge Exploiter - $625M hack',
@@ -1322,9 +1277,7 @@ VALUES (
         '2022-04-14',
         '2022-04-14'
     ),
-    (
-        uuid_generate_v4 (),
-        '0x53b6936513e738f44fb50d2b9476730c0ab3bfc1',
+    ('0x53b6936513e738f44fb50d2b9476730c0ab3bfc1',
         'STATE_ACTOR',
         'FBI/Treasury',
         'Lazarus Group - DPRK state-sponsored hacking',
@@ -1333,9 +1286,7 @@ VALUES (
         '2022-01-15',
         '2022-01-20'
     ),
-    (
-        uuid_generate_v4 (),
-        '0x8589427373d6d84e98730d7795d8f6f8731fda16',
+    ('0x8589427373d6d84e98730d7795d8f6f8731fda16',
         'OFAC_SANCTIONS',
         'OFAC SDN List',
         'Tornado Cash sanctioned entity',
@@ -1344,9 +1295,7 @@ VALUES (
         '2022-08-08',
         '2022-08-08'
     ),
-    (
-        uuid_generate_v4 (),
-        '0xa0c68c638235ee32657e8f720a23cec1bfc77c77',
+    ('0xa0c68c638235ee32657e8f720a23cec1bfc77c77',
         'MARKET_MANIPULATION',
         'SEC Report',
         'Pump and dump scheme operator',
@@ -1399,7 +1348,6 @@ END $$;
 
 INSERT INTO
     node_endpoints (
-        id,
         provider_name,
         chain,
         endpoint_url,
@@ -1411,9 +1359,7 @@ INSERT INTO
         created_at,
         updated_at
     )
-VALUES (
-        uuid_generate_v4 (),
-        'alchemy-mainnet',
+VALUES ('alchemy-mainnet',
         'ethereum',
         'https://eth-mainnet.g.alchemy.com/v2/demo',
         'http',
@@ -1424,9 +1370,7 @@ VALUES (
         NOW(),
         NOW()
     ),
-    (
-        uuid_generate_v4 (),
-        'infura-backup',
+    ('infura-backup',
         'ethereum',
         'https://mainnet.infura.io/v3/demo',
         'http',
@@ -1490,32 +1434,25 @@ VALUES (
 
 INSERT INTO
     feature_store_configs (
-        id,
         feature_key,
         enabled,
         expression,
         created_at,
         updated_at
     )
-VALUES (
-        uuid_generate_v4 (),
-        'tx_velocity_1h',
+VALUES ('tx_velocity_1h',
         true,
         'count_tx(1h)',
         NOW(),
         NOW()
     ),
-    (
-        uuid_generate_v4 (),
-        'counterparty_entropy_24h',
+    ('counterparty_entropy_24h',
         true,
         'entropy(counterparties,24h)',
         NOW(),
         NOW()
     ),
-    (
-        uuid_generate_v4 (),
-        'bridge_hops_7d',
+    ('bridge_hops_7d',
         false,
         'bridge_hops(7d)',
         NOW(),
@@ -1524,7 +1461,6 @@ VALUES (
 
 INSERT INTO
     model_registry (
-        id,
         model_name,
         version,
         artifact_uri,
@@ -1533,9 +1469,7 @@ INSERT INTO
         promoted_at,
         created_at
     )
-VALUES (
-        uuid_generate_v4 (),
-        'risk-core',
+VALUES ('risk-core',
         'v1.0.0',
         's3://models/risk-core-v1.onnx',
         'onnx',
@@ -1543,9 +1477,7 @@ VALUES (
         NOW() - INTERVAL '1 day',
         NOW() - INTERVAL '2 days'
     ),
-    (
-        uuid_generate_v4 (),
-        'risk-core',
+    ('risk-core',
         'v1.1.0-rc',
         's3://models/risk-core-v1_1-rc.onnx',
         'onnx',
@@ -1556,7 +1488,6 @@ VALUES (
 
 INSERT INTO
     policy_rules (
-        id,
         rule_name,
         description,
         min_risk_score,
@@ -1568,9 +1499,7 @@ INSERT INTO
         created_at,
         updated_at
     )
-VALUES (
-        uuid_generate_v4 (),
-        'block_high_risk_runtime',
+VALUES ('block_high_risk_runtime',
         'Block transfer when risk score >= 80',
         80.0,
         true,
@@ -1581,9 +1510,7 @@ VALUES (
         NOW(),
         NOW()
     ),
-    (
-        uuid_generate_v4 (),
-        'watch_medium_risk',
+    ('watch_medium_risk',
         'Flag and monitor transfers when risk score >= 60',
         60.0,
         false,
@@ -1607,15 +1534,15 @@ BEGIN
             WHERE table_name = 'notification_events' AND column_name = 'severity'
         ) THEN
             INSERT INTO notification_events (
-                id, channel, event_type, recipient, severity, message, status, metadata, created_at, sent_at
+                channel, event_type, recipient, severity, message, status, metadata, created_at, sent_at
             ) VALUES
-                (uuid_generate_v4(), 'telegram', 'ALERT', 'security-room', 'HIGH', 'Automated security notification check', 'sent', '{"source":"seed_demo_data"}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour')
+                ('telegram', 'ALERT', 'security-room', 'HIGH', 'Automated security notification check', 'sent', '{"source":"seed_demo_data"}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour')
             ON CONFLICT DO NOTHING;
         ELSE
             INSERT INTO notification_events (
-                id, channel, event_type, recipient, message, status, metadata, created_at, sent_at
+                channel, event_type, recipient, message, status, metadata, created_at, sent_at
             ) VALUES
-                (uuid_generate_v4(), 'telegram', 'ALERT', 'security-room', 'Automated security notification check', 'sent', '{"source":"seed_demo_data"}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour')
+                ('telegram', 'ALERT', 'security-room', 'Automated security notification check', 'sent', '{"source":"seed_demo_data"}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour')
             ON CONFLICT DO NOTHING;
         END IF;
     ELSE
@@ -1624,15 +1551,15 @@ BEGIN
             WHERE table_name = 'notification_events' AND column_name = 'severity'
         ) THEN
             INSERT INTO notification_events (
-                id, channel, recipient, severity, message, status, metadata, created_at, sent_at
+                channel, recipient, severity, message, status, metadata, created_at, sent_at
             ) VALUES
-                (uuid_generate_v4(), 'telegram', 'security-room', 'HIGH', 'Automated security notification check', 'sent', '{"source":"seed_demo_data"}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour')
+                ('telegram', 'security-room', 'HIGH', 'Automated security notification check', 'sent', '{"source":"seed_demo_data"}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour')
             ON CONFLICT DO NOTHING;
         ELSE
             INSERT INTO notification_events (
-                id, channel, recipient, message, status, metadata, created_at, sent_at
+                channel, recipient, message, status, metadata, created_at, sent_at
             ) VALUES
-                (uuid_generate_v4(), 'telegram', 'security-room', 'Automated security notification check', 'sent', '{"source":"seed_demo_data"}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour')
+                ('telegram', 'security-room', 'Automated security notification check', 'sent', '{"source":"seed_demo_data"}'::jsonb, NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour')
             ON CONFLICT DO NOTHING;
         END IF;
     END IF;
@@ -1672,4 +1599,4 @@ UNION ALL
 SELECT 'notification_events', COUNT(*)
 FROM notification_events;
 
-COMMIT;
+

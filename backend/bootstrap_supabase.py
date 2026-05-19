@@ -15,14 +15,35 @@ from pathlib import Path
 import psycopg2
 
 from app.core.config import DATABASE_URL
+from app.core.database import ensure_schema
 
 
 logger = logging.getLogger(__name__)
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DATABASE_DIR = ROOT_DIR / "database"
+
+# Try to find the database directory in multiple potential locations
+potential_dirs = [
+    ROOT_DIR / "database",
+    Path(__file__).resolve().parent / "database",
+    Path("/database"),
+    Path("/app/database"),
+]
+
+DATABASE_DIR = None
+for p in potential_dirs:
+    if (p / "init.sql").exists():
+        DATABASE_DIR = p.resolve()
+        break
+
+if DATABASE_DIR is None:
+    # Fallback to default
+    DATABASE_DIR = ROOT_DIR / "database"
+
 INIT_SQL_PATH = DATABASE_DIR / "init.sql"
 SEED_SQL_PATH = DATABASE_DIR / "seed_rich_demo.sql"
+
+logger.info(f"Database bootstrap files directory selected: {DATABASE_DIR}")
 
 
 def _table_exists(cur, table_name: str) -> bool:
@@ -105,8 +126,18 @@ def bootstrap_database() -> None:
             users_count = _scalar_count(cur, "SELECT COUNT(*) FROM users") if users_table_exists else 0
 
             if not users_table_exists:
-                logger.info("No users table found; bootstrapping schema and demo data")
+                logger.info("No users table found; bootstrapping custom schema first")
                 _execute_sql_file(cur, INIT_SQL_PATH)
+                connection.commit()
+
+                logger.info("Ensuring ORM schema for remaining tables")
+                try:
+                    ensure_schema()
+                    logger.info("ORM schema ensure complete")
+                except Exception as e:
+                    logger.warning(f"SQLAlchemy schema ensure failed: {e}")
+
+                logger.info("Loading rich demo data")
                 _execute_sql_file(cur, SEED_SQL_PATH)
                 connection.commit()
                 logger.info("Database bootstrap completed from scratch")

@@ -27,13 +27,13 @@ CREATE TABLE IF NOT EXISTS users (
         TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_users_username ON users (username);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 
-CREATE INDEX idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 
-CREATE INDEX idx_users_wallet ON users (wallet_address);
+CREATE INDEX IF NOT EXISTS idx_users_wallet ON users (wallet_address);
 
-CREATE INDEX idx_users_role ON users (role);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
 
 COMMENT ON
 TABLE users IS 'Platform users including admins and regular users';
@@ -81,19 +81,19 @@ CREATE TABLE IF NOT EXISTS wallets (
         TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_wallets_address ON wallets USING hash (address);
+CREATE INDEX IF NOT EXISTS idx_wallets_address ON wallets USING hash (address);
 
-CREATE INDEX idx_wallets_risk_score ON wallets (risk_score DESC);
+CREATE INDEX IF NOT EXISTS idx_wallets_risk_score ON wallets (risk_score DESC);
 
-CREATE INDEX idx_wallets_entity_type ON wallets (entity_type);
+CREATE INDEX IF NOT EXISTS idx_wallets_entity_type ON wallets (entity_type);
 
-CREATE INDEX idx_wallets_status ON wallets (account_status);
+CREATE INDEX IF NOT EXISTS idx_wallets_status ON wallets (account_status);
 
-CREATE INDEX idx_wallets_last_activity ON wallets (last_activity_at DESC);
+CREATE INDEX IF NOT EXISTS idx_wallets_last_activity ON wallets (last_activity_at DESC);
 
-CREATE INDEX idx_wallets_risk_category ON wallets (risk_category);
+CREATE INDEX IF NOT EXISTS idx_wallets_risk_category ON wallets (risk_category);
 
-CREATE INDEX idx_wallets_chain_id ON wallets (chain_id);
+CREATE INDEX IF NOT EXISTS idx_wallets_chain_id ON wallets (chain_id);
 
 COMMENT ON
 TABLE wallets IS 'Ethereum wallet addresses with risk metadata and activity statistics';
@@ -148,28 +148,28 @@ FROM ('2025-02-01') TO ('2025-03-01');
 CREATE TABLE IF NOT EXISTS transactions_default PARTITION OF transactions DEFAULT;
 
 -- Indexes on main table and partitions
-CREATE INDEX idx_transactions_hash ON transactions (tx_hash);
+CREATE INDEX IF NOT EXISTS idx_transactions_hash ON transactions (tx_hash);
 
-CREATE INDEX idx_transactions_from ON transactions (from_address);
+CREATE INDEX IF NOT EXISTS idx_transactions_from ON transactions (from_address);
 
-CREATE INDEX idx_transactions_to ON transactions (to_address);
+CREATE INDEX IF NOT EXISTS idx_transactions_to ON transactions (to_address);
 
-CREATE INDEX idx_transactions_block ON transactions (block_number DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_block ON transactions (block_number DESC);
 
-CREATE INDEX idx_transactions_timestamp ON transactions (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions (timestamp DESC);
 
-CREATE INDEX idx_transactions_value ON transactions (value DESC)
+CREATE INDEX IF NOT EXISTS idx_transactions_value ON transactions (value DESC)
 WHERE
     value > 0;
 
-CREATE INDEX idx_transactions_status ON transactions (status);
+CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions (status);
 
-CREATE INDEX idx_transactions_chain_id ON transactions (chain_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_chain_id ON transactions (chain_id);
 
 -- Composite indexes for common query patterns
-CREATE INDEX idx_transactions_from_to ON transactions (from_address, to_address);
+CREATE INDEX IF NOT EXISTS idx_transactions_from_to ON transactions (from_address, to_address);
 
-CREATE INDEX idx_transactions_from_time ON transactions (from_address, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_from_time ON transactions (from_address, timestamp DESC);
 
 COMMENT ON
 TABLE transactions IS 'Ethereum blockchain transactions with full technical details';
@@ -201,19 +201,19 @@ CREATE TABLE IF NOT EXISTS token_transfers (
         -- Note: FK to transactions removed - PostgreSQL doesn't support FK to partitioned tables
 );
 
-CREATE INDEX idx_token_transfers_hash ON token_transfers (transaction_hash);
+CREATE INDEX IF NOT EXISTS idx_token_transfers_hash ON token_transfers (transaction_hash);
 
-CREATE INDEX idx_token_transfers_from ON token_transfers (from_address);
+CREATE INDEX IF NOT EXISTS idx_token_transfers_from ON token_transfers (from_address);
 
-CREATE INDEX idx_token_transfers_to ON token_transfers (to_address);
+CREATE INDEX IF NOT EXISTS idx_token_transfers_to ON token_transfers (to_address);
 
-CREATE INDEX idx_token_transfers_token ON token_transfers (token_address);
+CREATE INDEX IF NOT EXISTS idx_token_transfers_token ON token_transfers (token_address);
 
-CREATE INDEX idx_token_transfers_symbol ON token_transfers (token_symbol);
+CREATE INDEX IF NOT EXISTS idx_token_transfers_symbol ON token_transfers (token_symbol);
 
-CREATE INDEX idx_token_transfers_timestamp ON token_transfers (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_token_transfers_timestamp ON token_transfers (timestamp DESC);
 
-CREATE INDEX idx_token_transfers_value ON token_transfers (value_decimal DESC);
+CREATE INDEX IF NOT EXISTS idx_token_transfers_value ON token_transfers (value_decimal DESC);
 
 COMMENT ON
 TABLE token_transfers IS 'ERC20 and ERC721 token transfer events';
@@ -234,11 +234,11 @@ CREATE TABLE IF NOT EXISTS blocked_transfers (
         TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_blocked_sender ON blocked_transfers (sender_address);
+CREATE INDEX IF NOT EXISTS idx_blocked_sender ON blocked_transfers (sender_address);
 
-CREATE INDEX idx_blocked_receiver ON blocked_transfers (receiver_address);
+CREATE INDEX IF NOT EXISTS idx_blocked_receiver ON blocked_transfers (receiver_address);
 
-CREATE INDEX idx_blocked_time ON blocked_transfers (blocked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_blocked_time ON blocked_transfers (blocked_at DESC);
 
 COMMENT ON
 TABLE blocked_transfers IS 'History of all blocked transaction attempts for audit';
@@ -263,11 +263,11 @@ CREATE TABLE IF NOT EXISTS user_warnings (
         TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_warnings_user ON user_warnings (user_id);
+CREATE INDEX IF NOT EXISTS idx_warnings_user ON user_warnings (user_id);
 
-CREATE INDEX idx_warnings_wallet ON user_warnings (wallet_address);
+CREATE INDEX IF NOT EXISTS idx_warnings_wallet ON user_warnings (wallet_address);
 
-CREATE INDEX idx_warnings_time ON user_warnings (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_warnings_time ON user_warnings (created_at DESC);
 
 COMMENT ON
 TABLE user_warnings IS 'Tracks when users ignore risk warnings (3 strikes = suspension)';
@@ -297,15 +297,15 @@ CREATE TABLE IF NOT EXISTS risk_assessments (
         CONSTRAINT fk_wallet_assessment FOREIGN KEY (wallet_id) REFERENCES wallets (id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_risk_assessments_wallet ON risk_assessments (wallet_id);
+CREATE INDEX IF NOT EXISTS idx_risk_assessments_wallet ON risk_assessments (wallet_id);
 
-CREATE INDEX idx_risk_assessments_score ON risk_assessments (score DESC);
+CREATE INDEX IF NOT EXISTS idx_risk_assessments_score ON risk_assessments (score DESC);
 
-CREATE INDEX idx_risk_assessments_level ON risk_assessments (risk_level);
+CREATE INDEX IF NOT EXISTS idx_risk_assessments_level ON risk_assessments (risk_level);
 
-CREATE INDEX idx_risk_assessments_time ON risk_assessments (assessed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_risk_assessments_time ON risk_assessments (assessed_at DESC);
 
-CREATE INDEX idx_risk_assessments_details ON risk_assessments USING gin (details);
+CREATE INDEX IF NOT EXISTS idx_risk_assessments_details ON risk_assessments USING gin (details);
 
 COMMENT ON
 TABLE risk_assessments IS 'Historical AI-powered risk assessment records';
@@ -336,13 +336,13 @@ CREATE TABLE IF NOT EXISTS blacklist (
         TIME ZONE
 );
 
-CREATE INDEX idx_blacklist_address ON blacklist USING hash (address);
+CREATE INDEX IF NOT EXISTS idx_blacklist_address ON blacklist USING hash (address);
 
-CREATE INDEX idx_blacklist_category ON blacklist (category);
+CREATE INDEX IF NOT EXISTS idx_blacklist_category ON blacklist (category);
 
-CREATE INDEX idx_blacklist_severity ON blacklist (severity);
+CREATE INDEX IF NOT EXISTS idx_blacklist_severity ON blacklist (severity);
 
-CREATE INDEX idx_blacklist_active ON blacklist (is_active)
+CREATE INDEX IF NOT EXISTS idx_blacklist_active ON blacklist (is_active)
 WHERE
     is_active = true;
 
@@ -374,15 +374,15 @@ CREATE TABLE IF NOT EXISTS alerts (
         acknowledged_by VARCHAR(255)
 );
 
-CREATE INDEX idx_alerts_wallet ON alerts (wallet_address);
+CREATE INDEX IF NOT EXISTS idx_alerts_wallet ON alerts (wallet_address);
 
-CREATE INDEX idx_alerts_type ON alerts (alert_type);
+CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts (alert_type);
 
-CREATE INDEX idx_alerts_severity ON alerts (severity);
+CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts (severity);
 
-CREATE INDEX idx_alerts_detected ON alerts (detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_detected ON alerts (detected_at DESC);
 
-CREATE INDEX idx_alerts_acknowledged ON alerts (acknowledged)
+CREATE INDEX IF NOT EXISTS idx_alerts_acknowledged ON alerts (acknowledged)
 WHERE
     acknowledged = false;
 
@@ -402,11 +402,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
         TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_audit_action ON audit_logs (action_type);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs (action_type);
 
-CREATE INDEX idx_audit_entity ON audit_logs (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs (entity_type, entity_id);
 
-CREATE INDEX idx_audit_time ON audit_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_logs (timestamp DESC);
 
 COMMENT ON
 TABLE audit_logs IS 'System-wide audit trail for compliance and forensics';
@@ -433,7 +433,7 @@ GROUP BY
     w.total_transactions,
     w.last_activity_at;
 
-CREATE UNIQUE INDEX idx_high_risk_wallets_addr ON high_risk_wallets (address);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_high_risk_wallets_addr ON high_risk_wallets (address);
 
 COMMENT ON MATERIALIZED VIEW high_risk_wallets IS 'Pre-aggregated high-risk wallets for dashboard performance';
 
@@ -526,6 +526,7 @@ COMMENT ON FUNCTION archive_old_alerts IS 'Archives acknowledged alerts older th
 -- Insert platform users (2 fixed role accounts: admin + analyst)
 INSERT INTO
     users (
+        id,
         username,
         email,
         password_hash,
@@ -535,6 +536,7 @@ INSERT INTO
         warning_count
     )
 VALUES (
+        '11111111-1111-1111-1111-111111111100',
         'admin_security',
         'admin@blockchain-sentinel.io',
         'admin123',
@@ -544,6 +546,7 @@ VALUES (
         0
     ),
     (
+        '11111111-1111-1111-1111-111111111101',
         'linh_analyst',
         'linh.analyst@blockchain-sentinel.io',
         'analyst123',
@@ -627,22 +630,22 @@ VALUES (
         true
     ) ON CONFLICT (address) DO NOTHING;
 
-VACUUM ANALYZE users;
-
-VACUUM ANALYZE wallets;
-
-VACUUM ANALYZE transactions;
-
-VACUUM ANALYZE token_transfers;
-
-VACUUM ANALYZE risk_assessments;
-
-VACUUM ANALYZE blacklist;
-
-VACUUM ANALYZE alerts;
-
-VACUUM ANALYZE blocked_transfers;
-
-VACUUM ANALYZE user_warnings;
-
-VACUUM ANALYZE audit_logs;
+-- VACUUM ANALYZE users;
+-- 
+-- VACUUM ANALYZE wallets;
+-- 
+-- VACUUM ANALYZE transactions;
+-- 
+-- VACUUM ANALYZE token_transfers;
+-- 
+-- VACUUM ANALYZE risk_assessments;
+-- 
+-- VACUUM ANALYZE blacklist;
+-- 
+-- VACUUM ANALYZE alerts;
+-- 
+-- VACUUM ANALYZE blocked_transfers;
+-- 
+-- VACUUM ANALYZE user_warnings;
+-- 
+-- VACUUM ANALYZE audit_logs;

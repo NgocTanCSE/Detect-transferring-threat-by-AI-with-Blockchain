@@ -1,5 +1,7 @@
 "use client";
 
+import { authFetch } from "@/lib/auth-fetch";
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Search, Plus } from "lucide-react";
@@ -213,7 +215,7 @@ export default function PolicyRulesPanel({
   }
 
   async function reloadPolicies() {
-    const response = await fetch("/api/ops/compliance/policy-rules");
+    const response = await authFetch("/api/ops/compliance/policy-rules");
     if (!response.ok) throw new Error("Failed to reload policies");
     const payload = await response.json();
     const data = payload?.data ?? payload;
@@ -228,7 +230,7 @@ export default function PolicyRulesPanel({
 
     setIsMutating(true);
     try {
-      const response = await fetch("/api/ops/compliance/policy-rules", {
+      const response = await authFetch("/api/ops/compliance/policy-rules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -261,7 +263,7 @@ export default function PolicyRulesPanel({
   async function handleTogglePolicy(policy: PolicyRuleItem) {
     setIsMutating(true);
     try {
-      const response = await fetch(`/api/ops/compliance/policy-rules/${encodeURIComponent(policy.id)}`, {
+      const response = await authFetch(`/api/ops/compliance/policy-rules/${encodeURIComponent(policy.id)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: !policy.is_active }),
@@ -293,7 +295,7 @@ export default function PolicyRulesPanel({
 
     setIsMutating(true);
     try {
-      const response = await fetch(`/api/ops/compliance/policy-rules/${encodeURIComponent(policy.id)}`, {
+      const response = await authFetch(`/api/ops/compliance/policy-rules/${encodeURIComponent(policy.id)}`, {
         method: "DELETE",
       });
       if (!response.ok) {

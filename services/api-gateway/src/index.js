@@ -17,7 +17,7 @@ const pool = new Pool({
 
 const app = express();
 const PORT = process.env.PORT || 8001;
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key_here_change_in_production';
+const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'your_jwt_secret_key_here_change_in_production';
 const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
 
 // Middleware
@@ -144,11 +144,10 @@ const verifyAuth = async (req, res, next) => {
   }
 
   // Public routes
-  const publicRoutes = ['/health', '/ready', '/auth/register', '/auth/login', '/auth/validate'];
+  const publicRoutes = ['/health', '/ready', '/auth/register', '/auth/login', '/auth/validate', '/socket.io'];
   if (publicRoutes.some(route => req.path.startsWith(route))) {
     return next();
   }
-
   // Check for API Key first
   const apiKey = req.headers['x-api-key'];
   if (apiKey) {
@@ -214,6 +213,7 @@ const ROUTE_MAP = {
 
   // Compliance Service (3006)
   '/compliance': 'compliance',
+  '/blocked-transfers': 'ai', // Specific match for blocked-transfers to go to AI Service
   '/blocked': 'compliance',
   '/aml': 'compliance',
 
@@ -224,6 +224,10 @@ const ROUTE_MAP = {
   '/assistant': 'ai',
   '/ops': 'ai',
   '/api': 'ai',
+  '/admin': 'ai', // Mapping admin diagnostics to AI Service
+  '/cases': 'ai', // Mapping cases to AI Service
+  '/analyze': 'ai', // Mapping wallet threat analysis to AI Service
+  '/wallet/': 'ai', // Mapping singular wallet endpoints to AI Service
   '/socket.io': 'event',
 };
 

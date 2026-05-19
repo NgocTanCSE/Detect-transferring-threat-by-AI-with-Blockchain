@@ -5,6 +5,8 @@
 
 "use client";
 
+import { authFetch } from "@/lib/auth-fetch";
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,7 +59,7 @@ export default function AdminDiagnosticsDashboard() {
   const fetchStatus = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/diagnostics/status");
+      const response = await authFetch("/api/admin/diagnostics/status");
       const data = await response.json();
       setSystemStatus(data);
     } catch (error) {
@@ -72,7 +74,7 @@ export default function AdminDiagnosticsDashboard() {
       const url = selectedLogType
         ? `/api/admin/diagnostics/logs?limit=100&log_type=${selectedLogType}`
         : "/api/admin/diagnostics/logs?limit=100";
-      const response = await fetch(url);
+      const response = await authFetch(url);
       const data = await response.json();
       setLogs(data.logs || []);
     } catch (error) {
@@ -83,7 +85,7 @@ export default function AdminDiagnosticsDashboard() {
   const clearLogs = async () => {
     if (!confirm("Are you sure you want to clear all diagnostic logs?")) return;
     try {
-      await fetch("/api/admin/diagnostics/logs", { method: "DELETE" });
+      await authFetch("/api/admin/diagnostics/logs", { method: "DELETE" });
       await fetchLogs();
     } catch (error) {
       console.error("Failed to clear logs:", error);

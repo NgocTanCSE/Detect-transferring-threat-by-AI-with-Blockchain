@@ -1,5 +1,21 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
 
+/**
+ * Wrapper around fetch that automatically includes the auth token.
+ * Required because Next.js rewrites proxy directly to the gateway
+ * (bypassing the API route handler that would extract cookies).
+ */
+function authFetch(url: string, options?: RequestInit): Promise<Response> {
+  const headers = new Headers(options?.headers);
+  if (typeof window !== "undefined" && !headers.has("Authorization")) {
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
+  return fetch(url, { ...options, headers });
+}
+
 export interface DashboardStats {
   money_laundering: {
     wallet_count: number;
@@ -181,7 +197,7 @@ export async function askDashboardAssistant(
   assistantContext?: Record<string, unknown>
 ): Promise<AssistantChatResponse> {
   try {
-    const res = await fetch(`${API_BASE}/assistant/chat`, {
+    const res = await authFetch(`${API_BASE}/assistant/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -220,7 +236,7 @@ export async function askDashboardAssistant(
 
 // API Functions
 export async function fetchDashboardStats(chain = "ethereum"): Promise<DashboardStats> {
-  const res = await fetch(`${API_BASE}/statistics/dashboard?chain=${chain}`);
+  const res = await authFetch(`${API_BASE}/statistics/dashboard?chain=${chain}`);
   if (!res.ok) throw new Error("Failed to fetch dashboard stats");
   const payload = await res.json();
   return unwrapApiResponse<DashboardStats>(payload);
@@ -238,7 +254,7 @@ export async function fetchWallets(params?: {
   if (params?.min_risk_score) searchParams.set("min_risk_score", params.min_risk_score.toString());
   if (params?.limit) searchParams.set("limit", params.limit.toString());
 
-  const res = await fetch(`${API_BASE}/wallets?${searchParams}`);
+  const res = await authFetch(`${API_BASE}/wallets?${searchParams}`);
   if (!res.ok) throw new Error("Failed to fetch wallets");
   const data = await res.json();
   return data.wallets || [];
@@ -274,7 +290,7 @@ export interface WalletTransaction {
 }
 
 export async function fetchWalletStats(address: string): Promise<WalletStats> {
-  const res = await fetch(`${API_BASE}/wallets/${address}/stats`);
+  const res = await authFetch(`${API_BASE}/wallets/${address}/stats`);
   if (!res.ok) throw new Error("Failed to fetch wallet stats");
   const payload = await res.json();
   return unwrapApiResponse<WalletStats>(payload);
@@ -284,7 +300,7 @@ export async function fetchWalletTransactionHistory(
   address: string,
   limit = 50
 ): Promise<WalletTransaction[]> {
-  const res = await fetch(`${API_BASE}/wallets/${address}/transactions?limit=${limit}`);
+  const res = await authFetch(`${API_BASE}/wallets/${address}/transactions?limit=${limit}`);
   if (!res.ok) throw new Error("Failed to fetch wallet transactions");
   const data = await res.json();
   return data.transactions || [];
@@ -295,7 +311,7 @@ export async function updateWalletStatus(
   status: string,
   notes?: string
 ): Promise<Wallet> {
-  const res = await fetch(`${API_BASE}/wallets/${address}/status`, {
+  const res = await authFetch(`${API_BASE}/wallets/${address}/status`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status, notes }),
@@ -305,7 +321,7 @@ export async function updateWalletStatus(
 }
 
 export async function fetchWalletConnections(address: string): Promise<WalletConnectionsResponse> {
-  const res = await fetch(`${API_BASE}/wallets/${address}/connections`);
+  const res = await authFetch(`${API_BASE}/wallets/${address}/connections`);
   if (!res.ok) throw new Error("Failed to fetch wallet connections");
   return res.json();
 }
@@ -323,7 +339,7 @@ export async function fetchRecentAlerts(
   if (search && search.trim()) params.set("search", search.trim());
 
   try {
-    const res = await fetch(`${API_BASE}/alerts/recent?${params}`);
+    const res = await authFetch(`${API_BASE}/alerts/recent?${params}`);
     if (!res.ok) {
       return { alerts: [], statistics: {} };
     }
@@ -335,7 +351,7 @@ export async function fetchRecentAlerts(
 }
 
 export async function fetchLatestAlerts(): Promise<Alert[]> {
-  const res = await fetch(`${API_BASE}/alerts/latest`);
+  const res = await authFetch(`${API_BASE}/alerts/latest`);
   if (!res.ok) throw new Error("Failed to fetch latest alerts");
   const data = await res.json();
   return data.alerts || [];
@@ -354,7 +370,7 @@ export async function fetchBlockedTransfers(
     if (search && search.trim()) params.set("search", search.trim());
     if (minRisk !== undefined) params.set("min_risk", minRisk.toString());
 
-    const res = await fetch(`${API_BASE}/blocked-transfers?${params}`);
+    const res = await authFetch(`${API_BASE}/blocked-transfers?${params}`);
     if (!res.ok) {
       return { blocked_transfers: [], statistics: {} };
     }
@@ -367,7 +383,7 @@ export async function fetchBlockedTransfers(
 
 export async function fetchFlowStats(chain = "ethereum"): Promise<FlowStats[]> {
   try {
-    const res = await fetch(`${API_BASE}/statistics/flow?days=7&chain=${chain}`);
+    const res = await authFetch(`${API_BASE}/statistics/flow?days=7&chain=${chain}`);
     if (!res.ok) {
       return [];
     }
@@ -406,14 +422,14 @@ export interface UserWarning {
 }
 
 export async function fetchUserHistory(walletAddress: string): Promise<UserHistory> {
-  const res = await fetch(`${API_BASE}/user/${walletAddress}/history`);
+  const res = await authFetch(`${API_BASE}/user/${walletAddress}/history`);
   if (!res.ok) throw new Error("Failed to fetch user history");
   const payload = await res.json();
   return unwrapApiResponse<UserHistory>(payload);
 }
 
 export async function fetchWalletBalance(address: string): Promise<WalletBalance> {
-  const res = await fetch(`${API_BASE}/wallet/${address}/balance`);
+  const res = await authFetch(`${API_BASE}/wallet/${address}/balance`);
   if (!res.ok) throw new Error("Failed to fetch wallet balance");
   const payload = await res.json();
   return unwrapApiResponse<WalletBalance>(payload);
@@ -423,7 +439,7 @@ export async function fetchWalletTransactions(
   address: string,
   limit = 20
 ): Promise<Transaction[]> {
-  const res = await fetch(`${API_BASE}/wallet/${address}/transactions?limit=${limit}`);
+  const res = await authFetch(`${API_BASE}/wallet/${address}/transactions?limit=${limit}`);
   if (!res.ok) throw new Error("Failed to fetch wallet transactions");
   const data = await res.json();
   return data.transactions || [];
@@ -437,7 +453,7 @@ export async function sendProtectedTransfer(
   chain = "ethereum",
   asset = "ETH"
 ): Promise<TransferResponse> {
-  const res = await fetch(`${API_BASE}/transfer/protected`, {
+  const res = await authFetch(`${API_BASE}/transfer/protected`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -464,7 +480,7 @@ export async function analyzeAddress(address: string): Promise<{
   ai_insight: string;
   detection_count: number;
 }> {
-  const res = await fetch(`${API_BASE}/analyze/${address}`);
+  const res = await authFetch(`${API_BASE}/analyze/${address}`);
   if (!res.ok) throw new Error("Failed to analyze address");
   const payload = await res.json();
   return unwrapApiResponse(payload);

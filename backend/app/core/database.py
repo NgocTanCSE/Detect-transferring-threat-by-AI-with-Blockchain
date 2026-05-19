@@ -525,7 +525,7 @@ def ensure_schema() -> None:
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_blocked_transfers_chain_id ON blocked_transfers (chain_id)"))
 
             # Multi-tenant organization_id columns
-            for table in ['wallets', 'transactions', 'alerts', 'blocked_transfers', 'diagnostic_events']:
+            for table in ['users', 'wallets', 'transactions', 'alerts', 'blocked_transfers', 'diagnostic_events']:
                 org_col_exists = connection.execute(
                     text(
                         f"SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND column_name = 'organization_id' LIMIT 1"
@@ -535,6 +535,7 @@ def ensure_schema() -> None:
                     logger.warning(f"Applying schema fix: adding {table}.organization_id")
                     connection.execute(text(f"ALTER TABLE {table} ADD COLUMN organization_id UUID REFERENCES organizations(id)"))
                     connection.execute(text(f"CREATE INDEX IF NOT EXISTS idx_{table}_org_id ON {table} (organization_id)"))
+
             connection.execute(
                 text(
                     """
@@ -555,7 +556,6 @@ def ensure_schema() -> None:
                     """
                 )
             )
-
             connection.execute(
                 text(
                     """

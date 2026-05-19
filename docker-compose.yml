@@ -15,8 +15,8 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
-      interval: 10s
-      timeout: 5s
+      interval: 20s
+      timeout: 15s
       retries: 5
     networks:
       - blockchain_network
@@ -34,7 +34,7 @@ services:
     volumes:
       - postgres_main_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U blockchain" ]
+      test: [ "CMD-SHELL", "pg_isready -U blockchain -d blockchain_main" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -54,7 +54,7 @@ services:
     volumes:
       - postgres_alerts_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U blockchain" ]
+      test: [ "CMD-SHELL", "pg_isready -U blockchain -d blockchain_alerts" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -74,7 +74,7 @@ services:
     volumes:
       - postgres_transfers_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U blockchain" ]
+      test: [ "CMD-SHELL", "pg_isready -U blockchain -d blockchain_transfers" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -101,7 +101,8 @@ services:
     environment:
       NODE_ENV: development
       PORT: 8001
-      JWT_SECRET: your_jwt_secret_key_here_change_in_production
+      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      JWT_SECRET: a-very-strong-and-super-secret-jwt-key-for-local-dev-!@#$
       JWT_ALGORITHM: HS256
       AUTH_SERVICE_URL: http://auth-service:3001
       ALERT_SERVICE_URL: http://alert-service:3003
@@ -134,7 +135,7 @@ services:
       NODE_ENV: development
       PORT: 3001
       DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
-      JWT_SECRET: your_jwt_secret_key_here_change_in_production
+      JWT_SECRET: a-very-strong-and-super-secret-jwt-key-for-local-dev-!@#$
       JWT_EXPIRY: 7d
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3001/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
@@ -322,6 +323,9 @@ services:
     container_name: blockchain_ai_service
     ports:
       - "8000:8000"
+    command: /bin/sh -c "python bootstrap_supabase.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./database:/database
     environment:
       - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
@@ -347,7 +351,6 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8001
       - NEXT_PUBLIC_SOCKET_URL=http://localhost:3007
       - NEXT_PUBLIC_SENDER_ADDRESS=${NEXT_PUBLIC_SENDER_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
       - BACKEND_URL=http://api-gateway:8001

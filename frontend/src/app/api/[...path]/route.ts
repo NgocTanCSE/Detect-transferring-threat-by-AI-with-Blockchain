@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+const BACKEND_URL = process.env.BACKEND_URL || "http://api-gateway:8001";
 
 function buildBackendUrl(request: NextRequest, params: { path: string[] }): string {
   const path = params.path.join("/");
@@ -14,7 +14,17 @@ function forwardHeaders(request: NextRequest): Headers {
   const authorization = request.headers.get("authorization");
   const accept = request.headers.get("accept");
   const cookie = request.headers.get("cookie") || "";
-  const authTokenFromCookie = cookie.match(/(?:^|;\s*)auth_token=([^;]+)/)?.[1];
+  
+  // Try multiple ways to get the auth token
+  let authTokenFromCookie = cookie.match(/(?:^|;\s*)auth_token=([^;]+)/)?.[1];
+  
+  // Fallback: use Next.js cookies API
+  if (!authTokenFromCookie) {
+    const nextCookie = request.cookies.get("auth_token");
+    if (nextCookie?.value) {
+      authTokenFromCookie = nextCookie.value;
+    }
+  }
 
   if (contentType) headers.set("content-type", contentType);
   if (authorization) {

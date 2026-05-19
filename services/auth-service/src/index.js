@@ -52,7 +52,7 @@ authApp.use(morgan(':method :url :status :res[content-length] - :response-time m
 // CONSTANTS
 // ==========================================
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'your-secret-key-change-in-production';
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
 const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
 

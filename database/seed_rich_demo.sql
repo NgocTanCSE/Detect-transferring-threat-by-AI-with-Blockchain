@@ -53,7 +53,7 @@ VALUES (
         '11111111-1111-1111-1111-111111111101',
         'linh_analyst',
         'linh.analyst@local',
-        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.9HvD6s1qWq1q1q',
+        '$2a$10$LC.LYgG1EAl3viM0P4A/9OacH.9lxv/SLdAZSI4NHYv8eb0mKOykS',
         'analyst',
         NULL,
         true,
@@ -63,7 +63,7 @@ VALUES (
         '11111111-1111-1111-1111-111111111102',
         'khanh_analyst',
         'khanh.analyst@local',
-        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.9HvD6s1qWq1q1q',
+        '$2a$10$LC.LYgG1EAl3viM0P4A/9OacH.9lxv/SLdAZSI4NHYv8eb0mKOykS',
         'analyst',
         NULL,
         true,
@@ -73,12 +73,12 @@ VALUES (
         '11111111-1111-1111-1111-111111111103',
         'compliance_admin',
         'compliance.admin@local',
-        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.9HvD6s1qWq1q1q',
+        '$2a$10$LC.LYgG1EAl3viM0P4A/9OacH.9lxv/SLdAZSI4NHYv8eb0mKOykS',
         'admin',
         NULL,
         true,
         0
-    ) ON CONFLICT (email) DO NOTHING;
+    ) ON CONFLICT (username) DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- Wallets (broader risk distribution)

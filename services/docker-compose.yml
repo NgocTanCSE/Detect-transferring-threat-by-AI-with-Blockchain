@@ -325,6 +325,9 @@ services:
     container_name: blockchain_ai_service
     ports:
       - "8000:8000"
+    command: /bin/sh -c "python bootstrap_supabase.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ../database:/database
     environment:
       - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}

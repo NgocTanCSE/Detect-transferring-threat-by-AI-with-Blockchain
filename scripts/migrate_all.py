@@ -23,10 +23,10 @@ def split_sql_statements(sql_content):
     return statements
 
 def run_migration():
-    init_path = 'database/init.sql'
-    seed_path = 'database/seed_demo_data.sql'
+    init_path = 'database/init.sql' if os.path.exists('database/init.sql') else '/database/init.sql'
+    seed_path = 'database/seed_rich_demo.sql' if os.path.exists('database/seed_rich_demo.sql') else '/database/seed_rich_demo.sql'
     
-    print("Reading SQL files...")
+    print(f"Reading SQL files from: {init_path} and {seed_path}...")
     with open(init_path, 'r', encoding='utf-8') as f:
         init_sql = f.read()
     with open(seed_path, 'r', encoding='utf-8') as f:

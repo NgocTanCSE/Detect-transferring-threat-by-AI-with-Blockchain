@@ -1,11 +1,13 @@
 import psycopg2
 import json
 
+import os
+
 # Connection strings
-MONOLITH_URL = "postgresql://blockchain:blockchain123@localhost:5432/blockchain_monolith"
-MAIN_URL = "postgresql://blockchain:blockchain123@localhost:5432/blockchain_main"
-ALERTS_URL = "postgresql://blockchain:blockchain123@localhost:5433/blockchain_alerts"
-TRANSFERS_URL = "postgresql://blockchain:blockchain123@localhost:5434/blockchain_transfers"
+MONOLITH_URL = os.getenv("DATABASE_URL_MAIN", "postgresql://blockchain:blockchain123@localhost:5432/blockchain_main")
+MAIN_URL = os.getenv("DATABASE_URL_MAIN", "postgresql://blockchain:blockchain123@localhost:5432/blockchain_main")
+ALERTS_URL = os.getenv("DATABASE_URL_ALERTS", "postgresql://blockchain:blockchain123@localhost:5433/blockchain_alerts")
+TRANSFERS_URL = os.getenv("DATABASE_URL_TRANSFERS", "postgresql://blockchain:blockchain123@localhost:5434/blockchain_transfers")
 
 TABLES_MAIN = [
     'users', 'wallets', 'audit_logs', 'policy_rules', 'model_registry', 

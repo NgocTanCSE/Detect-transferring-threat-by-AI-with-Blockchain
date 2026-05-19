@@ -4,25 +4,25 @@
 
 @layer base {
   :root {
-    --background: 240 10% 4%;
+    --background: 0 0% 3%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 8%;
+    --card: 0 0% 6%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 8%;
+    --popover: 0 0% 6%;
     --popover-foreground: 0 0% 98%;
     --primary: 0 0% 98%;
-    --primary-foreground: 240 10% 4%;
-    --secondary: 240 5% 12%;
+    --primary-foreground: 0 0% 3%;
+    --secondary: 0 0% 12%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 5% 12%;
-    --muted-foreground: 240 5% 65%;
-    --accent: 240 5% 15%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 0 0% 15%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 240 5% 20%;
-    --input: 240 5% 20%;
-    --ring: 240 5% 60%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 60%;
     --radius: 0.75rem;
     --chart-1: 0 0% 90%;
     --chart-2: 0 0% 70%;
@@ -38,9 +38,9 @@
   }
 
   body {
-    @apply bg-[#08080a] text-slate-100;
+    @apply bg-[#050505] text-slate-100;
     font-feature-settings: "rlig" 1, "calt" 1;
-    background: radial-gradient(circle at 50% -20%, #1a1a1f 0%, #08080a 80%);
+    background: radial-gradient(circle at 50% -20%, #171717 0%, #050505 80%);
     background-attachment: fixed;
     min-height: 100vh;
   }
@@ -52,16 +52,16 @@
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-[#08080a];
+    @apply bg-[#050505];
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-slate-800 rounded-full;
+    @apply bg-zinc-800 rounded-full;
     border: 1px solid rgba(255, 255, 255, 0.05);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-700;
+    @apply bg-zinc-700;
   }
 }
 
@@ -71,7 +71,7 @@
   /* ====================== */
 
   .glass-card {
-    @apply bg-slate-900/60 backdrop-blur-xl border border-slate-800/50;
+    @apply bg-zinc-950/60 backdrop-blur-xl border border-zinc-900/50;
     box-shadow:
       0 4px 24px -1px rgba(0, 0, 0, 0.4),
       0 2px 8px -2px rgba(0, 0, 0, 0.3),
@@ -93,7 +93,7 @@
 
   /* Legacy glass effect */
   .glass {
-    @apply bg-slate-800/80 backdrop-blur-sm;
+    @apply bg-zinc-900/80 backdrop-blur-sm;
   }
 
   /* ====================== */
@@ -363,7 +363,7 @@
   }
 
   .card-hover {
-    @apply transition-all duration-200 hover:bg-slate-800/60;
+    @apply transition-all duration-200 hover:bg-zinc-900/60;
   }
 
   .card-glow-hover {

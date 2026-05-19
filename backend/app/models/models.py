@@ -71,7 +71,7 @@ class TokenTransfer(Base):
 
     __tablename__ = "token_transfers"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     transaction_hash = Column(String(66), nullable=False, index=True)
     block_number = Column(BigInteger, nullable=False)
     log_index = Column(BigInteger, nullable=False)
@@ -97,7 +97,7 @@ class Wallet(Base):
 
     __tablename__ = "wallets"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     address = Column(String(255), unique=True, index=True, nullable=False)
     label = Column(String(255), nullable=True)
     entity_type = Column(String(50), default='Unknown')
@@ -129,7 +129,7 @@ class Transaction(Base):
 
     __tablename__ = "transactions"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tx_hash = Column(String(66), unique=True, index=True, nullable=False)
     from_address = Column(String(255), index=True, nullable=False)
     to_address = Column(String(255), index=True, nullable=True)
@@ -142,7 +142,7 @@ class Transaction(Base):
     status = Column(SmallInteger, default=1)  # 1=success, 0=failed
     normalized_risk_score = Column(DECIMAL(3, 2), nullable=True)  # 0.00 - 1.00
     case_status = Column(String(20), nullable=False, default='PENDING', index=True)
-    assigned_to = Column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
+    assigned_to = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_flagged = Column(Boolean, default=False)
     flag_reason = Column(String(100), nullable=True)
@@ -159,8 +159,8 @@ class RiskAssessment(Base):
 
     __tablename__ = "risk_assessments"
 
-    id = Column(BigInteger, primary_key=True, index=True)
-    wallet_id = Column(BigInteger, ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    wallet_id = Column(SA_UUID(as_uuid=True), ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False, index=True)
     score = Column(Float, nullable=False)
     risk_level = Column(String(20), nullable=False)
     details = Column(JSONB, nullable=True)
@@ -178,7 +178,7 @@ class Blacklist(Base):
 
     __tablename__ = "blacklist"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     address = Column(String(255), unique=True, index=True, nullable=False)
     category = Column(String(100), nullable=True)
     source = Column(String(255), nullable=True)
@@ -198,7 +198,7 @@ class Alert(Base):
 
     __tablename__ = "alerts"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     wallet_address = Column(String(255), index=True, nullable=False)
     alert_type = Column(String(100), nullable=False)
     severity = Column(String(20), nullable=False)
@@ -221,7 +221,7 @@ class BlockedTransfer(Base):
 
     __tablename__ = "blocked_transfers"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     sender_address = Column(String(255), nullable=False, index=True)
     receiver_address = Column(String(255), nullable=False, index=True)
     amount = Column(DECIMAL(78, 0), nullable=False)
@@ -229,7 +229,7 @@ class BlockedTransfer(Base):
     block_reason = Column(String(100), nullable=False)
     chain_id = Column(String(50), default='ethereum', index=True)
     user_warning_count = Column(Integer, default=0)
-    sender_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    sender_user_id = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     blocked_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
@@ -242,8 +242,8 @@ class UserWarning(Base):
 
     __tablename__ = "user_warnings"
 
-    id = Column(BigInteger, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
     wallet_address = Column(String(255), nullable=False, index=True)
     target_address = Column(String(255), nullable=False)
     warning_type = Column(String(50), nullable=False)
@@ -263,10 +263,10 @@ class AuditLog(Base):
 
     __tablename__ = "audit_logs"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     action_type = Column(String(50), nullable=False, index=True)
     entity_type = Column(String(50), nullable=False)
-    entity_id = Column(BigInteger, nullable=True)
+    entity_id = Column(SA_UUID(as_uuid=True), nullable=True)
     user_identifier = Column(String(255), nullable=True)
     ip_address = Column(INET, nullable=True)
     details = Column(JSONB, nullable=True)
@@ -286,7 +286,7 @@ class FeedbackLabel(Base):
 
     __tablename__ = "feedback_labels"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     wallet_address = Column(String(255), nullable=False, index=True)
 
     # AI prediction at time of feedback
@@ -314,10 +314,10 @@ class TransactionCase(Base):
 
     __tablename__ = "transaction_cases"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     # Avoid FK to partitioned transactions table, which does not expose a compatible unique key for tx_hash.
     tx_hash = Column(String(66), nullable=False, index=True)
-    analyst_id = Column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
+    analyst_id = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
     action = Column(String(20), nullable=False)  # ASSIGN, CONFIRM_FRAUD, DISMISS, ESCALATE
     state = Column(String(20), nullable=False, default='PENDING')  # PENDING, VERIFIED, FRAUD, IGNORED
     note = Column(Text, nullable=True)
@@ -333,7 +333,7 @@ class NodeEndpoint(Base):
 
     __tablename__ = "node_endpoints"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     provider_name = Column(String(100), nullable=False, index=True)
     chain = Column(String(50), nullable=False, index=True)
     endpoint_url = Column(String(1024), nullable=False)
@@ -372,11 +372,11 @@ class FeatureStoreConfig(Base):
 
     __tablename__ = "feature_store_configs"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     feature_key = Column(String(100), nullable=False, unique=True, index=True)
     enabled = Column(Boolean, default=True, index=True)
     expression = Column(Text, nullable=True)
-    owner_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
+    owner_user_id = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
     organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -390,13 +390,13 @@ class ModelRegistry(Base):
 
     __tablename__ = "model_registry"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     model_name = Column(String(100), nullable=False, index=True)
     version = Column(String(50), nullable=False, index=True)
     artifact_uri = Column(String(1024), nullable=False)
     framework = Column(String(20), nullable=False, default='pkl')  # pkl, onnx, pt
     is_active = Column(Boolean, default=False, index=True)
-    promoted_by = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    promoted_by = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     promoted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -409,7 +409,7 @@ class PolicyRule(Base):
 
     __tablename__ = "policy_rules"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     rule_name = Column(String(120), nullable=False, unique=True, index=True)
     description = Column(Text, nullable=True)
     min_risk_score = Column(Float, nullable=False, default=80.0)
@@ -418,7 +418,7 @@ class PolicyRule(Base):
     notify_on_block = Column(Boolean, default=True)
     priority = Column(Integer, nullable=False, default=100)
     is_active = Column(Boolean, default=True, index=True)
-    created_by = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    created_by = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -432,7 +432,7 @@ class NotificationEvent(Base):
 
     __tablename__ = "notification_events"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     channel = Column(String(30), nullable=False, index=True)  # slack, telegram, email, webhook
     recipient = Column(String(255), nullable=False)
     severity = Column(String(20), nullable=False, default="MEDIUM", index=True)
@@ -451,7 +451,7 @@ class DiagnosticEvent(Base):
 
     __tablename__ = "diagnostic_events"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     log_type = Column(String(30), nullable=False, index=True)
     message = Column(Text, nullable=False)
     details = Column(JSONB, nullable=True)
@@ -471,7 +471,7 @@ class MoneyFlowSnapshot(Base):
 
     __tablename__ = "money_flow_snapshots"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     date = Column(Date, nullable=False, index=True)
     inflow_eth = Column(Float, default=0.0)
     outflow_eth = Column(Float, default=0.0)
@@ -485,7 +485,7 @@ class ComplianceKPI(Base):
 
     __tablename__ = "compliance_kpis"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     metric_key = Column(String(100), nullable=False, index=True) # e.g. alerts_total
     metric_value = Column(Float, nullable=False)
     category = Column(String(50), nullable=True, index=True) # e.g. security, policy
@@ -497,7 +497,7 @@ class SystemHealthSnapshot(Base):
 
     __tablename__ = "system_health_snapshots"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     availability_pct = Column(Float, default=100.0)
     latency_p95_ms = Column(Float, default=0.0)
     error_budget_burn = Column(Float, default=0.0)
@@ -510,7 +510,7 @@ class AIThreatLog(Base):
 
     __tablename__ = "ai_threat_logs"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     wallet_address = Column(String(255), nullable=False, index=True)
     threat_type = Column(String(50), nullable=False, index=True) # e.g. CYCLE, TRACE_BACK
     risk_score = Column(Float, nullable=False)
