@@ -53,8 +53,10 @@ if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres://* || "$DATABASE_UR
     echo "Using PostgreSQL. Attempting database bootstrap..."
     cd /app/backend
     python bootstrap_supabase.py || echo "Bootstrap failed (DB might not be ready yet), continuing..."
-    echo "Attempting migrations..."
-    python migrate.py || echo "Migration failed (DB might not be ready yet), continuing..."
+    echo "Running Alembic migrations..."
+    alembic -c /app/backend/alembic.ini upgrade head || echo "Alembic migration failed (DB might not be ready yet), continuing..."
+    echo "Attempting legacy Python migrations (if any)..."
+    python migrate.py || echo "Migration script failed (DB might not be ready yet), continuing..."
 else
     echo "Using local SQLite database at /data/blockchain_local.db. Attempting seed..."
     cd /app/backend

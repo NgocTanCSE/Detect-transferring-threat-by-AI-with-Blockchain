@@ -44,6 +44,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case
 
+from app import schemas  # noqa: F401  # ensure schemas are imported for OpenAPI generation
 from app.core.database import engine, get_db, Base, ensure_schema
 from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase, NodeEndpoint, PipelineMetric, FeatureStoreConfig, ModelRegistry, PolicyRule, NotificationEvent, DiagnosticEvent, MoneyFlowSnapshot, ComplianceKPI, SystemHealthSnapshot, AIThreatLog, Organization
 from blockchain_client import fetch_wallet_history
@@ -877,7 +878,7 @@ def _build_dashboard_assistant_context(
     return context
 
 
-@app.post("/assistant/chat", tags=["Assistant"])
+@app.post("/assistant/chat", tags=["Assistant"], summary="Chat with Sentinel Prime AI", description="Interactive AI assistant that answers questions about blockchain risk, system status, and compliance operational guidance based on real-time context.")
 def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     message = str(payload.get("message", "")).strip()
     role = str(payload.get("role", "operator")).strip() or "operator"
@@ -1134,7 +1135,7 @@ def diagnose_alchemy_wallet(wallet_address: str, chain: str = Query("ethereum"))
         }
 
 
-@app.get("/analyze/{wallet_address}", tags=["Risk Assessment"])
+@app.get("/analyze/{wallet_address}", tags=["Risk Assessment"], summary="Analyze Wallet Risk", description="Performs a comprehensive risk assessment on a wallet address, combining ML scores, heuristics, and blacklist checks.")
 def analyze_wallet_risk(
     wallet_address: str,
     chain: str = Query("ethereum"),

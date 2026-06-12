@@ -59,6 +59,76 @@ app.get('/ready', async (req, res) => {
   }
 });
 
+/**
+ * POST /evaluate-policy
+ * Evaluate a wallet against active policy rules.
+ * Body: { wallet_address: string, risk_score?: number, account_status?: string }
+ */
+app.post('/evaluate-policy', async (req, res) => {
+  const { wallet_address, risk_score, account_status } = req.body;
+  if (!wallet_address) {
+    return res.status(400).json({ error: 'wallet_address is required' });
+  }
+  const risk = parseFloat(risk_score || 0);
+  const status = (account_status || '').toLowerCase() || 'active';
+
+  try {
+    // Load active policy rules ordered by priority
+    const { rows: rules } = await pool.query(
+      'SELECT * FROM policy_rules WHERE is_active = true ORDER BY priority ASC, created_at DESC'
+    );
+
+    // Determine blacklist status of the wallet
+    const blacklistRes = await pool.query(
+      'SELECT 1 FROM blacklist WHERE LOWER(address) = $1',
+      [wallet_address.toLowerCase()]
+    );
+    const isBlacklisted = blacklistRes.rowCount > 0;
+
+    // Evaluate each rule sequentially (first match wins)
+    for (const rule of rules) {
+      let block = false;
+      let reason = '';
+
+      if (risk >= parseFloat(rule.min_risk_score)) {
+        block = true;
+        reason = `Risk score ${risk} >= ${rule.min_risk_score}`;
+      }
+      if (!block && rule.block_blacklisted && isBlacklisted) {
+        block = true;
+        reason = 'Wallet is blacklisted';
+      }
+      if (!block && rule.block_suspended && ['suspended', 'frozen', 'under_review'].includes(status)) {
+        block = true;
+        reason = `Account status ${status} blocked by policy`;
+      }
+
+      if (block) {
+        // Publish notification if rule requests it
+        if (rule.notify_on_block) {
+          await queue.publishEvent('policy.blocked', {
+            event_type: 'POLICY_BLOCKED',
+            wallet_address,
+            risk_score: risk,
+            account_status: status,
+            rule_id: rule.id,
+            rule_name: rule.rule_name,
+            reason,
+            timestamp: new Date().toISOString()
+          });
+        }
+        return res.json({ blocked: true, rule_id: rule.id, rule_name: rule.rule_name, reason });
+      }
+    }
+
+    // No rule triggered a block
+    res.json({ blocked: false });
+  } catch (error) {
+    console.error('Policy evaluation error:', error);
+    res.status(500).json({ error: 'Failed to evaluate policy' });
+  }
+});
+
 // Get all policy rules
 app.get('/policy-rules', async (req, res) => {
   try {
