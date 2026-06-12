@@ -36,14 +36,24 @@ CREATE INDEX IF NOT EXISTS idx_users_org_id ON users (organization_id);
 -- Update wallets table to support organizations
 -- We need to ensure wallets table exists first (it's created by analytics-service or manually)
 CREATE TABLE IF NOT EXISTS wallets (
-    address VARCHAR(255) PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    address VARCHAR(255) NOT NULL UNIQUE,
     label VARCHAR(255),
     entity_type VARCHAR(50) DEFAULT 'Unknown',
     organization_id UUID REFERENCES organizations(id),
     account_status VARCHAR(20) DEFAULT 'active',
     risk_score FLOAT DEFAULT 0.0,
     risk_category VARCHAR(50),
+    total_transactions BIGINT DEFAULT 0,
+    total_value_sent NUMERIC(78, 0) DEFAULT 0,
+    total_value_received NUMERIC(78, 0) DEFAULT 0,
+    first_seen_at TIMESTAMP WITH TIME ZONE,
+    last_activity_at TIMESTAMP WITH TIME ZONE,
     is_blacklisted BOOLEAN DEFAULT FALSE,
+    chain_id VARCHAR(50) DEFAULT 'ethereum',
+    flagged_at TIMESTAMP WITH TIME ZONE,
+    flagged_by VARCHAR(255),
+    notes TEXT,
     last_scanned_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

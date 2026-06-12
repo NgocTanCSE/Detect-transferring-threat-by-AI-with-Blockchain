@@ -184,6 +184,23 @@ export default function PolicyRulesPanel({
     });
   }, [activeFilter, mutablePolicies, searchTerm]);
 
+  async function handleEvaluate(policyId: string) {
+    try {
+      setIsMutating(true);
+      const response = await authFetch(`/api/ops/compliance/policy-evaluate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ policy_id: policyId }),
+      });
+      if (!response.ok) throw new Error("Evaluation failed");
+      notify(`Policy ${policyId} evaluation triggered.`, "success");
+    } catch (err) {
+      notify("Failed to trigger evaluation", "error");
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
   const sortedPolicies = useMemo(() => {
     const sorted = [...filteredPolicies].sort((left, right) => {
       const multiplier = sortDir === "asc" ? 1 : -1;
@@ -318,25 +335,25 @@ export default function PolicyRulesPanel({
       <div className="grid gap-3 md:grid-cols-4">
         <MetricBlock
           label="Active rules"
-          value={formatCompact(reportingSummary?.kpis.policy_rules_active ?? mutablePolicies.filter((item) => item.is_active).length)}
+          value={formatCompact(reportingSummary?.kpis?.policy_rules_active ?? mutablePolicies.filter((item) => item.is_active).length)}
           helper="Enforcement surface"
           tone="amber"
         />
         <MetricBlock
           label="Blocked transfers"
-          value={formatCompact(reportingSummary?.kpis.blocked_total ?? 0)}
+          value={formatCompact(reportingSummary?.kpis?.blocked_total ?? 0)}
           helper="30-day count"
           tone="rose"
         />
         <MetricBlock
           label="Notifications sent"
-          value={formatCompact(reportingSummary?.kpis.notifications_sent ?? 0)}
+          value={formatCompact(reportingSummary?.kpis?.notifications_sent ?? 0)}
           helper="Delivery trail"
           tone="violet"
         />
         <MetricBlock
           label="Audit events"
-          value={formatCompact(reportingSummary?.kpis.audit_events ?? 0)}
+          value={formatCompact(reportingSummary?.kpis?.audit_events ?? 0)}
           helper="Evidence trail"
           tone="emerald"
         />

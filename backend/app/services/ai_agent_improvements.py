@@ -38,8 +38,14 @@ def _build_enhanced_dashboard_context(
     - System health metrics
     - Policy effectiveness
     """
-    from app.models import Wallet, Alert, Transaction, BlockedTransfer, TransactionCase, CompliancePolicy
-    from app.utils import _eth_from_wei
+    from app.models.models import Wallet, Alert, Transaction, BlockedTransfer, TransactionCase, PolicyRule
+    from sqlalchemy import func, case
+    
+    def _eth_from_wei(val):
+        try:
+            return float(val) / 10**18
+        except:
+            return 0.0
 
     now = datetime.utcnow()
     seven_days_ago = now - timedelta(days=7)
@@ -68,7 +74,7 @@ def _build_enhanced_dashboard_context(
         alerts_today = database_session.query(Alert).filter(Alert.detected_at >= today_start).count()
         alerts_24h = database_session.query(Alert).filter(Alert.detected_at >= one_day_ago).count()
         total_blocked = database_session.query(BlockedTransfer).count()
-        blocked_today = database_session.query(BlockedTransfer).filter(BlockedTransfer.created_at >= today_start).count()
+        blocked_today = database_session.query(BlockedTransfer).filter(BlockedTransfer.blocked_at >= today_start).count()
 
         context["overview"] = {
             "total_wallets": total_wallets,
@@ -102,7 +108,7 @@ def _build_enhanced_dashboard_context(
         # ===== RISK DISTRIBUTION =====
         risk_dist = database_session.query(
             func.count(Wallet.id).label("count"),
-            func.case(
+            case(
                 (Wallet.risk_score >= 80, "CRITICAL"),
                 (Wallet.risk_score >= 60, "HIGH"),
                 (Wallet.risk_score >= 40, "MEDIUM"),
@@ -112,7 +118,7 @@ def _build_enhanced_dashboard_context(
         ).group_by("risk_level").all()
 
         context["risk_distribution"] = {
-            item.risk_level: item.count for item in risk_dist
+            str(item.risk_level): item.count for item in risk_dist
         }
 
         # ===== 7-DAY FLOW =====
@@ -173,20 +179,20 @@ def _build_enhanced_dashboard_context(
         try:
             recent_cases = (
                 database_session.query(TransactionCase)
-                .filter(TransactionCase.status.in_(["PENDING", "FLAGGED"]))
+                .filter(TransactionCase.state.in_(["PENDING", "FLAGGED"]))
                 .order_by(TransactionCase.created_at.desc())
                 .limit(5)
                 .all()
             )
             context["recent_high_priority_cases"] = [
                 {
-                    "case_id": case.case_id,
-                    "status": case.status,
-                    "case_type": case.case_type,
-                    "created_at": case.created_at.isoformat() if case.created_at else None,
-                    "wallet_address": case.wallet_address,
+                    "case_id": str(case_item.id),
+                    "status": case_item.state,
+                    "case_type": case_item.action,
+                    "created_at": case_item.created_at.isoformat() if case_item.created_at else None,
+                    "tx_hash": case_item.tx_hash,
                 }
-                for case in recent_cases
+                for case_item in recent_cases
             ]
         except Exception as e:
             logger.warning(f"Recent cases query failed: {e}")
@@ -194,15 +200,15 @@ def _build_enhanced_dashboard_context(
 
         # ===== POLICY EFFECTIVENESS =====
         try:
-            policies = database_session.query(CompliancePolicy).limit(5).all()
+            policies = database_session.query(PolicyRule).limit(5).all()
             context["active_policies"] = [
                 {
-                    "policy_id": p.policy_id,
-                    "name": p.name,
-                    "is_enabled": p.is_enabled,
-                    "rule_count": len(p.rules) if hasattr(p, 'rules') else 0,
+                    "policy_id": str(p.id),
+                    "name": p.rule_name,
+                    "is_enabled": p.is_active,
+                    "rule_count": 0, # Simplified
                 }
-                for p in policies if p.is_enabled
+                for p in policies if p.is_active
             ]
         except Exception as e:
             logger.warning(f"Active policies query failed: {e}")
@@ -340,7 +346,7 @@ def _build_dynamic_account_support_answer(
     """
     Build account support answers using live system state instead of hardcoded templates.
     """
-    from app.models import User
+    from app.models.models import User
 
     q_lower = question.lower()
 

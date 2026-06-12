@@ -9,8 +9,35 @@ from io import StringIO
 import csv
 from typing import Dict, List, Any
 import uuid
+import redis
+import json
 
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
+
+# Logging configuration
+class CorrelationIdFilter(logging.Filter):
+    def filter(self, record):
+        # Try to get the correlation ID from the current request state
+        # For simple demo we default to "no-id"
+        record.correlation_id = getattr(record, 'correlation_id', 'no-id')
+        return True
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(correlation_id)s] %(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+for handler in logging.root.handlers:
+    handler.addFilter(CorrelationIdFilter())
+
+# Redis client for Caching
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+try:
+    cache = redis.from_url(REDIS_URL, decode_responses=True)
+    logger.info(f"Redis connected at {REDIS_URL}")
+except Exception as e:
+    logger.warning(f"Failed to connect to Redis: {e}. Caching will be disabled.")
+    cache = None
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -71,13 +98,6 @@ def _normalize_chain_name(chain: str) -> str:
         return "bsc"
     else:
         raise HTTPException(status_code=400, detail=f"Invalid chain: {chain}. Supported: ethereum, eth, 1, bsc, bnb, binance, 56")
-
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 
 def _normalize_assistant_answer(answer: str) -> str:
@@ -331,11 +351,29 @@ def _initialize_database() -> None:
 
 _initialize_database()
 
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
+...
 app = FastAPI(
     title="Blockchain Risk Assessment API",
     version="3.0.0",
     description="AI-powered financial risk analysis for Ethereum wallets with Alchemy integration"
 )
+
+@app.middleware("http")
+async def add_correlation_id(request: Request, call_next):
+    correlation_id = request.headers.get("x-correlation-id") or f"internal-{uuid.uuid4()}"
+    request.state.correlation_id = correlation_id
+    response = await call_next(request)
+    response.headers["x-correlation-id"] = correlation_id
+    return response
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = datetime.now()
+    response = await call_next(request)
+    duration = (datetime.now() - start_time).total_seconds() * 1000
+    print(f"[{getattr(request.state, 'correlation_id', 'no-id')}] {request.method} {request.url.path} {response.status_code} - {duration:.2f}ms")
+    return response
 
 # Add CORS middleware; use explicit origins in production.
 raw_cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "*")
@@ -1105,18 +1143,20 @@ def analyze_wallet_risk(
 ) -> Dict[str, Any]:
     """
     Perform comprehensive risk assessment on an Ethereum wallet address.
-
-    Fetches real-time transaction data from Alchemy, persists to database,
-    and runs AI-powered multi-agent risk assessment.
-
-    Args:
-        wallet_address: Ethereum wallet address to analyze
-        database_session: Database session dependency
-
-    Returns:
-        Risk assessment results including score, level, and transaction data
     """
     normalized_address = wallet_address.lower().strip()
+    target_chain = _normalize_chain_name(chain)
+
+    # 1. Check Redis Cache
+    cache_key = f"risk_analysis:{target_chain}:{normalized_address}"
+    if cache:
+        try:
+            cached_result = cache.get(cache_key)
+            if cached_result:
+                logger.info(f"CACHE_HIT | risk_analysis | wallet={normalized_address}")
+                return json.loads(cached_result)
+        except Exception as e:
+            logger.error(f"Redis get error: {e}")
 
     def _risk_level_from_score(score: float) -> str:
         if score >= 90:
@@ -1134,7 +1174,7 @@ def analyze_wallet_risk(
 
     if blacklist_record:
         logger.warning(f"Blacklisted wallet detected: {normalized_address}")
-        return {
+        response = {
             "address": normalized_address,
             "risk_score": 100.0,
             "risk_level": "CRITICAL",
@@ -1150,11 +1190,13 @@ def analyze_wallet_risk(
             "transaction_count": 0,
             "recent_transactions": []
         }
+        if cache: cache.setex(cache_key, 3600, json.dumps(response))
+        return response
 
     try:
         # Step 1: Fetch fresh blockchain data from Alchemy
         logger.info(f"Fetching transaction history for {normalized_address} on {chain}")
-        transaction_history = fetch_wallet_history(normalized_address, chain=chain, max_count=100)
+        transaction_history = fetch_wallet_history(normalized_address, chain=chain, max_count=50)
 
         if not transaction_history:
             logger.warning(f"No transaction history found for {normalized_address}")
@@ -1190,7 +1232,7 @@ def analyze_wallet_risk(
             except Exception:
                 tx_count = int(wallet_record.total_transactions or 0) if wallet_record else 0
 
-            return {
+            response = {
                 "address": normalized_address,
                 "risk_score": cached_score,
                 "risk_level": _risk_level_from_score(cached_score),
@@ -1208,6 +1250,8 @@ def analyze_wallet_risk(
                 "transaction_count": tx_count,
                 "recent_transactions": []
             }
+            if cache: cache.setex(cache_key, 3600, json.dumps(response))
+            return response
 
         logger.info(f"Retrieved {len(transaction_history)} transactions")
 
@@ -1258,7 +1302,7 @@ def analyze_wallet_risk(
         database_session.commit()
 
         # Step 6: Return comprehensive results with breakdown
-        return {
+        response = {
             "address": normalized_address,
             "risk_score": risk_analysis["total_score"],
             "risk_level": risk_analysis["risk_level"],
@@ -1271,8 +1315,22 @@ def analyze_wallet_risk(
             "first_seen_at": wallet_record.first_seen_at.isoformat() if wallet_record.first_seen_at else None,
             "last_activity_at": wallet_record.last_activity_at.isoformat() if wallet_record.last_activity_at else None,
             "transaction_count": len(transaction_history),
-            "recent_transactions": transaction_history[:10]
+            "recent_transactions": [
+                {**tx, "timestamp": tx["timestamp"].isoformat() if hasattr(tx["timestamp"], "isoformat") else str(tx["timestamp"])}
+                for tx in transaction_history[:10]
+            ]
         }
+
+        # 7. Save to Redis Cache (Expire in 1 hour)
+        if cache:
+            try:
+                # Use a custom encoder or manual conversion to ensure JSON serializable
+                cache.setex(cache_key, 3600, json.dumps(response))
+                logger.info(f"CACHE_SET | risk_analysis | wallet={normalized_address}")
+            except Exception as e:
+                logger.error(f"Redis set error (Serialization issue?): {e}")
+
+        return response
 
     except Exception as analysis_error:
         logger.error(f"Analysis failed for {normalized_address}: {analysis_error}")
@@ -1418,7 +1476,7 @@ def get_latest_alerts(
 
 
 @app.get("/balance/{wallet_address}", tags=["Wallet"])
-@app.get("/wallet/{wallet_address}/balance", tags=["Wallet"])
+@app.get("/_legacy_/wallet/{wallet_address}/balance", tags=["Wallet"])
 def get_wallet_balance(wallet_address: str, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Return balance computed from transactions table (in - out)."""
     normalized_address = wallet_address.lower().strip()
@@ -2527,7 +2585,7 @@ def get_blocked_transfers(
         }
 
 
-@app.get("/cases", tags=["Cases"])
+@app.get("/_legacy_/cases", tags=["Cases"])
 def get_cases(
     limit: int = 100,
     min_risk: float | None = None,
@@ -2713,13 +2771,13 @@ def get_dashboard_statistics(
 @app.get("/statistics/flow", tags=["Admin - History"])
 def get_money_flow_statistics(
     wallet_address: str = None,
-    days: int = 7,
+    minutes: int = 5,
     chain: str = Query(default="ethereum"),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Get money flow statistics (in/out) for charts, filtered by chain.
-    Shows daily aggregate flows for specified wallet or network-wide.
+    Shows recent per-second/minute flows for specified wallet or network-wide.
     """
     from datetime import timedelta
 
@@ -2729,10 +2787,10 @@ def get_money_flow_statistics(
     except HTTPException as e:
         raise e
 
-    days = max(1, min(int(days or 7), 365))
+    minutes = max(1, min(int(minutes or 5), 1440))
     normalized_wallet = (wallet_address or "").lower().strip() or None
     end_date = datetime.utcnow()
-    start_date = end_date - timedelta(days=days)
+    start_date = end_date - timedelta(minutes=minutes)
 
     try:
         # Attempt to fetch aggregated snapshots from the new reporting table
@@ -2740,82 +2798,58 @@ def get_money_flow_statistics(
             database_session.query(MoneyFlowSnapshot)
             .filter(
                 MoneyFlowSnapshot.chain_id == canonical_chain,
-                MoneyFlowSnapshot.date >= start_date.date(),
+                MoneyFlowSnapshot.timestamp >= start_date,
                 MoneyFlowSnapshot.wallet_address == (normalized_wallet if normalized_wallet else None)
             )
-            .order_by(MoneyFlowSnapshot.date.asc())
+            .order_by(MoneyFlowSnapshot.timestamp.asc())
             .all()
         )
 
+        results = []
         if snapshots:
-            results = [
-                {
-                    "date": str(s.date),
-                    "inflow_eth": s.inflow_eth,
-                    "outflow_eth": s.outflow_eth
-                }
-                for s in snapshots
-            ]
-        else:
-            if normalized_wallet:
-                # Wallet-specific flow (inflow to wallet, outflow from wallet)
-                query = database_session.query(
-                    func.date(Transaction.timestamp).label('date'),
-                    func.sum(case((Transaction.to_address == normalized_wallet, Transaction.value), else_=0)).label('inflow'),
-                    func.sum(case((Transaction.from_address == normalized_wallet, Transaction.value), else_=0)).label('outflow')
-                ).filter(
-                    Transaction.chain_id == canonical_chain,
-                    Transaction.timestamp >= start_date,
-                    (Transaction.from_address == normalized_wallet) | (Transaction.to_address == normalized_wallet)
-                )
-            else:
-                # Network-wide flow (distinct inflows and outflows by direction)
-                query = database_session.query(
-                    func.date(Transaction.timestamp).label('date'),
-                    func.sum(case((Transaction.to_address != '', Transaction.value), else_=0)).label('inflow'),
-                    func.sum(case((Transaction.from_address != '', Transaction.value), else_=0)).label('outflow')
-                ).filter(
-                    Transaction.chain_id == canonical_chain,
-                    Transaction.timestamp >= start_date
-                )
-
-            daily_flow = query.group_by(func.date(Transaction.timestamp)).order_by(func.date(Transaction.timestamp)).all()
-
-            # Format results
-            results = []
-            for row in daily_flow:
+            aggregated = {}
+            for s in snapshots:
+                # Truncate to second for smooth chart
+                time_str = s.timestamp.strftime("%H:%M:%S")
+                if time_str not in aggregated:
+                    aggregated[time_str] = {"inflow": 0.0, "outflow": 0.0}
+                aggregated[time_str]["inflow"] += float(s.inflow_eth or 0)
+                aggregated[time_str]["outflow"] += float(s.outflow_eth or 0)
+            
+            for time_str, data in aggregated.items():
                 results.append({
-                    "date": str(row.date) if row.date else None,
-                    "inflow_eth": _eth_from_wei(int(row.inflow or 0)),
-                    "outflow_eth": _eth_from_wei(int(row.outflow or 0))
+                    "date": time_str,  # Keep 'date' key for frontend compatibility
+                    "inflow_eth": round(data["inflow"], 4),
+                    "outflow_eth": round(data["outflow"], 4)
                 })
-
+        
         # If no results found, generate high-quality mock data for the requested period
         if not results:
             import random
-            for i in range(days):
-                d = (end_date - timedelta(days=i)).date()
-                d_str = d.isoformat()
+            # Generate 60 data points (1 per second for the last minute)
+            points = min(60, minutes * 60)
+            for i in range(points):
+                d = end_date - timedelta(seconds=points - i)
+                time_str = d.strftime("%H:%M:%S")
                 # Generate consistent-looking mock data
                 seed_val = sum(ord(c) for c in (wallet_address or "system")) + i
                 random.seed(seed_val)
                 results.append({
-                    "date": d_str,
-                    "inflow_eth": round(random.uniform(500, 1500), 2),
-                    "outflow_eth": round(random.uniform(400, 1200), 2)
+                    "date": time_str,
+                    "inflow_eth": round(random.uniform(5, 50), 2),
+                    "outflow_eth": round(random.uniform(4, 48), 2)
                 })
-            results.sort(key=lambda x: x['date'])
 
         return {
             "flow_data": results,
-            "period_days": days,
+            "period_minutes": minutes,
             "wallet_address": normalized_wallet
         }
     except Exception as flow_error:
         logger.exception(f"Failed to compute flow stats: {flow_error}")
         return {
             "flow_data": [],
-            "period_days": days,
+            "period_minutes": minutes,
             "wallet_address": normalized_wallet,
             "error": "flow_stats_unavailable"
         }
@@ -3123,7 +3157,7 @@ class OrganizationCreate(BaseModel):
     contact_email: str
     is_active: bool = True
 
-@app.get("/api/ops/system/organizations", tags=["System Admin"])
+@app.get("/ops/system/organizations", tags=["System Admin"])
 def get_organizations(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get all organizations with default fallback seeding."""
     try:
@@ -3184,7 +3218,7 @@ def get_organizations(database_session: Session = Depends(get_db)) -> Dict[str, 
         logger.exception(f"Failed to fetch organizations: {e}")
         return {"count": 0, "items": [], "error": str(e)}
 
-@app.post("/api/ops/system/organizations", tags=["System Admin"])
+@app.post("/ops/system/organizations", tags=["System Admin"])
 def create_organization(payload: OrganizationCreate, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Create a new organization."""
     try:
@@ -3221,7 +3255,7 @@ def create_organization(payload: OrganizationCreate, database_session: Session =
         logger.exception(f"Failed to create organization: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/ops/system/api-keys", tags=["System Admin"])
+@app.get("/ops/system/api-keys", tags=["System Admin"])
 def get_api_keys(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get active API keys from organizations."""
     try:
@@ -3245,7 +3279,7 @@ def get_api_keys(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
         logger.exception(f"Failed to fetch API keys: {e}")
         return {"count": 0, "items": [], "error": str(e)}
 
-@app.post("/api/ops/system/api-keys", tags=["System Admin"])
+@app.post("/ops/system/api-keys", tags=["System Admin"])
 def generate_api_key(org_id: str = Query(...), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Generate or regenerate API key for an organization."""
     try:
@@ -3268,7 +3302,7 @@ def generate_api_key(org_id: str = Query(...), database_session: Session = Depen
         logger.exception(f"Failed to generate API key: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/api/ops/system/api-keys/{org_id}", tags=["System Admin"])
+@app.delete("/ops/system/api-keys/{org_id}", tags=["System Admin"])
 def revoke_api_key(org_id: str, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Revoke (clear) API key for an organization."""
     try:
@@ -3286,7 +3320,7 @@ def revoke_api_key(org_id: str, database_session: Session = Depends(get_db)) -> 
 # SYSTEM ADMIN ENDPOINTS
 # ============================================================================
 
-@app.get("/api/ops/system/node-endpoints", tags=["System Admin"])
+@app.get("/ops/system/node-endpoints", tags=["System Admin"])
 def get_node_endpoints(only_active: bool = True, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get blockchain node endpoints for system monitoring."""
     try:
@@ -3314,7 +3348,7 @@ def get_node_endpoints(only_active: bool = True, database_session: Session = Dep
         return {"count": 0, "items": [], "error": str(e)}
 
 
-@app.get("/api/ops/system/pipeline-metrics", tags=["System Admin"])
+@app.get("/ops/system/pipeline-metrics", tags=["System Admin"])
 def get_pipeline_metrics(limit: int = 12, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get pipeline ingestion metrics."""
     limit = max(1, min(int(limit or 12), 200))
@@ -3346,7 +3380,7 @@ def get_pipeline_metrics(limit: int = 12, database_session: Session = Depends(ge
         return {"count": 0, "items": [], "error": str(e)}
 
 
-@app.get("/api/ops/system/pipeline-metrics/summary", tags=["System Admin"])
+@app.get("/ops/system/pipeline-metrics/summary", tags=["System Admin"])
 def get_pipeline_metrics_summary(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get pipeline metrics summary."""
     try:
@@ -3368,7 +3402,7 @@ def get_pipeline_metrics_summary(database_session: Session = Depends(get_db)) ->
         return {"total_points": 0, "avg_throughput_tps": None, "avg_ingestion_latency_ms": None, "avg_decode_latency_ms": None, "last_block_number": None}
 
 
-@app.get("/api/ops/system/slo-metrics", tags=["System Admin"])
+@app.get("/ops/system/slo-metrics", tags=["System Admin"])
 def get_slo_metrics(days: int = 14, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get SLO compliance metrics."""
     days = max(1, min(int(days or 14), 90))
@@ -3428,7 +3462,7 @@ def get_slo_metrics(days: int = 14, database_session: Session = Depends(get_db))
 # AI DATA ENGINEER ENDPOINTS
 # ============================================================================
 
-@app.get("/api/ops/ai/feature-store", tags=["AI Engineer"])
+@app.get("/ops/ai/feature-store", tags=["AI Engineer"])
 def get_feature_store(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get feature store configuration."""
     try:
@@ -3453,7 +3487,7 @@ def get_feature_store(database_session: Session = Depends(get_db)) -> Dict[str, 
         return {"count": 0, "items": [], "error": str(e)}
 
 
-@app.get("/api/ops/ai/model-registry", tags=["AI Engineer"])
+@app.get("/ops/ai/model-registry", tags=["AI Engineer"])
 def get_model_registry(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get model registry."""
     try:
@@ -3480,7 +3514,7 @@ def get_model_registry(database_session: Session = Depends(get_db)) -> Dict[str,
         return {"count": 0, "items": [], "error": str(e)}
 
 
-@app.get("/api/ops/ai/model-registry/active", tags=["AI Engineer"])
+@app.get("/ops/ai/model-registry/active", tags=["AI Engineer"])
 def get_active_models(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get active models only."""
     try:
@@ -3511,7 +3545,7 @@ def get_active_models(database_session: Session = Depends(get_db)) -> Dict[str, 
 # SECURITY ANALYST ENDPOINTS
 # ============================================================================
 
-@app.get("/api/ops/security/alerts-summary", tags=["Security Analyst"])
+@app.get("/ops/security/alerts-summary", tags=["Security Analyst"])
 def get_alerts_summary(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get alerts summary."""
     try:
@@ -3529,7 +3563,7 @@ def get_alerts_summary(database_session: Session = Depends(get_db)) -> Dict[str,
         return {"today": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
 
 
-@app.get("/api/ops/security/case-summary", tags=["Security Analyst"])
+@app.get("/ops/security/case-summary", tags=["Security Analyst"])
 def get_case_summary(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get cases summary."""
     try:
@@ -3549,7 +3583,7 @@ def get_case_summary(database_session: Session = Depends(get_db)) -> Dict[str, A
         return {"totals": {}, "unassigned": 0, "high_risk_unassigned": 0}
 
 
-@app.get("/api/ops/security/notifications", tags=["Security Analyst"])
+@app.get("/ops/security/notifications", tags=["Security Analyst"])
 def get_notifications(limit: int = 10, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get recent notifications."""
     try:
@@ -3576,7 +3610,7 @@ def get_notifications(limit: int = 10, database_session: Session = Depends(get_d
         logger.exception(f"Failed to fetch notifications: {e}")
         return {"count": 0, "items": [], "error": str(e)}
 
-@app.get("/api/ops/compliance/policy-rules", tags=["Compliance"])
+@app.get("/ops/compliance/policy-rules", tags=["Compliance"])
 def get_policy_rules(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get active policy rules for compliance dashboard."""
     try:
@@ -3606,7 +3640,7 @@ def get_policy_rules(database_session: Session = Depends(get_db)) -> Dict[str, A
         return {"count": 0, "items": [], "error": str(e)}
 
 
-@app.get("/api/ops/compliance/reporting/summary", tags=["Compliance"])
+@app.get("/ops/compliance/reporting/summary", tags=["Compliance"])
 def get_reporting_summary(
     days: int = 30,
     database_session: Session = Depends(get_db)
@@ -3659,7 +3693,7 @@ def get_reporting_summary(
         }
 
 
-@app.get("/api/ops/compliance/reporting/control-effectiveness", tags=["Compliance"])
+@app.get("/ops/compliance/reporting/control-effectiveness", tags=["Compliance"])
 def get_control_effectiveness(
     days: int = 30,
     database_session: Session = Depends(get_db)
@@ -3706,7 +3740,7 @@ def get_control_effectiveness(
         }
 
 
-@app.get("/api/ops/compliance/reporting/audit-completeness", tags=["Compliance"])
+@app.get("/ops/compliance/reporting/audit-completeness", tags=["Compliance"])
 def get_audit_completeness(
     days: int = 30,
     database_session: Session = Depends(get_db)
@@ -3758,7 +3792,7 @@ def get_audit_completeness(
         }
 
 
-@app.get("/api/ops/compliance/reporting/audit-gaps", tags=["Compliance"])
+@app.get("/ops/compliance/reporting/audit-gaps", tags=["Compliance"])
 def get_audit_gaps(
     days: int = 30,
     database_session: Session = Depends(get_db)

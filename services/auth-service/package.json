@@ -20,7 +20,8 @@
     "uuid": "^9.0.1",
     "dotenv": "^16.0.3",
     "cors": "^2.8.5",
-    "helmet": "^7.0.0"
+    "helmet": "^7.0.0",
+    "redis": "^4.6.10"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",

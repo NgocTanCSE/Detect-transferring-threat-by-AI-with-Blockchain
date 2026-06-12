@@ -104,7 +104,7 @@ async function seed() {
       const query = `
         INSERT INTO alerts (
           wallet_address, alert_type, severity, message, 
-          risk_score, meta, chain_id, detected_at
+          risk_score, metadata, chain_id, detected_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
       `;
       

@@ -86,7 +86,7 @@ GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_K
 # Use gemini-2.5-flash (newest, best performance)
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_API_BASE_URL: str = os.getenv("GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1")
-GEMINI_REQUEST_TIMEOUT_SECONDS: int = int(os.getenv("GEMINI_REQUEST_TIMEOUT_SECONDS", "45"))
+GEMINI_REQUEST_TIMEOUT_SECONDS: int = int(os.getenv("GEMINI_REQUEST_TIMEOUT_SECONDS", "10"))
 
 # Legacy HF settings (kept for backward compatibility with older diagnostics payloads/docs).
 HF_API_TOKEN: str = os.getenv("HF_TOKEN", "")

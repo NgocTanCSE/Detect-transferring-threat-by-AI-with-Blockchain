@@ -93,22 +93,18 @@ class TokenResponse {
 
 function checkUsername(username) {
   const patterns = [
-    /^[a-z]{2,4}\d{6,}$/,           // abc123456
-    /^user\d{4,}$/,                  // user12345
-    /^test\d+$/,                     // test123
-    /^[a-z0-9]{20,}$/,              // Long random
-    /^[a-z]+_\d{8,}$/,              // word_12345678
-    /spam|bot|fake|temp/i,           // Keywords
+    /spam|bot|fake|temp/i,           // Still block obvious keywords
   ];
 
   for (const pattern of patterns) {
     if (pattern.test(username)) {
-      return { suspicious: true, reason: 'Username matches bot pattern' };
+      return { suspicious: true, reason: 'Username contains restricted keywords' };
     }
   }
 
-  if (/\d{6,}/.test(username)) {
-    return { suspicious: true, reason: 'Too many consecutive numbers' };
+  // Only block extremely long strings that look like random garbage
+  if (username.length > 50) {
+    return { suspicious: true, reason: 'Username is too long' };
   }
 
   return { suspicious: false };
@@ -188,10 +184,13 @@ async function getUserById(db, userId) {
   return result.rows[0];
 }
 
-async function getUserByUsername(db, username) {
+async function getUserByIdentifier(db, identifier) {
+  // Check both username and email
   const result = await db.query(
-    'SELECT id, username, email, wallet_address, password_hash, role, organization_id, is_active, warning_count, created_at FROM users WHERE LOWER(username) = LOWER($1)',
-    [username]
+    `SELECT id, username, email, wallet_address, password_hash, role, organization_id, is_active, warning_count, created_at 
+     FROM users 
+     WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1)`,
+    [identifier]
   );
   return result.rows[0];
 }
@@ -216,11 +215,29 @@ function extractToken(req) {
   return parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : null;
 }
 
+const redis = require('redis');
+
+// Redis client for Token Blacklist
+const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379/0';
+const redisClient = redis.createClient({ url: REDIS_URL });
+redisClient.on('error', (err) => console.error('[AUTH] Redis Error:', err));
+redisClient.connect().then(() => console.log('✓ Auth Service connected to Redis (Blacklist)')).catch(e => console.warn('[AUTH] Redis connection failed, blacklist disabled'));
+
 async function requireAuth(req, res, next) {
   const token = extractToken(req);
 
   if (!token) {
     return res.status(401).json({ error: 'Missing authorization token' });
+  }
+
+  // 1. Check if token is blacklisted in Redis
+  try {
+    const isBlacklisted = await redisClient.get(`blacklist:${token}`);
+    if (isBlacklisted) {
+      return res.status(401).json({ error: 'Token has been revoked (logged out)' });
+    }
+  } catch (e) {
+    console.error('[AUTH] Blacklist check error:', e.message);
   }
 
   const { valid, payload, error } = verifyToken(token);
@@ -238,10 +255,30 @@ function createApp(dbPool = pool) {
   authApp.use(express.json());
   authApp.use(express.urlencoded({ extended: true }));
 
+  // Tracing middleware
+  authApp.use((req, res, next) => {
+    req.correlationId = req.headers['x-correlation-id'] || `internal-${uuidv4()}`;
+    res.setHeader('x-correlation-id', req.correlationId);
+    next();
+  });
+
+  // Logging middleware (Request logging)
+  authApp.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      logger.info(`${req.method} ${req.path} ${res.statusCode} - ${duration}ms`, {
+        correlationId: req.correlationId,
+        ip: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+    });
+    next();
+  });
+
   // ==========================================
   // ENDPOINTS
   // ==========================================
-
   // Health check
   authApp.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'auth-service' });
@@ -279,7 +316,7 @@ function createApp(dbPool = pool) {
       }
 
       // Check username uniqueness
-      const existingUsername = await getUserByUsername(dbPool, username);
+      const existingUsername = await getUserByIdentifier(dbPool, username);
       if (existingUsername) {
         return res.status(409).json({ error: 'Username already exists' });
       }
@@ -288,6 +325,60 @@ function createApp(dbPool = pool) {
       const existingEmail = await getUserByEmail(dbPool, email);
       if (existingEmail) {
         return res.status(409).json({ error: 'Email already registered' });
+      }
+
+      // Advanced Anti-Fraud: Block registration for known bad actors
+      const clientIp = req.headers['x-forwarded-for'] || req.ip || 'unknown';
+      
+      // 1. Check if wallet is blacklisted or suspended
+      if (wallet_address) {
+        const walletCheck = await dbPool.query(
+          `SELECT w.account_status, b.is_active as blacklisted 
+           FROM wallets w 
+           LEFT JOIN blacklist b ON LOWER(w.address) = LOWER(b.address)
+           WHERE LOWER(w.address) = LOWER($1)`,
+          [wallet_address]
+        );
+        
+        if (walletCheck.rows.length > 0) {
+          const w = walletCheck.rows[0];
+          if (w.blacklisted) {
+            return res.status(403).json({ error: 'Security Alert: This wallet address is blacklisted due to malicious activity.' });
+          }
+          if (w.account_status === 'suspended' || w.account_status === 'frozen') {
+            return res.status(403).json({ error: `Security Alert: This wallet is currently ${w.account_status}.` });
+          }
+        }
+      }
+
+      // 2. IP Fingerprinting: Check if this IP is associated with any suspended users
+      if (clientIp !== 'unknown') {
+        const ipCheck = await dbPool.query(
+          `SELECT u.username, u.email 
+           FROM usage_logs l
+           JOIN users u ON l.user_id = u.id
+           WHERE l.ip_address = $1 AND (u.is_active = false OR u.warning_count >= 3)
+           LIMIT 1`,
+          [clientIp]
+        );
+        
+        if (ipCheck.rows.length > 0) {
+          // Trigger a silent alert to the compliance team about evasion attempt
+          try {
+            await dbPool.query(
+              `INSERT INTO alerts (wallet_address, alert_type, severity, message, risk_score)
+               VALUES ($1, 'EVASION_ATTEMPT', 'HIGH', 'Suspended user attempting to register new account from same IP', 85.0)`,
+              [wallet_address || 'NO_WALLET']
+            );
+          } catch (e) {
+            console.error('[AUTH] Failed to log evasion alert:', e.message);
+          }
+          
+          return res.status(403).json({ 
+            error: 'Account Registration Blocked', 
+            detail: 'Our security systems have flagged this network. Please contact support.'
+          });
+        }
       }
 
       // Hash password
@@ -322,12 +413,40 @@ function createApp(dbPool = pool) {
 
       // Also create a wallet entry for the user if wallet_address is provided
       if (user.wallet_address) {
+        const walletAddress = user.wallet_address.toLowerCase();
         await dbPool.query(
           `INSERT INTO wallets (address, account_status, risk_score, created_at)
            VALUES ($1, 'active', 0, NOW())
            ON CONFLICT (address) DO NOTHING`,
-          [user.wallet_address.toLowerCase()]
+          [walletAddress]
         );
+
+        // Add welcome balance for new users (10 ETH)
+        try {
+          const txHash = '0x' + uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+          const welcomeAmount = (10n * BigInt(10) ** 18n).toString(); // 10 ETH in wei
+          
+          await dbPool.query(
+            `INSERT INTO transactions (id, tx_hash, from_address, to_address, value, block_number, timestamp, status, chain_id)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8)`,
+            [uuidv4(), txHash, '0x0000000000000000000000000000000000000000', walletAddress, welcomeAmount, 1000000, 1, 'ethereum']
+          );
+
+          // Also update wallet profile
+          await dbPool.query(
+            `UPDATE wallets 
+             SET total_transactions = COALESCE(total_transactions, 0) + 1,
+                 total_value_received = COALESCE(total_value_received, 0) + $1,
+                 last_activity_at = NOW()
+             WHERE address = $2`,
+            [welcomeAmount, walletAddress]
+          );
+          
+          console.log(`[AUTH] Welcome bonus of 10 ETH added to ${walletAddress}`);
+        } catch (bonusError) {
+          console.error('[AUTH] Failed to add welcome bonus:', bonusError.message);
+          // Don't fail registration if bonus fails
+        }
       }
 
       const response = new UserResponse(
@@ -354,13 +473,13 @@ function createApp(dbPool = pool) {
         return res.status(400).json({ error: 'Username and password are required' });
       }
 
-      // Get user
-      const user = await getUserByUsername(dbPool, username);
+      // Get user by username or email
+      const user = await getUserByIdentifier(dbPool, username);
       if (!user) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      // Verify password
+      // Verify password (with plaintext fallback for legacy data)
       const passwordValid = await verifyPassword(password, user.password_hash);
       if (!passwordValid) {
         return res.status(401).json({ error: 'Invalid credentials' });
@@ -457,9 +576,18 @@ function createApp(dbPool = pool) {
     }
   });
 
-  // Logout (optional - for token blacklisting in future)
-  authApp.post('/logout', requireAuth, (req, res) => {
-    // In production, add token to blacklist/revocation list
+  // Logout (token blacklisting)
+  authApp.post('/logout', requireAuth, async (req, res) => {
+    const token = extractToken(req);
+    if (token) {
+      try {
+        // Blacklist for 7 days (matching max expiry)
+        await redisClient.setex(`blacklist:${token}`, 7 * 24 * 60 * 60, '1');
+        console.log(`[AUTH] Token blacklisted: ${token.substring(0, 10)}...`);
+      } catch (e) {
+        console.error('[AUTH] Failed to blacklist token:', e.message);
+      }
+    }
     res.json({ message: 'Logged out successfully' });
   });
 

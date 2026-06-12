@@ -125,26 +125,19 @@ def bootstrap_database() -> None:
             users_table_exists = _table_exists(cur, "users")
             users_count = _scalar_count(cur, "SELECT COUNT(*) FROM users") if users_table_exists else 0
 
-            if not users_table_exists:
-                logger.info("No users table found; bootstrapping custom schema first")
-                _execute_sql_file(cur, INIT_SQL_PATH)
-                connection.commit()
+            logger.info("Ensuring base database schema via init.sql")
+            _execute_sql_file(cur, INIT_SQL_PATH)
+            connection.commit()
 
-                logger.info("Ensuring ORM schema for remaining tables")
-                try:
-                    ensure_schema()
-                    logger.info("ORM schema ensure complete")
-                except Exception as e:
-                    logger.warning(f"SQLAlchemy schema ensure failed: {e}")
-
-                logger.info("Loading rich demo data")
-                _execute_sql_file(cur, SEED_SQL_PATH)
-                connection.commit()
-                logger.info("Database bootstrap completed from scratch")
-                return
+            logger.info("Ensuring ORM schema for all tables")
+            try:
+                ensure_schema()
+                logger.info("ORM schema ensure complete")
+            except Exception as e:
+                logger.warning(f"SQLAlchemy schema ensure failed: {e}")
 
             if users_count == 0:
-                logger.info("Users table exists but is empty; loading rich demo data")
+                logger.info("Users table is empty; loading rich demo data")
                 _execute_sql_file(cur, SEED_SQL_PATH)
                 connection.commit()
                 logger.info("Demo data import completed")

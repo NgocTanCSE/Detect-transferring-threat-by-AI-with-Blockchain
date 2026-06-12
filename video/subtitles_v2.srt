@@ -1,0 +1,116 @@
+1
+00:00:00,000 --> 00:00:02,640
+Chào mừng đến với Blockchain AI Operations Console.
+
+2
+00:00:02,840 --> 00:00:05,339
+Nền tảng phân tích và giám sát rủi ro giao dịch
+
+3
+00:00:05,540 --> 00:00:07,480
+bằng Trí tuệ nhân tạo toàn diện.
+
+4
+00:00:07,680 --> 00:00:09,550
+Tại System Admin Dashboard,
+
+5
+00:00:09,750 --> 00:00:12,030
+người dùng dễ dàng giám sát sức khỏe hệ thống,
+
+6
+00:00:12,230 --> 00:00:14,170
+lưu lượng API theo thời gian thực.
+
+7
+00:00:14,370 --> 00:00:16,290
+Ở góc độ AI Data Engineer,
+
+8
+00:00:16,490 --> 00:00:18,550
+bạn có cái nhìn tổng quan về tình trạng
+
+9
+00:00:18,750 --> 00:00:21,080
+các mô hình học máy đang quét dữ liệu on-chain.
+
+10
+00:00:21,280 --> 00:00:23,370
+Trong phần Compliance Risk Manager,
+
+11
+00:00:23,570 --> 00:00:25,830
+hệ thống báo cáo chính xác số tiền bị chặn,
+
+12
+00:00:26,030 --> 00:00:28,000
+thống kê minh bạch các quy tắc rủi ro.
+
+13
+00:00:28,200 --> 00:00:29,980
+Với Security Analyst,
+
+14
+00:00:30,180 --> 00:00:32,560
+cảnh báo từ AI được đẩy vào Alert Queue.
+
+15
+00:00:32,760 --> 00:00:35,180
+Khi xem chi tiết ví, hệ thống sẽ vẽ
+
+16
+00:00:35,380 --> 00:00:37,080
+Biểu đồ kết nối trực quan.
+
+17
+00:00:37,280 --> 00:00:39,060
+Phân tích Multi-hop cho phép
+
+18
+00:00:39,259 --> 00:00:41,420
+theo dõi dòng tiền qua nhiều bước trung gian,
+
+19
+00:00:41,619 --> 00:00:43,589
+tự động đưa ra Phán quyết thần kinh.
+
+20
+00:00:43,789 --> 00:00:46,019
+Các trường hợp vi phạm được quản lý chặt chẽ.
+
+21
+00:00:46,219 --> 00:00:48,449
+Hệ thống cung cấp cơ chế thông báo đa kênh
+
+22
+00:00:48,649 --> 00:00:50,689
+linh hoạt như Slack, Telegram.
+
+23
+00:00:50,890 --> 00:00:52,829
+Mọi cảnh báo đều được phân loại
+
+24
+00:00:53,030 --> 00:00:55,210
+đảm bảo không bỏ sót nguy cơ bảo mật nào.
+
+25
+00:00:55,410 --> 00:00:57,020
+Cuối cùng là mô phỏng
+
+26
+00:00:57,220 --> 00:00:59,450
+các cuộc tấn công trốn tránh trên Terminal logs.
+
+27
+00:01:00,000 --> 00:01:02,469
+AI Sentinel phát hiện tức thời hành vi gian lận,
+
+28
+00:01:02,670 --> 00:01:04,609
+tự động đình chỉ các ví vi phạm.
+
+29
+00:01:04,810 --> 00:01:07,689
+Blockchain AI Console - Bảo vệ tài sản số của bạn.
+

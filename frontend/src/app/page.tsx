@@ -1,20 +1,8 @@
-import { Suspense } from "react";
-import LiveDashboard from "@/components/live-dashboard";
-
-function DashboardFallback() {
-  return (
-    <div className="min-h-screen bg-[#08080a] p-6 text-slate-300">
-      Loading dashboard...
-    </div>
-  );
-}
+import { redirect } from "next/navigation";
 
 export default function HomePage() {
-  return (
-    <Suspense fallback={<DashboardFallback />}>
-      <LiveDashboard />
-    </Suspense>
-  );
+  // Redirect root to user portal landing page
+  redirect("/user");
 }
 
 

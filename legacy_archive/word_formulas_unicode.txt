@@ -1,0 +1,42 @@
+HƯỚNG DẪN DÀNH CHO WORD (Chế độ mặc định Unicode Math):
+--------------------------------------------------------------------------------
+1. Copy dòng công thức.
+2. Vào Word, nhấn Alt + =
+3. Dán vào -> Nhấn phím CÁCH (Space) hoặc ENTER để nó tự biến đổi.
+
+1. RANDOM FOREST
+\hat(y) = "mode"{h_1 (x),h_2 (x),...,h_K (x)}
+
+2. MULTI-AGENT SCORE
+"Final_Score" = f("Agent"_1,"Agent"_2,...,"Agent"_n)
+
+3. CV
+"CV" = σ/μ
+
+4. CYCLE DETECTION
+"Cycle" = ∃(A →_(t_1) B →_(t_2) A) " where " |t_2-t_1|<3600s
+
+5. TX FREQUENCY
+"TxPerHour" = N_("transactions") / T_("span")("hours")
+
+6. HONEYPOT
+"Honeypot" = ("WalletAge"≤3" days") ∩ ("TotalReceived">10" ETH")
+
+7. HYBRID SCORING (Dùng ngoặc nhọn cả 2 bên)
+"Score"_("total") = ⟨\matrix(99 @ w_("ML") ⋅S_("ML") + w_H ⋅S_H @ S_H)⟩
+
+   Hoặc thử cách này (dùng dấu | thay cho ngoặc):
+   "Score"_("total") = |\matrix(99 @ w_("ML") ⋅S_("ML") + w_H ⋅S_H @ S_H)|
+
+   Điều kiện (viết bằng bullet bình thường):
+   • 99: nếu khớp Blacklist
+   • w_ML · S_ML + w_H · S_H: nếu có ML
+   • S_H: trường hợp khác
+
+--------------------------------------------------------------------------------
+PHẦN GIẢI THÍCH:
+
+• S_(ML) : Điểm dự đoán từ mô hình ML (0-100)
+• S_H : Điểm heuristic từ các agent
+• w_(ML) = 0.6 × "confidence"_(ML)
+• w_H = 1 - w_(ML)

@@ -78,7 +78,7 @@ def ensure_schema() -> None:
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS alerts (
-                        id UUID PRIMARY KEY,
+                        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                         wallet_address VARCHAR(255) NOT NULL,
                         alert_type VARCHAR(100) NOT NULL,
                         severity VARCHAR(20) NOT NULL,
@@ -158,7 +158,7 @@ def ensure_schema() -> None:
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS organizations (
-                        id UUID PRIMARY KEY,
+                        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                         name VARCHAR(255) NOT NULL,
                         slug VARCHAR(100) NOT NULL UNIQUE,
                         api_key VARCHAR(255) UNIQUE,
@@ -175,7 +175,7 @@ def ensure_schema() -> None:
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS usage_logs (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                         organization_id UUID REFERENCES organizations(id),
                         user_id UUID,
                         endpoint VARCHAR(255),
@@ -196,9 +196,8 @@ def ensure_schema() -> None:
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS node_endpoints (
-                        id UUID PRIMARY KEY,
-                        provider_name VARCHAR(100) NOT NULL,
-                        chain VARCHAR(50) NOT NULL,
+                        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                        provider_name VARCHAR(100) NOT NULL,                        chain VARCHAR(50) NOT NULL,
                         endpoint_url VARCHAR(1024) NOT NULL,
                         protocol VARCHAR(20) NOT NULL DEFAULT 'http',
                         priority INTEGER NOT NULL DEFAULT 100,

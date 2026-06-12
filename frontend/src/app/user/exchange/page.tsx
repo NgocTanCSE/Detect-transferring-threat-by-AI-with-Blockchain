@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   Wallet,
@@ -12,11 +11,9 @@ import {
   ShieldCheck,
   ShieldAlert,
   Clock,
-  Copy,
   CheckCircle2,
   XCircle,
   AlertOctagon,
-  Info,
   Loader2,
   LogOut,
 } from "lucide-react";
@@ -25,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -48,709 +44,228 @@ import { useAuth } from "@/lib/auth-context";
 export default function UserExchange() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
-  const fallbackWallet = user?.wallet_address ?? "";
-
   const [fromWalletId, setFromWalletId] = useState("");
-  const [toWalletId, setToWalletId] = useState("");
   const [toAddress, setToAddress] = useState("");
   const [amount, setAmount] = useState("");
-  const [copied, setCopied] = useState(false);
   const [selectedChain, setSelectedChain] = useState("ethereum");
   const [selectedAsset, setSelectedAsset] = useState("ETH");
 
-  // Auto-fill sender wallet from authenticated user
-  useEffect(() => {
-    if (user?.wallet_address && !fromWalletId) {
-      setFromWalletId(user.wallet_address);
-    }
-  }, [user, fromWalletId]);
-
-  // Redirect to login if not authenticated (after loading)
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push("/login");
-    }
-  }, [authLoading, isAuthenticated, router]);
-
-  // Sender wallet balance state
+  // State
   const [senderBalance, setSenderBalance] = useState<WalletBalance | null>(null);
-  const [senderBalanceLoading, setSenderBalanceLoading] = useState(false);
-  const [senderBalanceError, setSenderBalanceError] = useState<string | null>(null);
-
-  // Sender transaction history state
   const [senderTransactions, setSenderTransactions] = useState<Transaction[]>([]);
-  const [senderTxLoading, setSenderTxLoading] = useState(false);
-
-  // Receiver risk assessment state (only risk, not balance)
   const [receiverRisk, setReceiverRisk] = useState<{ risk_score: number; risk_level: string } | null>(null);
-  const [receiverRiskLoading, setReceiverRiskLoading] = useState(false);
-  const [receiverRiskError, setReceiverRiskError] = useState<string | null>(null);
+  const [loading, setLoading] = useState({ balance: false, tx: false, risk: false, transfer: false });
+  const [dialogs, setDialogs] = useState({ warning: false, blocked: false, success: false });
+  const [transferResponse, setTransferResponse] = useState<TransferResponse | null>(null);
 
-  // Dialog states
-  const [showWarningDialog, setShowWarningDialog] = useState(false);
-  const [showBlockedDialog, setShowBlockedDialog] = useState(false);
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [transferResponse, setTransferResponse] = useState<TransferResponse | null>(
-    null
-  );
-  const [currentWarnings, setCurrentWarnings] = useState(user?.warning_count || 0);
+  useEffect(() => {
+    if (user?.wallet_address) setFromWalletId(user.wallet_address);
+    if (!authLoading && !isAuthenticated) router.push("/login");
+  }, [user, authLoading, isAuthenticated, router]);
 
-  // Fetch sender balance and transaction history when address changes
-  const fetchSenderBalanceHandler = useCallback(async (address: string) => {
-    if (!address || address.length < 42 || !address.startsWith("0x")) {
-      setSenderBalance(null);
-      setSenderBalanceError(null);
-      setSenderTransactions([]);
-      return;
-    }
-
-    setSenderBalanceLoading(true);
-    setSenderBalanceError(null);
-    setSenderTxLoading(true);
-
+  const refreshData = useCallback(async () => {
+    if (!fromWalletId) return;
+    setLoading(prev => ({ ...prev, balance: true, tx: true }));
     try {
-      // Fetch balance and transactions in parallel
-      const [balance, txData] = await Promise.all([
-        fetchWalletBalance(address),
-        fetchWalletTransactions(address, 10)
+      const [bal, txs] = await Promise.all([
+        fetchWalletBalance(fromWalletId, selectedChain),
+        fetchWalletTransactions(fromWalletId, 10)
       ]);
-      setSenderBalance(balance);
-      // API returns {transactions: [...]} so extract the array
-      const txResponse = txData as unknown as { transactions: Transaction[] } | Transaction[];
-      const transactions = Array.isArray(txResponse) ? txResponse : (txResponse?.transactions || []);
-      setSenderTransactions(transactions);
-    } catch (error) {
-      setSenderBalanceError("Không thể lấy thông tin ví");
-      setSenderBalance(null);
-      setSenderTransactions([]);
+      setSenderBalance(bal);
+      setSenderTransactions(txs);
     } finally {
-      setSenderBalanceLoading(false);
-      setSenderTxLoading(false);
+      setLoading(prev => ({ ...prev, balance: false, tx: false }));
     }
-  }, []);
+  }, [fromWalletId, selectedChain]);
 
-  // Watch fromWalletId changes with debounce (assuming it's an address)
+  useEffect(() => { refreshData(); }, [refreshData]);
+
+  // Real-time risk check
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (fromWalletId && fromWalletId.startsWith("0x")) {
-        fetchSenderBalanceHandler(fromWalletId);
-      } else {
-        setSenderBalance(null);
-        setSenderBalanceError(null);
-        setSenderTransactions([]);
-      }
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [fromWalletId, fetchSenderBalanceHandler]);
-
-  // Fetch receiver risk assessment when toAddress changes
-  const fetchReceiverRisk = useCallback(async (address: string) => {
-    if (!address || address.length < 42 || !address.startsWith("0x")) {
-      setReceiverRisk(null);
-      setReceiverRiskError(null);
-      return;
-    }
-
-    setReceiverRiskLoading(true);
-    setReceiverRiskError(null);
-
-    try {
-      const data = await fetchWalletBalance(address);
-      const riskLevel = data.risk_score >= 80 ? 'CRITICAL' :
-        data.risk_score >= 60 ? 'HIGH' :
-          data.risk_score >= 40 ? 'MEDIUM' : 'LOW';
-      setReceiverRisk({ risk_score: data.risk_score, risk_level: riskLevel });
-    } catch (error) {
-      setReceiverRiskError("Không thể kiểm tra địa chỉ");
-      setReceiverRisk(null);
-    } finally {
-      setReceiverRiskLoading(false);
-    }
-  }, []);
-
-  // Watch toAddress changes with debounce
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (toAddress && toAddress.startsWith("0x")) {
-        fetchReceiverRisk(toAddress);
-      } else {
-        setReceiverRisk(null);
-        setReceiverRiskError(null);
-      }
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [toAddress, fetchReceiverRisk]);
-
-  // Fetch transactions
-  const { data: transactions, isLoading: txLoading } = useQuery<Transaction[]>({
-    queryKey: ["walletTransactions", fallbackWallet],
-    queryFn: () => fetchWalletTransactions(fallbackWallet, 10),
-    enabled: !!fallbackWallet,
-    refetchInterval: 30000,
-  });
-
-  // Transfer mutation
-  const transferMutation = useMutation({
-    mutationFn: (params: { confirmRisk: boolean }) =>
-      sendProtectedTransfer(
-        fromWalletId,
-        toWalletId,
-        parseFloat(amount),
-        params.confirmRisk,
-        selectedChain,
-        selectedAsset
-      ),
-    onSuccess: (response) => {
-      setTransferResponse(response);
-
-      if (response.status === "warning") {
-        // Show warning dialog
-        setCurrentWarnings(response.current_warnings || 0);
-        setShowWarningDialog(true);
-      } else if (response.status === "blocked") {
-        // Show blocked dialog (risk > 80 or blacklisted)
-        setShowBlockedDialog(true);
-      } else if (response.status === "success") {
-        // Show success dialog
-        setShowSuccessDialog(true);
-        // Refresh sender balance after successful transfer
-        if (fromWalletId) {
-          fetchSenderBalanceHandler(fromWalletId);
+    const timer = setTimeout(async () => {
+      if (toAddress.length >= 42) {
+        setLoading(prev => ({ ...prev, risk: true }));
+        try {
+          // Use common API for risk check
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/analyze/${toAddress}`);
+          const data = await res.json();
+          setReceiverRisk(data.payload || data);
+        } catch {
+          setReceiverRisk(null);
+        } finally {
+          setLoading(prev => ({ ...prev, risk: false }));
         }
-        setToWalletId("");
-        setToAddress("");
-        setAmount("");
+      } else {
         setReceiverRisk(null);
-        // Keep fromWalletId to show updated balance
       }
-    },
-    onError: (error) => {
-      console.error("Transfer failed:", error);
-    },
-  });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [toAddress]);
 
-  const handleSend = () => {
-    if (!fromWalletId || !toWalletId || !toAddress || !amount || parseFloat(amount) <= 0) return;
-    transferMutation.mutate({ confirmRisk: false });
-  };
-
-  const handleConfirmRisk = () => {
-    setShowWarningDialog(false);
-    transferMutation.mutate({ confirmRisk: true });
-  };
-
-  const handleCancelTransfer = () => {
-    setShowWarningDialog(false);
-    setTransferResponse(null);
-  };
-
-  const copyAddress = () => {
-    if (!fallbackWallet) return;
-    navigator.clipboard.writeText(fallbackWallet);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleTransfer = async (force = false) => {
+    setLoading(prev => ({ ...prev, transfer: true }));
+    try {
+      const res = await sendProtectedTransfer({
+        sender: fromWalletId,
+        receiver: toAddress,
+        amount,
+        chain: selectedChain,
+        asset: selectedAsset,
+        force_proceed: force
+      });
+      setTransferResponse(res);
+      if (res.status === "blocked" || res.blocked) setDialogs(d => ({ ...d, blocked: true }));
+      else if (res.status === "warning") setDialogs(d => ({ ...d, warning: true }));
+      else {
+        setDialogs(d => ({ ...d, success: true }));
+        refreshData();
+      }
+    } catch (err: any) {
+      alert(err.message || "Transfer failed");
+    } finally {
+      setLoading(prev => ({ ...prev, transfer: false }));
+    }
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-transparent p-6 relative z-10">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Send Form */}
-        <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm animate-slide-up">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Send className="h-5 w-5 text-slate-400" />
-                Send {selectedAsset}
-                <div className="ml-auto flex items-center gap-2 bg-slate-500/10 border border-slate-500/30 rounded-full px-3 py-1.5">
-                  <ShieldCheck className="h-4 w-4 text-slate-400" />
-                  <span className="text-sm text-slate-400 font-medium">
-                    AI Protected
-                  </span>
-                </div>
-              </CardTitle>
-              <div className="ml-4">
-                <select
-                  value={selectedChain}
-                  onChange={(e) => {
-                    const chain = e.target.value;
-                    setSelectedChain(chain);
-                    setSelectedAsset(chain === "bsc" ? "BNB" : "ETH");
-                  }}
-                  className="px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-100 text-sm font-medium hover:border-slate-700 focus:outline-none focus:border-white/20"
-                >
-                  <option value="ethereum">Ethereum (ETH)</option>
-                  <option value="bsc">BSC (BNB)</option>
-                </select>
-              </div>
+    <div className="min-h-screen bg-[#08080a] text-slate-100">
+      <header className="border-b border-slate-800/60 bg-[#08080a]/80 backdrop-blur-xl sticky top-0 z-50">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500 shadow-[0_0_20px_rgba(20,184,166,0.3)]">
+              <ShieldCheck className="h-6 w-6 text-slate-950" />
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Security Notice */}
-            <div className="bg-slate-500/5 border border-slate-800 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-slate-500 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm text-slate-100 font-medium">
-                    Hệ thống bảo vệ AI đang hoạt động
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Mọi giao dịch đều được kiểm tra qua hệ thống phát hiện gian lận AI.
-                    Giao dịch tới các ví có rủi ro cao (score &gt; 80) sẽ bị chặn tự động.
-                  </p>
-                </div>
-              </div>
+            <span className="text-xl font-bold">Sentinel <span className="text-teal-400">Wallet</span></span>
+          </div>
+          <Button variant="ghost" onClick={() => { logout(); router.push("/user"); }} className="text-slate-400 hover:text-white">
+            <LogOut className="h-5 w-5 mr-2" /> Logout
+          </Button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left: Transfer Form */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold">Send Assets</h1>
+            <div className="flex gap-2">
+              <select value={selectedChain} onChange={e => setSelectedChain(e.target.value)} className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs">
+                <option value="ethereum">Ethereum</option>
+                <option value="bsc">BSC Network</option>
+              </select>
+              <select value={selectedAsset} onChange={e => setSelectedAsset(e.target.value)} className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs">
+                {selectedChain === "ethereum" ? <><option>ETH</option><option>USDT</option></> : <><option>BNB</option><option>USDT</option></>}
+              </select>
             </div>
-
-            {/* From Wallet ID */}
-            <div className="space-y-2">
-              <Label htmlFor="fromWalletId">Địa chỉ ví của bạn</Label>
-              <Input
-                id="fromWalletId"
-                placeholder="0x..."
-                value={fromWalletId}
-                onChange={(e) => setFromWalletId(e.target.value)}
-                className="font-mono bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-white/20"
-              />
-              {/* Sender Balance Info */}
-              {senderBalanceLoading && (
-                <div className="flex items-center gap-2 text-slate-500 text-sm">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Đang kiểm tra ví...</span>
-                </div>
-              )}
-              {senderBalanceError && (
-                <div className="flex items-center gap-2 text-slate-500 text-sm">
-                  <XCircle className="h-4 w-4" />
-                  <span>{senderBalanceError}</span>
-                </div>
-              )}
-              {senderBalance && !senderBalanceLoading && (
-                <div className="bg-slate-950/50 border border-slate-800 rounded-lg p-3 mt-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-slate-500" />
-                      <span className="text-sm text-slate-400">Số dư khả dụng:</span>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-lg font-bold text-white">
-                        {senderBalance.balance_eth.toFixed(4)}
-                      </span>
-                      <span className="text-sm text-slate-500">{selectedAsset}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* To Wallet ID */}
-            <div className="space-y-2">
-              <Label htmlFor="toWalletId">Địa chỉ ví nhận</Label>
-              <Input
-                id="toWalletId"
-                placeholder="0x... hoặc Wallet ID"
-                value={toWalletId}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setToWalletId(value);
-                  // Auto-sync to recipient address if it looks like an Ethereum address
-                  if (value.startsWith("0x") && value.length >= 10) {
-                    setToAddress(value);
-                  }
-                }}
-                className="font-mono bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-white/20"
-              />
-              <p className="text-xs text-slate-500">
-                Nhập địa chỉ ví Ethereum (0x...) hoặc Wallet ID của người nhận
-              </p>
-            </div>
-
-            {/* Recipient Address - Hidden input, synced from toWalletId */}
-            <input type="hidden" value={toAddress} />
-
-            {/* Receiver Risk Assessment - Shown below To Wallet ID */}
-            {receiverRiskLoading && (
-              <div className="flex items-center gap-2 text-slate-400 text-sm -mt-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Đang kiểm tra độ an toàn...</span>
-              </div>
-            )}
-            {receiverRiskError && (
-              <div className="flex items-center gap-2 text-slate-400 text-sm -mt-2">
-                <AlertTriangle className="h-4 w-4" />
-                <span>{receiverRiskError}</span>
-              </div>
-            )}
-            {receiverRisk && !receiverRiskLoading && (
-              <div className={`border rounded-lg p-3 -mt-2 ${receiverRisk.risk_score >= 80
-                ? 'bg-slate-500/10 border-slate-500/30'
-                : receiverRisk.risk_score >= 60
-                  ? 'bg-slate-500/10 border-slate-500/30'
-                  : receiverRisk.risk_score >= 40
-                    ? 'bg-slate-500/10 border-slate-500/30'
-                    : 'bg-slate-500/10 border-slate-500/30'
-                }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {receiverRisk.risk_score >= 60 ? (
-                      <ShieldAlert className={`h-5 w-5 ${receiverRisk.risk_score >= 80 ? 'text-slate-400' : 'text-slate-400'
-                        }`} />
-                    ) : (
-                      <ShieldCheck className={`h-5 w-5 ${receiverRisk.risk_score >= 40 ? 'text-slate-400' : 'text-slate-400'
-                        }`} />
-                    )}
-                    <span className="text-sm font-medium text-slate-100">
-                      {receiverRisk.risk_score >= 80
-                        ? '⚠️ Địa chỉ nguy hiểm!'
-                        : receiverRisk.risk_score >= 60
-                          ? '⚠️ Địa chỉ rủi ro cao'
-                          : receiverRisk.risk_score >= 40
-                            ? '⚠️ Cần cẩn thận'
-                            : '✅ Địa chỉ an toàn'}
-                    </span>
-                  </div>
-                  <Badge variant="outline" className={`${receiverRisk.risk_score >= 80
-                    ? 'border-slate-500 text-slate-400'
-                    : receiverRisk.risk_score >= 60
-                      ? 'border-slate-500 text-slate-400'
-                      : receiverRisk.risk_score >= 40
-                        ? 'border-slate-500 text-slate-400'
-                        : 'border-slate-500 text-slate-400'
-                    }`}>
-                    Risk: {receiverRisk.risk_score.toFixed(0)}%
-                  </Badge>
-                </div>
-                {receiverRisk.risk_score >= 60 && (
-                  <p className="text-xs text-slate-400 mt-2">
-                    {receiverRisk.risk_score >= 80
-                      ? 'Giao dịch đến địa chỉ này sẽ bị chặn tự động!'
-                      : 'Bạn sẽ nhận được cảnh báo nếu tiếp tục giao dịch.'}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Amount */}
-            <div className="space-y-2">
-              <Label htmlFor="amount">Số lượng ({selectedAsset})</Label>
-              <div className="relative">
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="pr-16 bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-white/20"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
-                  {selectedAsset}
-                </span>
-              </div>
-              {senderBalance && (
-                <p className="text-xs text-slate-500">
-                  Khả dụng: {senderBalance.balance_eth.toFixed(4)} {selectedAsset}
-                </p>
-              )}
-            </div>
-
-            {/* Send Button */}
-            {/* Send Button */}
-            <Button
-              className="w-full h-12 text-lg bg-white text-black hover:bg-slate-200 border-none"
-              onClick={handleSend}
-              disabled={
-                transferMutation.isPending ||
-                !fromWalletId ||
-                !toWalletId ||
-                !toAddress ||
-                !amount ||
-                parseFloat(amount) <= 0
-              }
-            >
-              {transferMutation.isPending ? (
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-black" />
-                  Checking...
-                </div>
-              ) : (
-                <>
-                  <Send className="h-5 w-5 mr-2" />
-                  Gửi {selectedAsset}
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Recent Transactions */}
-        <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm animate-slide-up stagger-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-slate-100">
-              <Clock className="h-5 w-5 text-slate-500" />
-              Giao dịch gần đây
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(fromWalletId ? senderTxLoading : txLoading) ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-slate-500" />
-              </div>
-            ) : (fromWalletId ? senderTransactions : transactions)?.length === 0 ? (
-              <div className="text-center py-8 text-slate-500">
-                <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No transactions yet</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {(fromWalletId ? senderTransactions : transactions)?.slice(0, 5).map((tx: any) => {
-                  const currentWallet = fromWalletId || fallbackWallet;
-                  const isSent =
-                    tx.from_address.toLowerCase() === currentWallet.toLowerCase();
-                  return (
-                    <div
-                      key={tx.tx_hash}
-                      className="flex items-center justify-between p-4 rounded-lg bg-slate-950/50 border border-slate-800"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`p-2 rounded-lg bg-slate-500/10 border-slate-800 border`}
-                        >
-                          {isSent ? (
-                            <ArrowUpRight className="h-5 w-5 text-slate-400" />
-                          ) : (
-                            <ArrowDownLeft className="h-5 w-5 text-slate-400" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-100">
-                            {isSent ? "Sent" : "Received"}
-                          </p>
-                          <p className="text-sm text-slate-500 font-mono">
-                            {isSent
-                              ? `To: ${formatAddress(tx.to_address)}`
-                              : `From: ${formatAddress(tx.from_address)}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={`font-bold text-slate-100`}
-                        >
-                          {isSent ? "-" : "+"}
-                          {formatEth(tx.value_wei)} ETH
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {formatDate(tx.timestamp)}
-                        </p>
-                      </div>
-                      {tx.is_flagged && (
-                        <Badge variant="destructive" className="ml-2">
-                          Flagged
-                        </Badge>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Warning Dialog - Risk 50-80% */}
-      <Dialog open={showWarningDialog} onOpenChange={setShowWarningDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-slate-400">
-              <AlertTriangle className="h-6 w-6" />
-              Risk Warning
-            </DialogTitle>
-            <DialogDescription>
-              This wallet has been flagged by our AI security system
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Risk Score Display */}
-            <div className="flex items-center justify-center">
-              <div className="relative w-32 h-32">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="56"
-                    fill="none"
-                    stroke="#334155"
-                    strokeWidth="12"
-                  />
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="56"
-                    fill="none"
-                    stroke="#f97316"
-                    strokeWidth="12"
-                    strokeDasharray={`${((transferResponse?.receiver_risk || 0) / 100) * 352
-                      } 352`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold text-slate-400">
-                    {transferResponse?.receiver_risk?.toFixed(0) || 0}
-                  </span>
-                  <span className="text-xs text-slate-400">Risk Score</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Warning Message */}
-            <div className="bg-slate-500/10 border border-slate-800 rounded-lg p-4">
-              <p className="text-sm text-slate-100">
-                {transferResponse?.message}
-              </p>
-            </div>
-
-            {/* Warning Count */}
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-sm text-slate-500">Warnings:</span>
-              <div className="flex items-center gap-1">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className={`w-3 h-3 rounded-full ${i <= currentWarnings
-                      ? "bg-slate-400"
-                      : "bg-slate-800"
-                      }`}
-                  />
-                ))}
-              </div>
-              <span className="text-sm text-slate-400 font-medium">
-                {transferResponse?.warning_text}
-              </span>
-            </div>
-
-            {currentWarnings >= 2 && (
-              <div className="bg-slate-500/10 border border-slate-500/30 rounded-lg p-3">
-                <p className="text-sm text-slate-400 flex items-center gap-2">
-                  <ShieldAlert className="h-4 w-4" />
-                  Final warning! Your account will be suspended if you proceed.
-                </p>
-              </div>
-            )}
           </div>
 
+          <div className="bg-slate-900/40 border border-slate-800/60 rounded-[32px] p-8 space-y-6 backdrop-blur-md">
+            <div className="space-y-2">
+              <Label className="text-slate-400">Recipient Address</Label>
+              <div className="relative">
+                <Input placeholder="0x..." value={toAddress} onChange={e => setToAddress(e.target.value)} className="h-14 bg-slate-950 border-slate-800 rounded-2xl font-mono" />
+                {loading.risk && <Loader2 className="absolute right-4 top-4 h-6 w-6 animate-spin text-teal-500" />}
+              </div>
+              {receiverRisk && (
+                <div className={`p-3 rounded-xl border flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${receiverRisk.risk_score > 80 ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-teal-500/10 border-teal-500/30 text-teal-400"}`}>
+                  <AlertTriangle className="h-4 w-4" /> AI Risk: {receiverRisk.risk_score}% ({receiverRisk.risk_level})
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <Label className="text-slate-400">Amount</Label>
+                <span className="text-slate-500">Balance: {senderBalance?.balance_eth.toFixed(4)} {selectedAsset}</span>
+              </div>
+              <div className="relative">
+                <Input type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} className="h-14 bg-slate-950 border-slate-800 rounded-2xl text-2xl font-bold" />
+                <span className="absolute right-6 top-4 font-bold text-slate-500">{selectedAsset}</span>
+              </div>
+            </div>
+
+            <Button onClick={() => handleTransfer()} disabled={loading.transfer || !toAddress || !amount} className="h-14 w-full rounded-2xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-lg font-black shadow-[0_10px_40px_rgba(20,184,166,0.3)] transition-all active:scale-[0.98]">
+              {loading.transfer ? <Loader2 className="h-6 w-6 animate-spin" /> : <><Send className="mr-2 h-5 w-5" /> Confirm Transfer</>}
+            </Button>
+          </div>
+        </div>
+
+        {/* Right: Portfolio & History */}
+        <div className="lg:col-span-5 space-y-6">
+          <Card className="bg-slate-900/40 border-slate-800 rounded-[32px] overflow-hidden">
+            <CardHeader className="bg-slate-950/40 border-b border-slate-800/60 p-6">
+              <CardTitle className="text-lg font-bold flex items-center gap-2"><Wallet className="h-5 w-5 text-teal-400" /> Portfolio</CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 text-center">
+              <div className="inline-block p-6 rounded-full bg-teal-500/10 ring-1 ring-teal-500/20 mb-4">
+                <span className="text-4xl font-black">{senderBalance?.balance_eth.toFixed(2)}</span>
+              </div>
+              <p className="text-xs font-bold text-teal-500 tracking-[0.2em] uppercase">Current {selectedAsset} Holdings</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-900/40 border-slate-800 rounded-[32px] overflow-hidden">
+            <CardHeader className="bg-slate-950/40 border-b border-slate-800/60 p-6">
+              <CardTitle className="text-lg font-bold flex items-center gap-2"><Clock className="h-5 w-5 text-slate-500" /> Activity</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 max-h-[400px] overflow-y-auto">
+              {senderTransactions.map(tx => (
+                <div key={tx.id} className="p-4 border-b border-slate-800/40 hover:bg-slate-800/20 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? <ArrowUpRight className="text-slate-500 h-5 w-5" /> : <ArrowDownLeft className="text-teal-500 h-5 w-5" />}
+                    <div>
+                      <p className="text-xs font-mono text-slate-300">{formatAddress(tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? tx.to_address : tx.from_address)}</p>
+                      <p className="text-[10px] text-slate-500">{formatDate(tx.timestamp)}</p>
+                    </div>
+                  </div>
+                  <span className={`font-bold ${tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? "text-slate-100" : "text-teal-400"}`}>
+                    {tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? "-" : "+"}{formatEth(tx.value || tx.value_wei)}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
+      {/* Dialogs */}
+      <Dialog open={dialogs.blocked} onOpenChange={v => setDialogs(d => ({ ...d, blocked: v }))}>
+        <DialogContent className="bg-slate-950 border-red-900/50 rounded-[32px]">
+          <DialogHeader className="items-center text-center">
+            <div className="h-20 w-24 rounded-full bg-red-500/10 flex items-center justify-center mb-4"><AlertOctagon className="h-12 w-12 text-red-500" /></div>
+            <DialogTitle className="text-2xl font-black text-red-500 uppercase">Transfer Blocked</DialogTitle>
+            <DialogDescription className="text-slate-400">{transferResponse?.message}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter><Button onClick={() => setDialogs(d => ({ ...d, blocked: false }))} className="w-full h-12 rounded-xl bg-red-500 hover:bg-red-400 text-white">Understood</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={dialogs.success} onOpenChange={v => setDialogs(d => ({ ...d, success: v }))}>
+        <DialogContent className="bg-slate-950 border-teal-900/50 rounded-[32px]">
+          <DialogHeader className="items-center text-center">
+            <div className="h-20 w-24 rounded-full bg-teal-500/10 flex items-center justify-center mb-4"><CheckCircle2 className="h-12 w-12 text-teal-500" /></div>
+            <DialogTitle className="text-2xl font-black text-teal-500 uppercase">Success</DialogTitle>
+            <DialogDescription className="text-slate-400">Funds have been sent securely.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter><Button onClick={() => setDialogs(d => ({ ...d, success: false }))} className="w-full h-12 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold">Done</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Warning Dialog */}
+      <Dialog open={dialogs.warning} onOpenChange={v => setDialogs(d => ({ ...d, warning: v }))}>
+        <DialogContent className="bg-slate-950 border-amber-900/50 rounded-[32px]">
+          <DialogHeader className="items-center text-center">
+            <div className="h-20 w-24 rounded-full bg-amber-500/10 flex items-center justify-center mb-4"><AlertTriangle className="h-12 w-12 text-amber-500" /></div>
+            <DialogTitle className="text-2xl font-black text-amber-500 uppercase">Risk Warning</DialogTitle>
+            <DialogDescription className="text-slate-400">{transferResponse?.message}</DialogDescription>
+          </DialogHeader>
+          <p className="text-xs text-center text-amber-500/80 font-medium">{transferResponse?.warning_text}</p>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={handleCancelTransfer}>
-              Cancel Transfer
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmRisk}
-              disabled={transferMutation.isPending}
-            >
-              {transferMutation.isPending ? "Processing..." : "Proceed Anyway"}
-            </Button>
+            <Button variant="outline" onClick={() => setDialogs(d => ({ ...d, warning: false }))} className="flex-1 rounded-xl">Cancel</Button>
+            <Button onClick={() => handleTransfer(true)} className="flex-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold">Proceed Anyway</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Blocked Dialog - Risk > 80% or Blacklisted */}
-      <Dialog open={showBlockedDialog} onOpenChange={setShowBlockedDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-slate-400">
-              <AlertOctagon className="h-6 w-6" />
-              Transfer Blocked
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Blocked Icon */}
-            <div className="flex items-center justify-center">
-              <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-slate-500/20 flex items-center justify-center animate-pulse">
-                  <XCircle className="h-12 w-12 text-slate-400" />
-                </div>
-              </div>
-            </div>
-
-            {/* Block Reason */}
-            <div className="bg-slate-500/10 border border-slate-800 rounded-lg p-4">
-              <p className="text-sm text-slate-100 text-center">
-                {transferResponse?.message ||
-                  "This transfer has been blocked due to high risk."}
-              </p>
-            </div>
-
-            <div className="text-center">
-              <p className="text-slate-500 text-sm">
-                The recipient wallet has a critical risk score and has been
-                identified as potentially fraudulent.
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              className="w-full"
-              onClick={() => {
-                setShowBlockedDialog(false);
-                setToAddress("");
-                setAmount("");
-              }}
-            >
-              Understood
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Success Dialog */}
-      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-slate-400">
-              <CheckCircle2 className="h-6 w-6" />
-              Transfer Successful
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Success Icon */}
-            <div className="flex items-center justify-center">
-              <div className="w-24 h-24 rounded-full bg-slate-500/20 flex items-center justify-center">
-                <CheckCircle2 className="h-12 w-12 text-slate-400" />
-              </div>
-            </div>
-
-            <div className="text-center">
-              <p className="text-slate-100">
-                Your transfer has been processed successfully.
-              </p>
-              {transferResponse?.tx_hash && (
-                <p className="text-sm text-slate-500 mt-2 font-mono">
-                  TX: {formatAddress(transferResponse.tx_hash, 10)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              className="w-full bg-slate-600 hover:bg-slate-700"
-              onClick={() => setShowSuccessDialog(false)}
-            >
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div >
+    </div>
   );
 }
-
-

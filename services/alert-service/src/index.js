@@ -6,11 +6,38 @@ require('dotenv').config();
 const app = express();
 const PORT = Number.parseInt(process.env.PORT || '3003', 10);
 
+app.set('etag', false); // Tắt ETag để tránh mã 304 khi dữ liệu cần cập nhật liên tục
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
 app.use(express.json());
+
+// Force no-cache for all routes
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
+// Tracing middleware
+app.use((req, res, next) => {
+  req.correlationId = req.headers['x-correlation-id'] || `internal-${Math.random().toString(36).substring(7)}`;
+  res.setHeader('x-correlation-id', req.correlationId);
+  next();
+});
+
+// Logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${req.correlationId}] ${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
+  });
+  next();
+});
 
 const CHAIN_ALIASES = {
   ethereum: 'ethereum',
@@ -49,8 +76,13 @@ async function ensureSchema() {
   await pool.query('CREATE INDEX IF NOT EXISTS idx_alerts_wallet_address ON alerts(wallet_address)');
 }
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'alert-service' });
+app.get('/health', async (req, res) => {
+  const metrics = await queue.getQueueMetrics();
+  res.json({
+    status: 'ok',
+    service: 'alert-service',
+    mq_metrics: metrics
+  });
 });
 
 app.get('/ready', async (req, res) => {
@@ -68,7 +100,7 @@ app.get('/alerts/latest', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `
-				SELECT id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, detected_at
+				SELECT id, wallet_address, alert_type, severity, message, risk_score, metadata, chain_id, detected_at
 				FROM alerts
 				ORDER BY detected_at DESC
 				LIMIT $1
@@ -85,8 +117,8 @@ app.get('/alerts/latest', async (req, res) => {
         severity: alert.severity,
         message: alert.message,
         risk_score: Number(alert.risk_score || 0),
-        metadata: alert.meta || {},
-        meta: alert.meta || {},
+        metadata: alert.metadata || {},
+        meta: alert.metadata || {},
         chain_id: alert.chain_id || 'ethereum',
         detected_at: new Date(alert.detected_at).toISOString(),
       })),
@@ -141,7 +173,7 @@ app.get('/alerts/recent', async (req, res) => {
 
     const alertResult = await pool.query(
       `
-				SELECT id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, acknowledged, detected_at
+				SELECT id, wallet_address, alert_type, severity, message, risk_score, metadata, chain_id, acknowledged, detected_at
 				FROM alerts
 				${whereClause}
 				ORDER BY detected_at DESC
@@ -172,8 +204,8 @@ app.get('/alerts/recent', async (req, res) => {
         severity: alert.severity,
         message: alert.message,
         risk_score: Number(alert.risk_score || 0),
-        context: alert.meta || {},
-        meta: alert.meta || {},
+        context: alert.metadata || {},
+        meta: alert.metadata || {},
         chain_id: alert.chain_id || 'ethereum',
         detected_at: new Date(alert.detected_at).toISOString(),
         acknowledged: Boolean(alert.acknowledged),
@@ -221,7 +253,7 @@ app.get('/alerts', async (req, res) => {
 
     const rowsResult = await pool.query(
       `
-				SELECT id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, acknowledged, detected_at
+				SELECT id, wallet_address, alert_type, severity, message, risk_score, metadata, chain_id, acknowledged, detected_at
 				FROM alerts
 				${whereClause}
 				ORDER BY detected_at DESC
@@ -234,7 +266,10 @@ app.get('/alerts', async (req, res) => {
       total: countResult.rows[0]?.count || 0,
       page,
       limit,
-      items: rowsResult.rows,
+      items: rowsResult.rows.map(row => ({
+        ...row,
+        meta: row.metadata || {}
+      })),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -278,9 +313,9 @@ app.post('/alerts', async (req, res) => {
       `
         INSERT INTO alerts (
           wallet_address, alert_type, severity, message, 
-          risk_score, meta, chain_id, detected_at
+          risk_score, metadata, chain_id, detected_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-        RETURNING id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, detected_at
+        RETURNING id, wallet_address, alert_type, severity, message, risk_score, metadata, chain_id, detected_at
       `,
       [
         wallet_address,
@@ -298,20 +333,21 @@ app.post('/alerts', async (req, res) => {
     // Publish to MQ
     await queue.publishAlert({
       ...newAlert,
+      meta: newAlert.metadata || {},
       event_type: 'ALERT_CREATED'
     });
 
-    res.status(201).json(newAlert);
+    res.status(201).json({
+      ...newAlert,
+      meta: newAlert.metadata || {}
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/alerts/:id/acknowledge', async (req, res) => {
-  const id = Number.parseInt(req.params.id, 10);
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(400).json({ error: 'Invalid alert id' });
-  }
+  const id = req.params.id; // Use as string/UUID since some IDs are UUIDs
 
   try {
     const { rows } = await pool.query(
@@ -319,7 +355,7 @@ app.post('/alerts/:id/acknowledge', async (req, res) => {
 				UPDATE alerts
 				SET acknowledged = TRUE
 				WHERE id = $1
-				RETURNING id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, acknowledged, detected_at
+				RETURNING id, wallet_address, alert_type, severity, message, risk_score, metadata, chain_id, acknowledged, detected_at
 			`,
       [id]
     );
@@ -346,6 +382,16 @@ ensureSchema()
   .then(async () => {
     // Connect to RabbitMQ
     await queue.connect();
+    
+    // Start Worker with dummy processor
+    await queue.startWorker(async (content) => {
+      // 10% chance to fail for demo purposes
+      if (Math.random() < 0.1) {
+        throw new Error('Transient connectivity error to external notification provider');
+      }
+      // Simulate work
+      return true;
+    });
     
     app.listen(PORT, () => {
       console.log(`alert-service running on port ${PORT}`);

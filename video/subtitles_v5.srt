@@ -1,0 +1,184 @@
+1
+00:00:00,500 --> 00:00:01,983
+Trong thị trường Blockchain hiện nay, mỗi năm
+
+2
+00:00:01,983 --> 00:00:03,466
+có hàng tỷ đô la bị thất thoát
+
+3
+00:00:03,466 --> 00:00:04,950
+do gian lận, rửa tiền và tấn công
+
+4
+00:00:04,950 --> 00:00:06,433
+mạng. Blockchain AI Operations Console là nền tảng
+
+5
+00:00:06,433 --> 00:00:07,917
+giám sát thông minh, ứng dụng trí tuệ
+
+6
+00:00:07,917 --> 00:00:09,400
+nhân tạo để phát hiện giao dịch bất
+
+7
+00:00:09,400 --> 00:00:10,884
+thường, truy vết dòng tiền đáng ngờ, và
+
+8
+00:00:10,884 --> 00:00:12,367
+tự động đình chỉ các ví vi phạm
+
+9
+00:00:12,367 --> 00:00:13,480
+trước khi thiệt hại xảy ra.
+
+10
+00:00:15,000 --> 00:00:16,655
+Tại giao diện Admin Dashboard, người quản trị
+
+11
+00:00:16,655 --> 00:00:18,310
+giám sát toàn diện sức khỏe hệ thống,
+
+12
+00:00:18,310 --> 00:00:19,965
+theo dõi lưu lượng API, tỷ lệ lỗi
+
+13
+00:00:19,965 --> 00:00:21,000
+và độ trễ xử lý.
+
+14
+00:00:22,500 --> 00:00:24,202
+Chuyển sang góc nhìn Kỹ sư dữ liệu
+
+15
+00:00:24,202 --> 00:00:25,904
+AI. Hệ thống quản lý chi tiết các
+
+16
+00:00:25,904 --> 00:00:27,606
+tính năng và phiên bản mô hình máy
+
+17
+00:00:27,606 --> 00:00:29,308
+học như anomaly detection hay graph propagation đang
+
+18
+00:00:29,308 --> 00:00:30,160
+quét dữ liệu on-chain.
+
+19
+00:00:31,699 --> 00:00:33,043
+Đối với Quản lý rủi ro tuân thủ,
+
+20
+00:00:33,043 --> 00:00:34,387
+phần mềm thống kê chính xác lượng tiền
+
+21
+00:00:34,387 --> 00:00:35,730
+đã bị chặn, các quy tắc rủi ro
+
+22
+00:00:35,730 --> 00:00:37,074
+được minh bạch hóa phục vụ công tác
+
+23
+00:00:37,074 --> 00:00:37,409
+kiểm toán.
+
+24
+00:00:38,899 --> 00:00:40,226
+Khi chuyên viên bảo mật phân tích một
+
+25
+00:00:40,226 --> 00:00:41,552
+ví đáng ngờ, AI lập tức vẽ ra
+
+26
+00:00:41,552 --> 00:00:42,879
+biểu đồ kết nối trực quan giúp bóc
+
+27
+00:00:42,879 --> 00:00:44,039
+tách hành vi giao dịch đa lớp.
+
+28
+00:00:45,500 --> 00:00:46,951
+Thông qua phân tích Multi-hop, hệ thống tự
+
+29
+00:00:46,951 --> 00:00:48,403
+động dò tìm dòng tiền qua nhiều bước
+
+30
+00:00:48,403 --> 00:00:49,855
+trung gian và đưa ra phán quyết thần
+
+31
+00:00:49,855 --> 00:00:50,399
+kinh tự động.
+
+32
+00:00:51,899 --> 00:00:53,392
+Toàn bộ vi phạm được tổng hợp thành
+
+33
+00:00:53,392 --> 00:00:54,885
+từng Case xử lý. Đi kèm là hệ
+
+34
+00:00:54,885 --> 00:00:56,377
+thống cảnh báo đa kênh, phân loại theo
+
+35
+00:00:56,377 --> 00:00:57,870
+mức độ khẩn cấp để đảm bảo phản
+
+36
+00:00:57,870 --> 00:00:58,429
+ứng kịp thời.
+
+37
+00:00:59,899 --> 00:01:01,420
+Và đây là mô phỏng trên logs thực
+
+38
+00:01:01,420 --> 00:01:02,939
+tế. AI Sentinel tự động nhận diện hành
+
+39
+00:01:02,939 --> 00:01:04,459
+vi rửa tiền và đình chỉ tức thời
+
+40
+00:01:04,459 --> 00:01:05,980
+các ví vi phạm trước khi chúng kịp
+
+41
+00:01:05,980 --> 00:01:06,359
+hành động.
+
+42
+00:01:07,900 --> 00:01:09,300
+Với tiềm năng ứng dụng to lớn, giải
+
+43
+00:01:09,300 --> 00:01:10,700
+pháp này không chỉ bảo vệ tài sản
+
+44
+00:01:10,700 --> 00:01:12,100
+mà còn củng cố niềm tin, mở ra
+
+45
+00:01:12,100 --> 00:01:13,500
+cơ hội đầu tư bền vững trong kỷ
+
+46
+00:01:13,500 --> 00:01:13,850
+nguyên Web3.
+

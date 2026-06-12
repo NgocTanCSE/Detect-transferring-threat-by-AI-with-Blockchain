@@ -10,18 +10,42 @@ export default function BatchUploadPage() {
   const [progress, setProgress] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     setIsUploading(true);
-    let p = 0;
-    const interval = setInterval(() => {
-      p += 5;
-      setProgress(p);
-      if (p >= 100) {
-        clearInterval(interval);
-        setIsUploading(false);
-        setIsFinished(true);
-      }
-    }, 100);
+    setProgress(10);
+
+    try {
+      // Simulate reading file and preparing data
+      const sampleTransfers = Array.from({ length: 50 }, (_, i) => ({
+        sender: "0x742d35cc6634c0532925a3b844bc454e4438f44e",
+        receiver: i % 5 === 0 ? "0xdead000000000000000000000000000000000001" : "0x" + Math.random().toString(16).slice(2, 42).padStart(40, '0'),
+        amount: (Math.random() * 5).toFixed(4)
+      }));
+
+      setProgress(40);
+
+      const response = await fetch("/api/transfers/batch", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({ transfers: sampleTransfers })
+      });
+
+      if (!response.ok) throw new Error("Batch upload failed");
+      
+      const result = await response.json();
+      console.log("Batch upload result:", result);
+
+      setProgress(100);
+      setIsUploading(false);
+      setIsFinished(true);
+    } catch (error) {
+      console.error("Upload error:", error);
+      setIsUploading(false);
+      alert("Failed to upload batch data. Please check connection.");
+    }
   };
 
   return (

@@ -19,6 +19,23 @@ const PORT = process.env.PORT || 3007;
 app.use(cors());
 app.use(express.json());
 
+// Tracing middleware
+app.use((req, res, next) => {
+  req.correlationId = req.headers['x-correlation-id'] || `internal-${require('uuid').v4()}`;
+  res.setHeader('x-correlation-id', req.correlationId);
+  next();
+});
+
+// Logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${req.correlationId}] ${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
+  });
+  next();
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
@@ -47,12 +64,23 @@ io.on('connection', (socket) => {
  * Handle incoming events from RabbitMQ
  */
 const handleMQEvent = (routingKey, data) => {
-  // Broadcast to all clients
+  // Broadcast to all clients (original new-alert format)
   io.emit('new-alert', data);
+  
+  // Map fields to match what the frontend expects for new-threat
+  const threat = {
+    chain: data.chain_id || 'ethereum',
+    address: data.wallet_address || '',
+    level: data.severity || 'MEDIUM',
+    score: Number(data.risk_score || 0),
+    timestamp: data.detected_at || new Date().toISOString()
+  };
+  io.emit('new-threat', threat);
   
   // Also broadcast to specific chain room if chain_id exists
   if (data.chain_id) {
     io.to(`chain:${data.chain_id}`).emit('new-alert', data);
+    io.to(`chain:${data.chain_id}`).emit('new-threat', threat);
   }
   
   console.log(`📢 Broadcasted event ${routingKey} to ${io.engine.clientsCount} clients`);

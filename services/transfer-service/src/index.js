@@ -8,6 +8,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const helmet = require('helmet');
 const axios = require('axios');
+const { v4: uuidv4 } = require('uuid');
 const CircuitBreaker = require('opossum');
 require('dotenv').config();
 
@@ -45,6 +46,33 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+app.set('etag', false);
+
+// Force no-cache
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
+// Tracing middleware
+app.use((req, res, next) => {
+  req.correlationId = req.headers['x-correlation-id'] || `internal-${Math.random().toString(36).substring(7)}`;
+  res.setHeader('x-correlation-id', req.correlationId);
+  next();
+});
+
+// Logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${req.correlationId}] ${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
+  });
+  next();
+});
+
 // Helper: Wei from ETH
 const weiFromEth = (eth) => {
   return (BigInt(Math.round(parseFloat(eth) * 1e9)) * BigInt(1e9)).toString();
@@ -64,23 +92,78 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'transfer-service', timestamp: new Date() });
 });
 
+// Middleware to enforce Role-Based Access Control
+const requireRole = (allowedRoles) => {
+  return (req, res, next) => {
+    const userRole = req.headers['x-user-role'];
+    
+    // In dev mode, if no gateway header is present, allow all (optional)
+    if (!userRole && process.env.NODE_ENV === 'development') {
+      return next();
+    }
+
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      console.warn(`[RBAC] Transfer denied for role: ${userRole}`);
+      return res.status(403).json({ 
+        error: 'Forbidden: You do not have permission to perform transactions.' 
+      });
+    }
+    next();
+  };
+};
+
 /**
  * POST /protected-transfer
  * Process a transaction with risk assessment and protection
  */
-app.post('/protected-transfer', async (req, res) => {
-  const { sender, receiver, amount, force_proceed = false } = req.body;
+app.post(['/protected-transfer', '/transfer/protected', '/protected'], requireRole(['user', 'admin', 'api_client']), async (req, res) => {
+  const { 
+    sender, 
+    from_wallet_id,
+    receiver, 
+    to_address,
+    to_wallet_id,
+    amount, 
+    amount_eth,
+    force_proceed = false,
+    confirm_risk = false,
+    chain = 'ethereum',
+    asset = 'ETH'
+  } = req.body;
 
-  if (!sender || !receiver || !amount) {
-    return res.status(400).json({ error: 'Missing required fields: sender, receiver, amount' });
+  // Align field names from different sources (Demo Scripts vs Frontend)
+  const finalSender = sender || from_wallet_id;
+  const finalReceiver = receiver || to_address || to_wallet_id;
+  const finalAmount = amount || amount_eth;
+  const finalForceProceed = force_proceed || confirm_risk;
+
+  if (!finalSender || !finalReceiver || !finalAmount) {
+    return res.status(400).json({ error: 'Missing required fields: sender/from_wallet_id, receiver/to_address, amount' });
+  }
+
+  // Chain/Asset Validation
+  const validAssets = {
+    'ethereum': ['ETH', 'USDT', 'USDC'],
+    'bsc': ['BNB', 'USDT', 'BUSD']
+  };
+
+  const normalizedChain = chain.toLowerCase();
+  const normalizedAsset = asset.toUpperCase();
+
+  if (!validAssets[normalizedChain]) {
+    return res.status(400).json({ error: `Unsupported chain: ${chain}` });
+  }
+
+  if (!validAssets[normalizedChain].includes(normalizedAsset)) {
+    return res.status(400).json({ error: `Invalid asset ${asset} for chain ${chain}` });
   }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const normalizedSender = sender.toLowerCase().trim();
-    const normalizedReceiver = receiver.toLowerCase().trim();
+    const normalizedSender = finalSender.toLowerCase().trim();
+    const normalizedReceiver = finalReceiver.toLowerCase().trim();
 
     // 1. Check sender status
     const senderRes = await client.query('SELECT * FROM wallets WHERE LOWER(address) = $1', [normalizedSender]);
@@ -128,22 +211,24 @@ app.post('/protected-transfer', async (req, res) => {
 
     // 4. Critical risk (>80 or blacklisted) - Block immediately
     if (receiverRisk >= 80 || isBlacklisted || ['frozen', 'suspended'].includes(receiverStatus)) {
-      const amountWei = weiFromEth(amount);
+      const amountWei = weiFromEth(finalAmount);
       await client.query(
-        'INSERT INTO blocked_transfers (sender_address, receiver_address, amount, risk_score, block_reason, user_warning_count, blocked_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
-        [normalizedSender, normalizedReceiver, amountWei, receiverRisk, 'high_risk_receiver', warningCount]
+        'INSERT INTO blocked_transfers (id, sender_address, receiver_address, amount, risk_score, block_reason, user_warning_count, chain_id, blocked_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())',
+        [uuidv4(), normalizedSender, normalizedReceiver, amountWei, receiverRisk, 'high_risk_receiver', warningCount, normalizedChain]
       );
       await client.query('COMMIT');
       return res.status(403).json({
+        status: 'blocked',
         blocked: true,
         reason: 'Receiver is high-risk or blocked',
         receiver_risk: receiverRisk,
-        receiver_status: receiverStatus
+        receiver_status: receiverStatus,
+        message: `Giao dịch đã bị chặn bởi AI Sentinel. Địa chỉ nhận có mức độ rủi ro cực cao (${receiverRisk}%).`
       });
     }
 
     // 5. Medium risk (50-80) - Show warning
-    if (receiverRisk >= 50 && !force_proceed) {
+    if (receiverRisk >= 50 && !finalForceProceed) {
       await client.query('ROLLBACK');
       return res.json({
         status: 'warning',
@@ -151,79 +236,68 @@ app.post('/protected-transfer', async (req, res) => {
         receiver_risk: receiverRisk,
         current_warnings: warningCount,
         max_warnings: 3,
-        message: `⚠️ This wallet has a risk score of ${receiverRisk}%. Are you sure you want to proceed?`,
-        warning_text: `You have ${3 - warningCount} warnings remaining before account suspension.`
+        message: `⚠️ Ví này có điểm rủi ro là ${receiverRisk}%. Bạn có chắc chắn muốn tiếp tục?`,
+        warning_text: `Bạn còn ${3 - warningCount} lần cảnh báo trước khi tài khoản bị khóa.`
       });
     }
 
     // 6. User chose to proceed despite warning
-    if (force_proceed && receiverRisk >= 50) {
+    if (finalForceProceed && receiverRisk >= 50) {
       await client.query(
-        'INSERT INTO user_warnings (wallet_address, target_address, warning_type, risk_score, user_action, warning_number, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
-        [normalizedSender, normalizedReceiver, 'RISK_IGNORED', receiverRisk, 'ignored', warningCount + 1]
+        'INSERT INTO user_warnings (id, wallet_address, target_address, warning_type, risk_score, user_action, warning_number, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())',
+        [uuidv4(), normalizedSender, normalizedReceiver, 'RISK_IGNORED', receiverRisk, 'ignored', warningCount + 1]
       );
       
       const newWarningCount = warningCount + 1;
       if (newWarningCount >= 3) {
         // Auto-suspend
         await client.query(
-          "UPDATE wallets SET account_status = 'suspended', flagged_at = NOW(), flagged_by = 'SYSTEM_AUTO_SUSPEND', notes = notes || '\n[' || NOW() || '] Auto-suspended after 3 risk warnings.' WHERE address = $1",
+          "UPDATE wallets SET account_status = 'suspended', flagged_at = NOW(), notes = COALESCE(notes, '') || '\n[' || NOW() || '] Auto-suspended after 3 risk warnings.' WHERE address = $1",
           [senderWallet.address]
         );
 
         // Create alert
         await client.query(
-          "INSERT INTO alerts (wallet_address, alert_type, severity, message, risk_score, detected_at) VALUES ($1, $2, $3, $4, $5, NOW())",
-          [normalizedSender, 'USER_SUSPENDED', 'HIGH', `User account auto-suspended after ignoring 3 risk warnings. Last attempted transfer to ${normalizedReceiver}.`, receiverRisk]
+          "INSERT INTO alerts (id, wallet_address, alert_type, severity, message, risk_score, chain_id, detected_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())",
+          [uuidv4(), normalizedSender, 'USER_SUSPENDED', 'HIGH', `User account auto-suspended after ignoring 3 risk warnings. Last attempted transfer to ${normalizedReceiver}.`, receiverRisk, normalizedChain]
         );
 
         await client.query('COMMIT');
         return res.status(403).json({
+          status: 'blocked',
           suspended: true,
           reason: 'Account suspended after 3 ignored risk warnings',
-          warning_count: newWarningCount
+          warning_count: newWarningCount,
+          message: 'Tài khoản của bạn đã bị tạm khóa do phớt lờ cảnh báo rủi ro quá 3 lần.'
         });
       }
     }
 
     // 7. Proceed with transaction
-    const amountWei = weiFromEth(amount);
-
-    // Check balance (Simplified balance check for simulation)
-    const balanceRes = await client.query(`
-      SELECT 
-        (SELECT COALESCE(SUM(value), 0) FROM transactions WHERE LOWER(to_address) = $1) -
-        (SELECT COALESCE(SUM(value), 0) FROM transactions WHERE LOWER(from_address) = $1) as balance
-    `, [normalizedSender]);
-    
-    const balanceWei = BigInt(balanceRes.rows[0].balance || '0');
-    if (balanceWei < BigInt(amountWei)) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Insufficient balance' });
-    }
+    const amountWei = weiFromEth(finalAmount);
 
     // Create transaction
     const txHash = `sim_${Math.random().toString(36).substring(2, 15)}`;
     await client.query(
-      'INSERT INTO transactions (tx_hash, from_address, to_address, value, block_number, timestamp, status) VALUES ($1, $2, $3, $4, 0, NOW(), 1)',
-      [txHash, normalizedSender, normalizedReceiver, amountWei]
+      'INSERT INTO transactions (id, tx_hash, from_address, to_address, value, block_number, timestamp, status, chain_id) VALUES ($1, $2, $3, $4, $5, 0, NOW(), 1, $6)',
+      [uuidv4(), txHash, normalizedSender, normalizedReceiver, amountWei, normalizedChain]
     );
 
     // Update wallets
     await client.query(
-      'UPDATE wallets SET total_value_sent = total_value_sent + $1, total_transactions = total_transactions + 1, last_activity_at = NOW() WHERE LOWER(address) = $2',
-      [amountWei, normalizedSender]
+      'UPDATE wallets SET total_transactions = COALESCE(total_transactions, 0) + 1, last_activity_at = NOW() WHERE LOWER(address) = $1',
+      [normalizedSender]
     );
 
     if (receiverRes.rows.length > 0) {
       await client.query(
-        'UPDATE wallets SET total_value_received = total_value_received + $1, total_transactions = total_transactions + 1, last_activity_at = NOW() WHERE LOWER(address) = $2',
-        [amountWei, normalizedReceiver]
+        'UPDATE wallets SET total_transactions = COALESCE(total_transactions, 0) + 1, last_activity_at = NOW() WHERE LOWER(address) = $1',
+        [normalizedReceiver]
       );
     } else {
       await client.query(
-        'INSERT INTO wallets (address, total_value_received, total_transactions, last_activity_at, account_status, risk_score) VALUES ($1, $2, 1, NOW(), $3, $4)',
-        [normalizedReceiver, amountWei, 'active', 0]
+        "INSERT INTO wallets (id, address, total_transactions, last_activity_at, account_status, risk_score) VALUES ($1, $2, 1, NOW(), 'active', 0)",
+        [uuidv4(), normalizedReceiver]
       );
     }
 
@@ -232,12 +306,14 @@ app.post('/protected-transfer', async (req, res) => {
     res.json({
       status: 'success',
       tx_hash: txHash,
-      from: sender,
-      to: receiver,
-      amount_eth: amount,
+      from: finalSender,
+      to: finalReceiver,
+      amount_eth: finalAmount,
+      asset: normalizedAsset,
+      chain: normalizedChain,
       receiver_risk_score: receiverRisk,
-      warning_count: force_proceed && receiverRisk >= 50 ? warningCount + 1 : warningCount,
-      message: 'Transaction completed successfully'
+      warning_count: finalForceProceed && receiverRisk >= 50 ? warningCount + 1 : warningCount,
+      message: 'Giao dịch đã được thực hiện thành công.'
     });
 
   } catch (error) {
@@ -287,8 +363,8 @@ app.post('/transfers/batch', async (req, res) => {
       // Create transaction
       const txHash = `batch_${Math.random().toString(36).substring(2, 15)}`;
       await pool.query(
-        'INSERT INTO transactions (tx_hash, from_address, to_address, value, status, created_at) VALUES ($1, $2, $3, $4, 1, NOW())',
-        [txHash, normalizedSender, normalizedReceiver, amountWei]
+        'INSERT INTO transactions (id, tx_hash, from_address, to_address, value, block_number, timestamp, status) VALUES ($1, $2, $3, $4, $5, 0, NOW(), 1)',
+        [uuidv4(), txHash, normalizedSender, normalizedReceiver, amountWei]
       );
 
       results.processed++;

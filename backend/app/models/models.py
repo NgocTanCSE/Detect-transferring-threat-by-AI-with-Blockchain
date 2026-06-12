@@ -472,7 +472,7 @@ class MoneyFlowSnapshot(Base):
     __tablename__ = "money_flow_snapshots"
 
     id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    date = Column(Date, nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     inflow_eth = Column(Float, default=0.0)
     outflow_eth = Column(Float, default=0.0)
     chain_id = Column(String(50), default='ethereum', index=True)
@@ -536,4 +536,20 @@ class UsageLog(Base):
 
     def __repr__(self) -> str:
         return f"<UsageLog(org={self.organization_id}, endpoint={self.endpoint}, status={self.status_code})>"
+
+
+class AuthSession(Base):
+    """User authentication sessions and tokens."""
+
+    __tablename__ = "auth_sessions"
+
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(255), nullable=False, unique=True)
+    created_at = Column(DateTime, server_default=func.now())
+    expires_at = Column(DateTime, nullable=False, index=True)
+    revoked_at = Column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<AuthSession(user_id={self.user_id}, expires_at={self.expires_at})>"
 

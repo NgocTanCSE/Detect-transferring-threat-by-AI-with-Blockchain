@@ -601,7 +601,7 @@ def require_auth(
 # AUTH ENDPOINTS
 # ==========================================
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/_legacy_/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user_data: UserCreate, request: Request, db: Session = Depends(get_db)):
     """
     Register a new user account.

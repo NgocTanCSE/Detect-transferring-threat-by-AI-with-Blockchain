@@ -43,7 +43,7 @@ class HFSecurityAnalyst:
         self.persona += "\n\nBổ sung phong cách: Bạn là một chuyên gia phân tích dữ liệu sắc sảo, luôn dựa trên con số thực tế để đưa ra nhận định. Bạn không bao giờ trả lời hời hợt hoặc dùng các câu mẫu sáo rỗng."
 
         if not self.enabled:
-            logger.warning("GEMINI_API_KEY/GOOGLE_API_KEY not found. AI Security Analyst will use fallback mode.")
+            logger.info("GEMINI_API_KEY/GOOGLE_API_KEY not found. AI Security Analyst will use fallback mode.")
 
     def analyze_threat(
         self,
@@ -51,22 +51,56 @@ class HFSecurityAnalyst:
         risk_score: float,
         risk_level: str,
         detections: Dict[str, Any],
-        transaction_summary: Dict[str, Any]
+        transaction_summary: str # Chấp nhận chuỗi tóm tắt để tối ưu token
     ) -> str:
         """
-        Generate a natural language analysis of the detected threats using LLM.
+        Tạo phân tích ngôn ngữ tự nhiên về các mối đe dọa bằng LLM.
         """
         if not self.enabled:
-            return "AI Analyst is currently unavailable. Provide GEMINI_API_KEY (or GOOGLE_API_KEY) to enable."
+            return "AI Analyst hiện không khả dụng. Vui lòng cấu hình API Key."
 
-        # Construct specific context for the LLM
-        prompt = self._construct_prompt(wallet_address, risk_score, risk_level, detections, transaction_summary)
+        # Xây dựng prompt tối ưu
+        prompt = self._construct_optimized_prompt(wallet_address, risk_score, risk_level, detections, transaction_summary)
 
         try:
-            return self._generate_text(prompt=prompt, max_new_tokens=500, temperature=0.7)
+            # Giảm max_new_tokens để AI phản hồi nhanh hơn (tập trung vào nội dung chính)
+            return self._generate_text(prompt=prompt, max_new_tokens=350, temperature=0.5)
         except Exception as e:
             logger.error(f"Gemini API call failed: {e}")
-            return f"The AI analyst encountered an error while processing this wallet: {str(e)}"
+            return f"Phân tích AI gặp lỗi kỹ thuật: {str(e)}"
+
+    def _construct_optimized_prompt(
+        self,
+        wallet_address: str,
+        risk_score: float,
+        risk_level: str,
+        detections: Dict[str, Any],
+        transaction_summary: str
+    ) -> str:
+        reasons = []
+        for agent, result in detections.items():
+            if isinstance(result, dict) and result.get('detected'):
+                reasons.extend(result.get('reasons', []))
+
+        reasons_text = "\n- ".join(reasons) if reasons else "Không phát hiện hành vi bất thường."
+
+        return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+{self.persona}
+NHIỆM VỤ: Phân tích rủi ro ví blockchain (XAI).
+YÊU CẦU:
+1. Giải thích ngắn gọn tại sao ví có điểm {risk_score} (Dựa trên Heuristic & ML).
+2. Tóm tắt các mẫu hành vi từ dữ liệu giao dịch cung cấp.
+3. Đề xuất hành động: [ACTION: BLOCK] nếu >70, [ACTION: MONITOR] nếu 40-70.
+4. KHÔNG lặp lại dữ liệu JSON. Trả lời thẳng vào vấn đề.
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+VÍ: {wallet_address}
+ĐIỂM: {risk_score}/100 ({risk_level})
+DẤU HIỆU:
+{reasons_text}
+TÓM TẮT GIAO DỊCH:
+{transaction_summary}
+PHÂN TÍCH:
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     def answer_dashboard_question(
         self,
@@ -249,6 +283,10 @@ class HFSecurityAnalyst:
                             if text:
                                 logger.info(f"✓ Gemini API success with {version}/{model_name}")
                                 return text
+                    elif response.status_code == 429:
+                        # Immediate fail for 429 - quota applies to API KEY
+                        logger.warning(f"Gemini API Quota Exceeded (429) for {model_name}. Skipping retries.")
+                        raise RuntimeError(f"Gemini API Quota Exceeded (429)")
                     else:
                         error_detail = response.text[:100] if response.text else str(response.status_code)
                         last_error = f"({version}/{model_name}) {response.status_code}: {error_detail}"

@@ -465,6 +465,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_update_wallet_stats ON transactions;
 CREATE TRIGGER trg_update_wallet_stats
 AFTER INSERT ON transactions
 FOR EACH ROW
@@ -515,6 +516,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_suspend_user_on_warnings ON users;
 CREATE TRIGGER trg_suspend_user_on_warnings
 AFTER UPDATE OF warning_count ON users
 FOR EACH ROW

@@ -12,5 +12,5 @@ export function authFetch(url: string | URL | Request, options?: RequestInit): P
       headers.set("Authorization", `Bearer ${token}`);
     }
   }
-  return fetch(url, { ...options, headers });
+  return fetch(url, { cache: "no-store", ...options, headers });
 }

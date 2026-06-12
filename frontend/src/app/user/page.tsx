@@ -1,206 +1,85 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Shield, ArrowRight, Activity, Globe } from "lucide-react";
+import { useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { Shield, Wallet, Mail, User as UserIcon, ArrowRight, Upload, Key } from "lucide-react";
 
-export default function UserPage() {
+export default function DemoLandingPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  if (isLoading) {
+  // If already logged in, skip the landing page and go straight to exchange
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push("/user/exchange");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  if (isLoading || isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-slate-400">Đang tải...</div>
+      <div className="flex min-h-screen items-center justify-center bg-[#08080a]">
+        <div className="text-slate-400">Loading demo environment...</div>
       </div>
     );
   }
 
-  if (!isAuthenticated || !user) {
-    router.push("/login");
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 pt-20 pb-12">
-      <div className="mx-auto max-w-4xl px-4">
-        {/* Profile Card */}
-        <Card className="mb-6 border-slate-700/70 bg-slate-950/80 backdrop-blur">
-          <CardHeader className="border-b border-slate-700/50">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-gradient-to-br from-slate-200 to-slate-500 shadow-lg">
-                  <UserIcon className="h-8 w-8 text-white" />
-                </div>
-                <div>
-                  <CardTitle className="text-2xl text-white">{user.username}</CardTitle>
-                  <CardDescription className="mt-1 text-slate-400">
-                    Tài khoản người dùng • {new Date(user.created_at).toLocaleDateString("vi-VN")}
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="rounded-lg bg-slate-500/20 text-slate-100 border-slate-500/30">
-                {user.role === "admin" ? "Admin" : "User"}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              {/* Email */}
-              <div className="flex items-start gap-4">
-                <div className="mt-1 rounded-lg bg-slate-800/50 p-2">
-                  <Mail className="h-5 w-5 text-slate-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-400">Địa chỉ email</p>
-                  <p className="text-base font-medium text-white break-all">{user.email}</p>
-                </div>
-              </div>
+    <div className="flex min-h-screen flex-col bg-[#08080a] text-slate-100 selection:bg-teal-500/30">
+      <main className="flex flex-1 flex-col items-center justify-center px-6 relative overflow-hidden">
+        
+        {/* Background elements */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-teal-500/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-amber-500/10 rounded-full blur-[100px] pointer-events-none" />
 
-              {/* Wallet Address */}
-              {user.wallet_address ? (
-                <div className="flex items-start gap-4">
-                  <div className="mt-1 rounded-lg bg-slate-800/50 p-2">
-                    <Wallet className="h-5 w-5 text-slate-400" />
-                  </div>
-                  <div className="w-full">
-                    <p className="text-sm text-slate-400">Địa chỉ ví</p>
-                    <p className="text-base font-mono text-white break-all">
-                      {user.wallet_address}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start gap-4">
-                  <div className="mt-1 rounded-lg bg-slate-800/50 p-2">
-                    <Wallet className="h-5 w-5 text-slate-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-400">Địa chỉ ví</p>
-                    <p className="text-base text-slate-500">Chưa liên kết ví</p>
-                  </div>
-                </div>
-              )}
+        <div className="z-10 flex flex-col items-center text-center max-w-3xl">
+          {/* Logo/Icon */}
+          <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-teal-400 via-slate-100 to-amber-300 shadow-[0_0_80px_rgba(20,184,166,0.3)]">
+            <Shield className="h-12 w-12 text-slate-950" />
+          </div>
 
-              {/* Status */}
-              <div className="flex items-start gap-4">
-                <div className="mt-1 rounded-lg bg-slate-800/50 p-2">
-                  <Shield className="h-5 w-5 text-slate-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-400">Trạng thái tài khoản</p>
-                  <p className="text-base font-medium text-white">
-                    {user.is_active ? (
-                      <span className="flex items-center gap-2">
-                        <span className="inline-block h-2 w-2 rounded-full bg-slate-500"></span>
-                        Hoạt động
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <span className="inline-block h-2 w-2 rounded-full bg-slate-500"></span>
-                        Bị vô hiệu hóa
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-teal-400/20 bg-teal-400/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-teal-300 mb-6">
+            <Activity className="h-3.5 w-3.5" />
+            Interactive Demo Environment
+          </div>
 
-              {/* Warning Count */}
-              <div className="flex items-start gap-4">
-                <div className="mt-1 rounded-lg bg-slate-800/50 p-2">
-                  <AlertTriangle className="h-5 w-5 text-slate-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-400">Cảnh báo</p>
-                  <p className="text-base font-medium text-white">{user.warning_count} cảnh báo</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          <h1 className="mb-6 text-5xl font-extrabold tracking-tight md:text-7xl">
+            Experience the <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-amber-300">Security</span>
+          </h1>
+          
+          <p className="mb-10 max-w-2xl text-lg text-slate-400 md:text-xl leading-relaxed">
+            Welcome to the Blockchain AI Sentinel simulator. Access the user portal to simulate cross-chain transfers, trigger real-time AI risk analysis, and watch the system block fraudulent transactions instantly.
+          </p>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Card className="border-slate-700/70 bg-slate-950/80 hover:border-white/30">
-            <CardHeader
-              onClick={() => router.push("/user/exchange")}
-              className="pb-4"
+          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+            <Button
+              size="lg"
+              onClick={() => router.push("/login")}
+              className="h-14 px-8 text-base font-semibold bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl transition-all hover:scale-105 shadow-[0_0_40px_rgba(20,184,166,0.4)]"
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg text-white">Giao dịch</CardTitle>
-                  <CardDescription className="mt-1">
-                    Xem và quản lý giao dịch ví của bạn
-                  </CardDescription>
-                </div>
-                <ArrowRight className="h-5 w-5 text-slate-400" />
-              </div>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-slate-700/70 bg-slate-950/80 hover:border-white/30 cursor-pointer">
-            <CardHeader
-              onClick={() => router.push("/user/api")}
-              className="pb-4"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg text-white">Quản lý API</CardTitle>
-                  <CardDescription className="mt-1">
-                    Quản lý API Key cho tổ chức của bạn
-                  </CardDescription>
-                </div>
-                <Key className="h-5 w-5 text-slate-400" />
-              </div>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-slate-700/70 bg-slate-950/80 hover:border-white/30 cursor-pointer">
-            <CardHeader
-              onClick={() => router.push("/user/batch")}
-              className="pb-4"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg text-white">Tải lên hàng loạt</CardTitle>
-                  <CardDescription className="mt-1">
-                    Tải lên danh sách giao dịch (CSV/Excel)
-                  </CardDescription>
-                </div>
-                <Upload className="h-5 w-5 text-slate-400" />
-              </div>
-            </CardHeader>
-          </Card>
+              Enter User Portal
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
-        {/* Info Section */}
-        <Card className="mt-6 border-slate-700/70 bg-slate-950/80 backdrop-blur">
-          <CardHeader>
-            <CardTitle className="text-white">Thông tin hệ thống</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between text-slate-400">
-                <span>ID tài khoản:</span>
-                <span className="font-mono text-slate-300">{user.id}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Ngày tạo:</span>
-                <span className="text-slate-300">
-                  {new Date(user.created_at).toLocaleString("vi-VN")}
-                </span>
-              </div>
+        {/* Feature highlights */}
+        <div className="mt-24 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl w-full z-10">
+          {[
+            { title: "Real-time AI", desc: "Transactions are analyzed in milliseconds." },
+            { title: "Multi-Chain", desc: "Simulate Ethereum and BSC network traffic." },
+            { title: "FATF Compliant", desc: "Detects structuring and wash trading patterns." }
+          ].map((f, i) => (
+            <div key={i} className="flex flex-col items-center text-center p-6 rounded-2xl border border-slate-800/60 bg-slate-900/40 backdrop-blur-sm">
+              <h3 className="text-white font-medium mb-2">{f.title}</h3>
+              <p className="text-sm text-slate-400">{f.desc}</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          ))}
+        </div>
+      </main>
     </div>
   );
 }
-
-// Helper for AlertTriangle icon that wasn't imported
-import { AlertTriangle } from "lucide-react";
 
 

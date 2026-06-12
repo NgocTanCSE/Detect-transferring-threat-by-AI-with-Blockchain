@@ -12,6 +12,7 @@ import time
 import random
 import signal
 import sys
+import threading
 from datetime import datetime
 from functools import wraps
 from typing import Optional, Callable, Any
@@ -36,7 +37,7 @@ logging.basicConfig(
 logger = logging.getLogger('scanner')
 
 # Configuration
-SCAN_INTERVAL_SECONDS = 10
+SCAN_INTERVAL_SECONDS = 3
 ALERT_RISK_THRESHOLD = 80
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 1.0
@@ -44,6 +45,7 @@ MAX_RETRY_DELAY = 30.0
 
 # Microservice URLs
 ALERT_SERVICE_URL = os.getenv("ALERT_SERVICE_URL", "http://alert-service:3003")
+ANALYTICS_SERVICE_URL = os.getenv("ANALYTICS_SERVICE_URL", "http://analytics-service:3005")
 
 # Graceful shutdown flag
 _shutdown_requested = False
@@ -127,24 +129,9 @@ def get_random_target_wallet(session: Session) -> str:
 def create_alert(session: Session, wallet_address: str, risk_score: float, risk_level: str) -> None:
     """
     Create alert record in database for high-risk wallet detection.
-    Also auto-updates wallet status based on risk score.
-
-    Args:
-        session: Database session
-        wallet_address: Address that triggered alert
-        risk_score: Calculated risk score
-        risk_level: Risk classification level
+    Also notifies the Alert Microservice for real-time broadcasting.
     """
-    alert = Alert(
-        wallet_address=wallet_address,
-        alert_type="HIGH_RISK_DETECTION",
-        severity=risk_level,
-        message=f"Scanner detected suspicious activity from wallet {wallet_address}",
-        risk_score=risk_score,
-        detected_at=datetime.utcnow()
-    )
-    session.add(alert)
-
+    # 1. Update local wallet status in the consolidated DB
     wallet = session.query(Wallet).filter(Wallet.address == wallet_address).first()
     if not wallet:
         wallet = Wallet(address=wallet_address)
@@ -161,50 +148,43 @@ def create_alert(session: Session, wallet_address: str, risk_score: float, risk_
         wallet.flagged_by = 'SCANNER_AUTO_FREEZE'
         logger.warning(f"WALLET_FROZEN | address={wallet_address} | risk={risk_score}%")
     elif risk_score >= 80:
-        if wallet.account_status not in ['frozen']:  # Don't downgrade frozen
+        if wallet.account_status not in ['frozen']:
             wallet.account_status = 'suspended'
             wallet.flagged_at = datetime.utcnow()
             wallet.flagged_by = 'SCANNER_AUTO_SUSPEND'
             logger.warning(f"WALLET_SUSPENDED | address={wallet_address} | risk={risk_score}%")
     elif risk_score >= 50:
-        if wallet.account_status not in ['frozen', 'suspended']:  # Don't downgrade
+        if wallet.account_status not in ['frozen', 'suspended']:
             wallet.account_status = 'under_review'
             logger.info(f"WALLET_REVIEW | address={wallet_address} | risk={risk_score}%")
 
     session.commit()
-    logger.warning(f"ALERT_CREATED_LOCAL | address={wallet_address} | risk={risk_score}% | level={risk_level}")
+    logger.info(f"WALLET_STATUS_UPDATED | address={wallet_address} | risk={risk_score}%")
 
-    # PUSH TO MICROSERVICE
+    # 2. Notify Alert Microservice for real-time WebSocket broadcasting and persistent alert logging
+    alert_payload = {
+        "wallet_address": wallet_address,
+        "alert_type": "HIGH_RISK_DETECTION",
+        "severity": risk_level,
+        "message": f"Autonomous Scanner detected high-risk activity ({risk_score}%) from wallet {wallet_address}",
+        "risk_score": float(risk_score),
+        "chain_id": "ethereum" # Primary chain for scanning
+    }
+
     try:
-        alert_payload = {
-            "wallet_address": wallet_address,
-            "alert_type": "HIGH_RISK_DETECTION",
-            "severity": risk_level,
-            "message": f"Scanner detected suspicious activity from wallet {wallet_address}",
-            "risk_score": float(risk_score),
-            "chain_id": "ethereum"  # Default for this scanner
-        }
-        
-        response = requests.post(
-            f"{ALERT_SERVICE_URL}/alerts",
-            json=alert_payload,
-            timeout=5
-        )
-        
-        if response.status_code == 201:
-            logger.info(f"ALERT_SYNC_SUCCESS | alert_service received the alert")
+        res = requests.post(f"{ALERT_SERVICE_URL}/alerts", json=alert_payload, timeout=5)
+        if res.status_code == 201:
+            logger.info(f"REALTIME_ALERT_BROADCASTED | wallet={wallet_address}")
         else:
-            logger.error(f"ALERT_SYNC_FAILED | status={response.status_code} | msg={response.text}")
-            
+            logger.warning(f"MICROSERVICE_ALERT_FAILED | code={res.status_code} | msg={res.text}")
     except Exception as e:
-        logger.error(f"ALERT_SYNC_ERROR | could not connect to alert-service: {e}")
+        logger.error(f"ALERT_SERVICE_CONNECTION_ERROR | {e}")
 
 
 @retry_with_backoff(max_retries=2, exceptions=(Exception,))
 def fetch_transactions_with_retry(wallet_address: str) -> list:
     """Fetch wallet transactions with retry logic."""
     return fetch_wallet_history(wallet_address, max_count=100)
-
 
 def scan_wallet(session: Session, wallet_address: str) -> Optional[dict]:
     """
@@ -220,6 +200,7 @@ def scan_wallet(session: Session, wallet_address: str) -> Optional[dict]:
     if not wallet_address:
         return None
 
+    start_time = time.time()
     try:
         transactions = fetch_transactions_with_retry(wallet_address)
         # Persist transactions to database so dashboard charts are updated
@@ -228,6 +209,23 @@ def scan_wallet(session: Session, wallet_address: str) -> Optional[dict]:
         logger.error(f"FETCH_FAILED | address={wallet_address[:10]}... | error={e}")
         return None
 
+    fetch_time = time.time() - start_time
+
+    # Record Pipeline Metric IMMEDIATELY after fetch/persist, before slow AI calls
+    try:
+        current_time = time.time()
+        total_ingest_time = current_time - start_time
+        metric_payload = {
+            "chain": "ethereum",
+            "throughput_tps": 1.0 / total_ingest_time if total_ingest_time > 0 else 0,
+            "ingestion_latency_ms": int(fetch_time * 1000),
+            "decode_latency_ms": int((total_ingest_time - fetch_time) * 1000)
+        }
+        logger.debug(f"Recording pipeline metric: {metric_payload}")
+        requests.post(f"{ANALYTICS_SERVICE_URL}/ops/system/pipeline-metrics", json=metric_payload, timeout=2)
+    except Exception as e:
+        logger.warning(f"FAILED_TO_RECORD_PIPELINE_METRIC | {e}")
+
     try:
         ai_engine = MultiAgentDetectionEngine(database_session=session)
         risk_result = ai_engine.analyze_wallet(wallet_address, transactions)
@@ -235,9 +233,10 @@ def scan_wallet(session: Session, wallet_address: str) -> Optional[dict]:
         risk_level = risk_result["risk_level"]
         model_used = risk_result.get("model", "unknown")
 
+        total_time = time.time() - start_time
         logger.info(
             f"SCAN_COMPLETE | address={wallet_address[:10]}... | "
-            f"risk={risk_score}% | level={risk_level} | model={model_used}"
+            f"risk={risk_score}% | level={risk_level} | model={model_used} | time={total_time:.2f}s"
         )
 
         if risk_score >= ALERT_RISK_THRESHOLD:
@@ -248,6 +247,8 @@ def scan_wallet(session: Session, wallet_address: str) -> Optional[dict]:
     except Exception as e:
         logger.error(f"ANALYSIS_FAILED | address={wallet_address[:10]}... | error={e}")
         return None
+
+
 
 
 def main():
@@ -266,6 +267,9 @@ def main():
         ensure_schema()
     except Exception as error:
         logger.warning(f"Database initialization skipped or failed: {error}")
+
+    # External scripts (traffic_generator.py and threat_injector.py) now handle
+    # data simulation to achieve higher throughput (100 TPS) and realistic API testing.
 
     scan_count = 0
     error_count = 0

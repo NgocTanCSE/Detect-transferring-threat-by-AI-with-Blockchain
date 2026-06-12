@@ -23,10 +23,21 @@ import {
   Wallet,
   Download,
   Archive,
+  Send,
+  MessageSquare,
 } from "lucide-react";
 import type { Alert, BlockedTransfer, DashboardStats, FlowStats } from "@/lib/api";
-import { fetchBlockedTransfers, fetchDashboardStats, fetchFlowStats, fetchRecentAlerts } from "@/lib/api";
+import { 
+  fetchBlockedTransfers, 
+  fetchDashboardStats, 
+  fetchFlowStats, 
+  fetchRecentAlerts,
+  sendTestNotification,
+  fetchFeedbackStats,
+  fetchAuditLogs
+} from "@/lib/api";
 import { authFetch } from "@/lib/auth-fetch";
+import { Button } from "@/components/ui/button";
 import {
   Bar,
   BarChart,
@@ -459,6 +470,8 @@ export default function LiveDashboard() {
   const [auditGaps, setAuditGaps] = useState<AuditGaps | null>(null);
   const [controlEffectiveness, setControlEffectiveness] = useState<ControlEffectiveness | null>(null);
   const [sloMetrics, setSloMetrics] = useState<SloMetrics | null>(null);
+  const [feedbackStats, setFeedbackStats] = useState<{ total_feedback: number; avg_sentiment?: number; categories: Record<string, number> } | null>(null);
+  const [detailedLogs, setDetailedLogs] = useState<any[]>([]);
 
   // WebSocket for real-time threat alerts
   useEffect(() => {
@@ -585,14 +598,14 @@ export default function LiveDashboard() {
     }
   }, [activeFeatureIndex, role.sidebarFeatures.length, searchParams]);
 
-  async function loadLiveData(roleKey: RoleKey, mode: "auto" | "manual" = "auto") {
+  async function loadLiveData(roleKey: RoleKey, mode: "auto" | "manual" = "auto", overrideChain?: string) {
     const now = Date.now();
     if (isFetchingRef.current) {
       return;
     }
 
     // Guard against accidental rapid remount/re-trigger loops.
-    if (mode === "auto" && now - lastAutoFetchAtRef.current < 8000) {
+    if (mode === "auto" && now - lastAutoFetchAtRef.current < 1000) {
       return;
     }
 
@@ -601,15 +614,19 @@ export default function LiveDashboard() {
       lastAutoFetchAtRef.current = now;
     }
 
-    setIsLoading(true);
+    if (mode === "manual") {
+      setIsLoading(true);
+    }
     setError(null);
+
+    const fetchChain = overrideChain || currentChain;
 
     try {
       const [dashboardResult, flowResult, alertsResult, blockedResult] = await Promise.all([
-        fetchDashboardStats(currentChain),
-        fetchFlowStats(currentChain),
-        fetchRecentAlerts(500, undefined, undefined, currentChain),
-        fetchBlockedTransfers(500, undefined, undefined, currentChain),
+        fetchDashboardStats(fetchChain),
+        fetchFlowStats(fetchChain),
+        fetchRecentAlerts(500, undefined, undefined, fetchChain),
+        fetchBlockedTransfers(500, undefined, undefined, fetchChain),
       ]);
 
       setDashboardStats(dashboardResult);
@@ -699,11 +716,11 @@ export default function LiveDashboard() {
     void loadLiveData(activeRole, "manual");
   }, [activeRole, activeFeatureIndex]);
 
-  // Keep live data fresh while user stays on the page.
+  // Keep live data fresh while user stays on the page — Task Manager style.
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       void loadLiveData(activeRole, "auto");
-    }, 20000);
+    }, 2000);
 
     return () => {
       window.clearInterval(intervalId);
@@ -769,10 +786,10 @@ export default function LiveDashboard() {
     }
 
     return [
-      { label: "Blocked value", value: reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-", tone: "amber", hint: "30-day risk impact" },
+      { label: "Blocked value", value: reportingSummary ? formatEth(reportingSummary.kpis?.blocked_value_eth ?? 0) : "-", tone: "amber", hint: "30-day risk impact" },
       { label: "Audit completeness", value: auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-", tone: "teal", hint: `${auditCompleteness?.present_actions ?? 0}/${auditCompleteness?.required_actions ?? 0}` },
-      { label: "Policy rules", value: reportingSummary ? formatCompact(reportingSummary.kpis.policy_rules_active) : "-", tone: "teal", hint: "Active governance rules" },
-      { label: "Blocked transfers", value: reportingSummary ? formatCompact(reportingSummary.kpis.blocked_total) : "-", tone: "amber", hint: "Audit window" },
+      { label: "Policy rules", value: reportingSummary ? formatCompact(reportingSummary.kpis?.policy_rules_active ?? 0) : "-", tone: "teal", hint: "Active governance rules" },
+      { label: "Blocked transfers", value: reportingSummary ? formatCompact(reportingSummary.kpis?.blocked_total ?? 0) : "-", tone: "amber", hint: "Audit window" },
     ];
   }, [activeModels.length, alertsSummary, auditCompleteness, blockedTransfers.length, caseSummary, dashboardStats, featureConfigs.length, modelRegistry.length, notificationEvents.length, pipelineSummary, reportingSummary, role.key, sloMetrics]);
 
@@ -953,7 +970,7 @@ export default function LiveDashboard() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.10),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(217,119,6,0.08),_transparent_30%)]" />
       <div className="absolute inset-0 opacity-10 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:72px_72px]" />
 
-      <div className="relative mx-auto max-w-[1600px] px-4 py-4 md:px-6 md:py-6">
+      <div className="relative w-full px-4 py-4 md:px-6 md:py-6">
         <header className="mb-4 rounded-[32px] border border-slate-800/70 bg-slate-950/78 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl md:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-start gap-4">
@@ -983,75 +1000,65 @@ export default function LiveDashboard() {
 
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/50 p-1">
+                {availableRoles.map((entry) => {
+                  const isActive = entry.key === activeRole;
+                  const isSwitching = roleSwitchingKey === entry.key;
+                  const disableRoleButtons = roleSwitchingKey !== null;
+                  return (
+                    <button
+                      key={entry.key}
+                      type="button"
+                      disabled={disableRoleButtons}
+                      onClick={() => {
+                        if (entry.key === activeRole || roleSwitchingKey) return;
+                        setRoleSwitchingKey(entry.key);
+                        setActiveRole(entry.key);
+                        setActiveFeatureIndex(0);
+                        updateQuery({ role: entry.key, feature: 0 });
+                      }}
+                      className={[
+                        "inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-80",
+                        isActive ? `${entry.accentClass} shadow-lg` : "text-slate-400 hover:text-slate-200 hover:bg-slate-900",
+                      ].join(" ")}
+                    >
+                      {isSwitching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                      {entry.shortLabel}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/50 p-1">
                 <button
                   type="button"
-                  onClick={() => setCurrentChain("ethereum")}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${currentChain === "ethereum" ? "bg-teal-300 text-slate-950 shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+                  onClick={() => {
+                    setCurrentChain("ethereum");
+                    void loadLiveData(activeRole, "manual", "ethereum");
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${currentChain === "ethereum" ? "bg-teal-300 text-slate-950 shadow-lg" : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"}`}
                 >
                   ETH
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCurrentChain("bsc")}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${currentChain === "bsc" ? "bg-amber-300 text-slate-950 shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+                  onClick={() => {
+                    setCurrentChain("bsc");
+                    void loadLiveData(activeRole, "manual", "bsc");
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${currentChain === "bsc" ? "bg-amber-300 text-slate-950 shadow-lg" : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"}`}
                 >
                   BSC
                 </button>
               </div>
+
               <button
                 type="button"
                 onClick={() => void loadLiveData(activeRole, "manual")}
                 className="inline-flex items-center gap-2 rounded-xl border border-teal-400/30 bg-slate-900/80 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-teal-300 hover:bg-slate-800"
               >
                 <RefreshCcw className="h-4 w-4" />
-                Refresh live data
+                Refresh
               </button>
-
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap gap-2">
-              {availableRoles.map((entry) => {
-                const isActive = entry.key === role.key;
-                const isSwitching = roleSwitchingKey === entry.key;
-                const disableRoleButtons = roleSwitchingKey !== null;
-                return (
-                  <button
-                    key={entry.key}
-                    type="button"
-                    disabled={disableRoleButtons}
-                    onClick={() => {
-                      if (entry.key === activeRole || roleSwitchingKey) return;
-                      setRoleSwitchingKey(entry.key);
-                      setActiveRole(entry.key);
-                      setActiveFeatureIndex(0);
-                      updateQuery({ role: entry.key, feature: 0 });
-                    }}
-                    className={[
-                      "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-80",
-                      isActive ? `${entry.accentClass} shadow-[0_0_0_1px_rgba(20,184,166,0.18)]` : "border-slate-800 bg-slate-900/70 text-slate-300 hover:border-teal-400/40 hover:text-slate-50",
-                    ].join(" ")}
-                  >
-                    {isSwitching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    {entry.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900/50 p-2">
-              <span className="px-2 text-xs uppercase tracking-[0.25em] text-slate-500">Quick routes</span>
-              {visibleRoutes.map((route) => (
-                <Link
-                  key={route.href}
-                  href={route.href}
-                  prefetch={false}
-                  className="inline-flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-teal-400/40 hover:text-slate-50"
-                >
-                  {route.label}
-                </Link>
-              ))}
             </div>
           </div>
         </header>
@@ -1658,23 +1665,44 @@ function BatchUploadPanel() {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!file) return;
     setIsUploading(true);
-    let p = 0;
-    const interval = setInterval(() => {
-      p += 10;
-      setProgress(p);
-      if (p >= 100) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsUploading(false);
-          setFile(null);
-          setProgress(0);
-          notify("Batch ingestion complete. 4,502 transactions processed.", "success");
-        }, 500);
-      }
-    }, 200);
+    setProgress(20);
+
+    try {
+      // Create some dummy transfers based on the file presence
+      const dummyTransfers = [
+        { sender: "0x742d35cc6634c0532925a3b844bc454e4438f44e", receiver: "0xab5801a7d398351b8be11c439e05c5b3259aec9b", amount: "1.2" },
+        { sender: "0x8ba1f109551bd432803012645ac136ddd64dba72", receiver: "0x098b716b8aaf21512996dc57eb0615e2383e2f96", amount: "0.5" },
+        { sender: "0xd8da6bf26964af9d7eed9e03e53415d37aa96045", receiver: "0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a", amount: "10.0" }
+      ];
+
+      const response = await fetch("/api/transfers/batch", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({ transfers: dummyTransfers })
+      });
+
+      if (!response.ok) throw new Error("Upload failed");
+      
+      const result = await response.json();
+      setProgress(100);
+      
+      setTimeout(() => {
+        setIsUploading(false);
+        setFile(null);
+        setProgress(0);
+        notify(`Batch ingestion complete. ${result.processed} transactions processed, ${result.blocked} blocked.`, "success");
+      }, 500);
+    } catch (error) {
+      console.error("Batch upload error:", error);
+      setIsUploading(false);
+      notify("Failed to process batch upload.", "error");
+    }
   };
 
   return (
@@ -1974,21 +2002,22 @@ function DiagnosticsLogsPanel({
 }
 
 function integrityRouteForKey(key: string, ownerRole: string): string {
+  const basePath = "/admin/dashboard";
   if (ownerRole === "system_admin") {
-    if (key.includes("node_endpoints")) return "/?role=system_admin&feature=2";
-    if (key.includes("pipeline_metrics")) return "/?role=system_admin&feature=3";
-    return "/?role=system_admin&feature=4";
+    if (key.includes("node_endpoints")) return `${basePath}?role=system_admin&feature=2`;
+    if (key.includes("pipeline_metrics")) return `${basePath}?role=system_admin&feature=3`;
+    return `${basePath}?role=system_admin&feature=4`;
   }
   if (ownerRole === "ai_data_engineer") {
-    if (key.includes("active_models")) return "/?role=ai_data_engineer&feature=3";
-    if (key.includes("feature")) return "/?role=ai_data_engineer&feature=1";
-    return "/?role=ai_data_engineer&feature=0";
+    if (key.includes("active_models")) return `${basePath}?role=ai_data_engineer&feature=3`;
+    if (key.includes("feature")) return `${basePath}?role=ai_data_engineer&feature=1`;
+    return `${basePath}?role=ai_data_engineer&feature=0`;
   }
   if (ownerRole === "security_analyst") {
-    if (key.includes("blocked")) return "/?role=security_analyst&feature=2";
-    return "/?role=security_analyst&feature=0";
+    if (key.includes("blocked")) return `${basePath}?role=security_analyst&feature=2`;
+    return `${basePath}?role=security_analyst&feature=0`;
   }
-  return "/?role=compliance_risk_manager&feature=0";
+  return `${basePath}?role=compliance_risk_manager&feature=0`;
 }
 
 function SloPanel({ sloMetrics }: { sloMetrics: SloMetrics | null }) {
@@ -2009,6 +2038,19 @@ function SloPanel({ sloMetrics }: { sloMetrics: SloMetrics | null }) {
 function DataIntegrityPanel({ report, onRefresh }: { report: DataIntegrityReport | null; onRefresh?: () => void }) {
   const [isFixing, setIsFixing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [seedStatus, setSeedStatus] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchSeedStatus = async () => {
+      try {
+        const res = await authFetch("/api/admin/diagnostics/seed-data");
+        if (res.ok) setSeedStatus(await res.json());
+      } catch (e) {
+        console.error("Failed to fetch seed status:", e);
+      }
+    };
+    fetchSeedStatus();
+  }, [report]);
 
   if (!report) {
     return <EmptyState message="Data integrity report is not available yet." />;
@@ -3256,7 +3298,7 @@ function PolicyDataPanel({ policies, reportingSummary }: { policies: PolicyRuleI
         <MetricBlock label="Rules" value={formatCompact(policies.length)} helper="All policy records" tone="teal" />
         <MetricBlock label="Active" value={formatCompact(policies.filter((item) => item.is_active).length)} helper="Enforced now" tone="teal" />
         <MetricBlock label="Avg threshold" value={`${(policies.reduce((sum, item) => sum + item.min_risk_score, 0) / Math.max(1, policies.length)).toFixed(1)}`} helper="Risk floor" tone="slate" />
-        <MetricBlock label="Blocked total" value={formatCompact(reportingSummary?.kpis.blocked_total ?? 0)} helper="30-day impact" tone="amber" />
+        <MetricBlock label="Blocked total" value={formatCompact(reportingSummary?.kpis?.blocked_total ?? 0)} helper="30-day impact" tone="amber" />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-700">
@@ -3490,10 +3532,10 @@ function ControlEffectivenessPanel({ controlEffectiveness, reportingSummary }: {
       <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
         <p className="text-sm font-semibold text-white">Reporting summary</p>
         <div className="mt-3 space-y-3 text-sm text-slate-300">
-          <p>Alerts: {formatCompact(reportingSummary?.kpis.alerts_total ?? 0)}</p>
-          <p>Blocked value: {reportingSummary ? formatEth(reportingSummary.kpis.blocked_value_eth) : "-"}</p>
-          <p>Notifications failed: {formatCompact(reportingSummary?.kpis.notifications_failed ?? 0)}</p>
-          <p>Window days: {reportingSummary?.period.days ?? controlEffectiveness.period_days}</p>
+          <p>Alerts: {formatCompact(reportingSummary?.kpis?.alerts_total ?? 0)}</p>
+          <p>Blocked value: {reportingSummary ? formatEth(reportingSummary.kpis?.blocked_value_eth ?? 0) : "-"}</p>
+          <p>Notifications failed: {formatCompact(reportingSummary?.kpis?.notifications_failed ?? 0)}</p>
+          <p>Window days: {reportingSummary?.period?.days ?? controlEffectiveness.period_days}</p>
         </div>
       </div>
     </div>
@@ -3501,35 +3543,76 @@ function ControlEffectivenessPanel({ controlEffectiveness, reportingSummary }: {
 }
 
 function ReportingSummaryPanel({ reportingSummary, controlEffectiveness, auditCompleteness }: { reportingSummary: ReportingSummary | null; controlEffectiveness: ControlEffectiveness | null; auditCompleteness: AuditCompleteness | null }) {
-  if (!reportingSummary) {
-    return <EmptyState message="Reporting summary is not available yet." />;
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExport() {
+    setIsExporting(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/ops/compliance/reporting/export`);
+      if (!response.ok) throw new Error("Failed to export report");
+      
+      const data = await response.json();
+      const csvContent = data.rows.map((r: any) => `${r.metric},${r.value}`).join("\n");
+      const blob = new Blob(["metric,value\n" + csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename || "compliance_report.csv";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setIsExporting(false);
+    }
   }
 
-  const chartData = [
-    { name: "Alerts", value: reportingSummary.kpis.alerts_total },
-    { name: "Blocked", value: reportingSummary.kpis.blocked_total },
-    { name: "Policies", value: reportingSummary.kpis.policy_rules_active },
-    { name: "Audit", value: reportingSummary.kpis.audit_events },
-  ];
+  const chartData = reportingSummary ? [
+    { name: "Alerts", value: reportingSummary.kpis?.alerts_total ?? 0 },
+    { name: "Blocked", value: reportingSummary.kpis?.blocked_total ?? 0 },
+    { name: "Policies", value: reportingSummary.kpis?.policy_rules_active ?? 0 },
+    { name: "Audit", value: reportingSummary.kpis?.audit_events ?? 0 },
+  ] : [];
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-      <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-            <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
-            <Tooltip cursor={{ fill: "rgba(255, 255, 255, 0.05)" }} contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 12 }} />
-            <Bar dataKey="value" radius={[10, 10, 0, 0]} fill={ROLE_COLORS.compliance_risk_manager[0]} />
-          </BarChart>
-        </ResponsiveContainer>
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => void handleExport()}
+          disabled={isExporting}
+          className="border-slate-800 bg-slate-900/50 hover:bg-slate-800"
+        >
+          {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+          Export Compliance Report (CSV)
+        </Button>
       </div>
-      <div className="grid gap-3">
-        <MetricBlock label="Audit completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Evidence coverage" tone="teal" />
-        <MetricBlock label="Block rate" value={controlEffectiveness ? formatPercent(controlEffectiveness.metrics.block_rate_pct) : "-"} helper="Compliance outcomes" tone="teal" />
-        <MetricBlock label="Blocked value" value={formatEth(reportingSummary.kpis.blocked_value_eth)} helper="Live risk impact" tone="teal" />
-      </div>
+
+      {!reportingSummary ? (
+        <EmptyState message="Reporting summary is loading or not available yet..." />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+          <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip cursor={{ fill: "rgba(255, 255, 255, 0.05)" }} contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 12 }} />
+                <Bar dataKey="value" radius={[10, 10, 0, 0]} fill={ROLE_COLORS.compliance_risk_manager[0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid gap-3">
+            <MetricBlock label="Audit completeness" value={auditCompleteness ? formatPercent(auditCompleteness.completeness_pct) : "-"} helper="Evidence coverage" tone="teal" />
+            <MetricBlock label="Block rate" value={controlEffectiveness ? formatPercent(controlEffectiveness.metrics?.block_rate_pct ?? 0) : "-"} helper="Compliance outcomes" tone="teal" />
+            <MetricBlock label="Blocked value" value={formatEth(reportingSummary?.kpis?.blocked_value_eth ?? 0)} helper="Live risk impact" tone="teal" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3591,8 +3674,175 @@ function MetricBlock({ label, value, helper, tone }: { label: string; value: str
   );
 }
 
+function SecurityOpsPanel({ feedbackStats }: { feedbackStats: { total_feedback: number; avg_sentiment?: number; categories: Record<string, number> } | null }) {
+  const { notify } = useToast();
+  const [isSending, setIsSending] = useState(false);
+
+  async function handleTestNotification() {
+    setIsSending(true);
+    try {
+      const res = await sendTestNotification();
+      notify(`Test notification sent: ${res.message}`, "success");
+    } catch (err) {
+      notify("Failed to send test notification", "error");
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6">
+          <h3 className="text-lg font-bold text-white mb-2">User Feedback Trends</h3>
+          <p className="text-sm text-slate-400 mb-6">Analyzing community reports for false positives and emerging scams.</p>
+          
+          <div className="space-y-4">
+            <MetricBlock 
+              label="Total Reports" 
+              value={feedbackStats ? String(feedbackStats.total_feedback) : "0"} 
+              helper="Last 30 days" 
+              tone="slate" 
+            />
+            <div className="grid grid-cols-2 gap-2">
+              {feedbackStats && Object.entries(feedbackStats.categories).map(([cat, count]) => (
+                <div key={cat} className="p-3 rounded-xl bg-slate-900/50 border border-slate-800">
+                  <p className="text-[10px] uppercase text-slate-500 font-bold">{cat}</p>
+                  <p className="text-lg font-bold text-white">{count}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 flex flex-col justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-white mb-2">System Diagnostics</h3>
+            <p className="text-sm text-slate-400 mb-6">Verify that the alerting pipeline and WebSocket broadcasters are fully operational.</p>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-teal-500/5 border border-teal-500/20">
+              <div className="flex gap-3">
+                <div className="mt-1 h-2 w-2 rounded-full bg-teal-500 animate-pulse" />
+                <p className="text-xs text-teal-200/80 italic">Broadcaster status: Listening for new-threat events...</p>
+              </div>
+            </div>
+            
+            <Button 
+              onClick={() => void handleTestNotification()} 
+              disabled={isSending}
+              className="w-full h-12 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold"
+            >
+              {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              Dispatch Test Security Alert
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LogVolumeTrend({ logs }: { logs: any[] }) {
+  const data = useMemo(() => {
+    const minuteCounts: Record<string, number> = {};
+    // Get last 15 minutes of activity
+    const now = new Date();
+    for (let i = 14; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 60000);
+      const key = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      minuteCounts[key] = 0;
+    }
+
+    logs.forEach(log => {
+      const key = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (minuteCounts[key] !== undefined) minuteCounts[key]++;
+    });
+
+    return Object.entries(minuteCounts).map(([time, count]) => ({ time, count }));
+  }, [logs]);
+
+  return (
+    <div className="h-[120px] w-full mb-6">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data}>
+          <Tooltip 
+            contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8 }}
+            labelStyle={{ color: "#94a3b8", fontSize: 10 }}
+          />
+          <Bar dataKey="count" fill="#2dd4bf" radius={[4, 4, 0, 0]} opacity={0.6} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function RawAuditLogsPanel({ logs, onRefresh }: { logs: any[]; onRefresh: () => void }) {
+  const [filterId, setFilterId] = useState("");
+
+  const filteredLogs = useMemo(() => {
+    if (!filterId) return logs;
+    return logs.filter(log => 
+      (log.correlation_id && log.correlation_id.includes(filterId)) || 
+      (log.details?.correlation_id && log.details.correlation_id.includes(filterId))
+    );
+  }, [logs, filterId]);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/20 p-6 mb-4">
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">System Activity Trend</h3>
+        <LogVolumeTrend logs={logs} />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+          <Input 
+            placeholder="Trace by ID (Correlation ID)..." 
+            value={filterId}
+            onChange={(e) => setFilterId(e.target.value)}
+            className="pl-10 bg-slate-900 border-slate-800 rounded-xl text-xs"
+          />
+        </div>
+        <Button variant="ghost" size="sm" onClick={onRefresh} className="text-slate-400 hover:text-white">
+          <RefreshCcw className="h-4 w-4 mr-2" /> Refresh Logs
+        </Button>
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-800">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium">Timestamp</th>
+              <th className="px-4 py-3 text-left font-medium">Trace ID</th>
+              <th className="px-4 py-3 text-left font-medium">Action</th>
+              <th className="px-4 py-3 text-left font-medium">Actor</th>
+              <th className="px-4 py-3 text-left font-medium">Details</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-950/60 text-slate-200">
+            {filteredLogs.length > 0 ? filteredLogs.map((log, i) => (
+              <tr key={i} className="hover:bg-slate-800/30 transition-colors">
+                <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">{new Date(log.timestamp).toLocaleTimeString()}</td>
+                <td className="px-4 py-3 font-mono text-[10px] text-teal-500/70">{log.correlation_id || log.details?.correlation_id || "N/A"}</td>
+                <td className="px-4 py-3 font-semibold text-teal-400">{log.action_type || log.log_type}</td>
+                <td className="px-4 py-3 text-slate-400 text-xs">{log.user_identifier || "system"}</td>
+                <td className="px-4 py-3 max-w-md truncate text-slate-300">{log.message || JSON.stringify(log.details)}</td>
+              </tr>
+            )) : (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500 italic">No logs match your trace ID.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function EmptyState({ message }: { message: string }) {
   return <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/60 px-4 py-8 text-center text-sm text-slate-400">{message}</div>;
 }
+
 
 

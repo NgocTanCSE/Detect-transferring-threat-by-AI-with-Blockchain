@@ -6,7 +6,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, History } from "lucide-react";
+import { authFetch } from "@/lib/auth-fetch";
+import { ArrowLeft, History, Loader2 } from "lucide-react";
 
 type CaseHistoryResponse = {
   tx_hash: string;
@@ -23,7 +24,8 @@ type CaseHistoryResponse = {
 };
 
 async function fetchCaseHistory(txHash: string): Promise<CaseHistoryResponse> {
-  const response = await fetch(`/api/cases/${encodeURIComponent(txHash)}/history`, { cache: "no-store" });
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
+  const response = await authFetch(`${API_BASE}/cases/${encodeURIComponent(txHash)}/history`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error("Failed to fetch case history");
   }
@@ -55,8 +57,9 @@ function CaseInsightContent() {
   const searchParams = useSearchParams();
   const role = searchParams.get("role");
   const feature = searchParams.get("feature");
-  const backQuery = role || feature ? `?${new URLSearchParams({ role: role ?? "system_admin", feature: feature ?? "0" }).toString()}` : "";
-  const backHref = `/${backQuery}`;
+  const chain = searchParams.get("chain") || "ethereum";
+  const backQuery = role || feature ? `?${new URLSearchParams({ role: role ?? "system_admin", feature: feature ?? "0", chain }).toString()}` : "";
+  const backHref = `/admin/dashboard${backQuery}`;
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 md:p-6">

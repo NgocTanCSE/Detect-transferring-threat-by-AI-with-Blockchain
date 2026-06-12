@@ -61,14 +61,41 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Increase to 1000 for testing
-  message: { error: 'Too many requests, please try again later.' },
+// Rate limiting tiers
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 1000, // Increased for demo
+  message: { error: 'Too many authentication attempts, please try again in an hour.' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
-app.use(limiter);
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 2000, // Increased for demo
+  message: { error: 'API rate limit exceeded, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const dashboardLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 5000, // Increased for demo
+  message: { error: 'Dashboard polling too frequent.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting based on path
+app.use((req, res, next) => {
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/auth/register')) {
+    return authLimiter(req, res, next);
+  }
+  if (req.path.includes('/statistics') || req.path.includes('/dashboard') || req.path.includes('/ops/')) {
+    return dashboardLimiter(req, res, next);
+  }
+  return apiLimiter(req, res, next);
+});
 
 // Logging middleware (Morgan)
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms', {
@@ -143,8 +170,26 @@ const verifyAuth = async (req, res, next) => {
     return next();
   }
 
-  // Public routes
-  const publicRoutes = ['/health', '/ready', '/auth/register', '/auth/login', '/auth/validate', '/socket.io'];
+  // Public routes (no auth required)
+  const publicRoutes = [
+    '/health', '/ready',
+    '/auth/register', '/auth/login', '/auth/validate',
+    '/socket.io',
+    // Dashboard monitoring endpoints — read-only, no auth needed
+    '/api/statistics', '/api/dashboard', '/api/alerts/recent', '/api/alerts/latest',
+    '/api/blocked-transfers', '/api/analyze',
+    '/api/wallet', '/api/wallets',
+    '/api/diagnostics',
+    '/statistics', '/dashboard', '/alerts/recent', '/alerts/latest',
+    '/blocked-transfers',
+    '/api/ops/', '/api/admin/diagnostics',
+    '/api/cases',
+    '/ops/', '/admin/diagnostics',
+    '/cases',
+    '/analyze',
+    '/assistant', '/api/assistant',
+    '/diagnostics'
+  ];
   if (publicRoutes.some(route => req.path.startsWith(route))) {
     return next();
   }
@@ -198,47 +243,58 @@ const ROUTE_MAP = {
   // Wallet Service (3002)
   '/wallets': 'wallet',
   '/balance': 'wallet',
+  '/wallet/': 'wallet',
 
   // Alert Service (3003)
   '/alerts': 'alert',
 
   // Transfer Service (3004)
   '/transfers': 'transfer',
+  '/transfer': 'transfer',
   '/protected-transfer': 'transfer',
 
-  // Analytics Service (3005) - Now handled by AI service (8000) for consistency
-  '/statistics': 'ai',
-  '/dashboard': 'ai',
-  '/analytics': 'ai',
+  // Analytics Service (3005)
+  '/statistics': 'analytics',
+  '/dashboard': 'analytics',
+  '/analytics': 'analytics',
+  '/ops/system/node-endpoints': 'analytics',
+  '/ops/system/pipeline-metrics': 'analytics',
 
   // Compliance Service (3006)
+  '/ops/compliance': 'compliance',
   '/compliance': 'compliance',
-  '/blocked-transfers': 'ai', // Specific match for blocked-transfers to go to AI Service
-  '/blocked': 'compliance',
+  '/cases': 'compliance',
   '/aml': 'compliance',
-
-  // Event Service (3007)
-  '/events': 'event',
+  '/policy-rules': 'compliance',
 
   // AI Service (8000) - Assistant, Ops, Case Management
   '/assistant': 'ai',
-  '/ops': 'ai',
+  '/admin/diagnostics': 'ai',
+  '/ops/system': 'ai', // Move system ops to ai by default unless specific analytics match
+  '/ops/ai': 'ai',
+  '/ops/security': 'ai',
   '/api': 'ai',
-  '/admin': 'ai', // Mapping admin diagnostics to AI Service
-  '/cases': 'ai', // Mapping cases to AI Service
-  '/analyze': 'ai', // Mapping wallet threat analysis to AI Service
-  '/wallet/': 'ai', // Mapping singular wallet endpoints to AI Service
+  '/admin': 'ai', 
+  '/analyze': 'ai', 
+  '/blocked-transfers': 'ai',
   '/socket.io': 'event',
 };
 
-// Find service for route
+// Prefixes to strip when forwarding to specific services
+const STRIP_PREFIXES = {
+  'auth': ['/auth'],
+  'ai': ['/api'],
+  'compliance': ['/ops/compliance'],
+  'transfer': ['/transfer', '/transfers'],
+};
+
+// Find service for route using longest prefix match
 function getService(path) {
-  for (const [prefix, service] of Object.entries(ROUTE_MAP)) {
-    if (path.startsWith(prefix)) {
-      return service;
-    }
-  }
-  return null;
+  const matches = Object.entries(ROUTE_MAP)
+    .filter(([prefix]) => path.startsWith(prefix))
+    .sort((a, b) => b[0].length - a[0].length); // Longest match first
+    
+  return matches.length > 0 ? matches[0][1] : null;
 }
 
 // Route handler
@@ -255,18 +311,19 @@ app.all('*', (req, res) => {
   const proxy = proxies[service];
   const target = SERVICES[service];
 
-  // Auth service uses internal paths like /register and /login.
-  // Gateway exposes them as /auth/register and /auth/login.
-  if (service === 'auth' && req.url.startsWith('/auth')) {
-    req.url = req.url.replace(/^\/auth/, '') || '/';
+  // Handle prefix stripping
+  if (STRIP_PREFIXES[service]) {
+    for (const prefix of STRIP_PREFIXES[service]) {
+      if (req.url.startsWith(prefix)) {
+        req.url = req.url.replace(prefix, '') || '/';
+        // Ensure url starts with /
+        if (!req.url.startsWith('/')) req.url = '/' + req.url;
+        break;
+      }
+    }
   }
 
-  // Strip /api prefix for AI service
-  if (service === 'ai' && req.url.startsWith('/api')) {
-    req.url = req.url.replace(/^\/api/, '') || '/';
-  }
-
-  console.log(`→ Proxying ${req.method} ${req.path} to ${service} (${target})`);
+  console.log(`→ Proxying ${req.method} ${req.path} to ${service} (${target}) as ${req.url}`);
 
   const start = Date.now();
   proxy.web(req, res, (error) => {
@@ -293,12 +350,23 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 API Gateway started on port ${PORT}`);
   console.log('Services:');
   Object.entries(SERVICES).forEach(([name, url]) => {
     console.log(`  ${name}: ${url}`);
   });
+});
+
+// Handle WebSocket upgrades
+server.on('upgrade', (req, socket, head) => {
+  const service = getService(req.url);
+  if (service) {
+    console.log(`→ Upgrading proxy for ${req.url} to ${service}`);
+    proxies[service].ws(req, socket, head);
+  } else {
+    socket.destroy();
+  }
 });
 
 module.exports = app;

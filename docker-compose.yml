@@ -21,7 +21,7 @@ services:
     networks:
       - blockchain_network
 
-  # PostgreSQL - Main Database (auth, wallet, compliance, etc.)
+  # PostgreSQL - Main Database
   postgres_main:
     image: postgres:16-alpine
     container_name: blockchain_postgres_main
@@ -41,47 +41,21 @@ services:
     networks:
       - blockchain_network
 
-  # PostgreSQL - Alert Database
-  postgres_alerts:
-    image: postgres:16-alpine
-    container_name: blockchain_postgres_alerts
+  # Redis - Caching Layer
+  redis:
+    image: redis:7-alpine
+    container_name: blockchain_redis
     ports:
-      - "5433:5432"
-    environment:
-      POSTGRES_USER: blockchain
-      POSTGRES_PASSWORD: blockchain123
-      POSTGRES_DB: blockchain_alerts
-    volumes:
-      - postgres_alerts_data:/var/lib/postgresql/data
+      - "6379:6379"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U blockchain -d blockchain_alerts" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - blockchain_network
 
-  # PostgreSQL - Transfer Database
-  postgres_transfers:
-    image: postgres:16-alpine
-    container_name: blockchain_postgres_transfers
-    ports:
-      - "5434:5432"
-    environment:
-      POSTGRES_USER: blockchain
-      POSTGRES_PASSWORD: blockchain123
-      POSTGRES_DB: blockchain_transfers
-    volumes:
-      - postgres_transfers_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U blockchain -d blockchain_transfers" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - blockchain_network
-
-  # API Gateway (port 8001) - Smart routing + Authentication + Rate limiting
+  # API Gateway (port 8001)
   api-gateway:
     build:
       context: ./services/api-gateway
@@ -112,6 +86,9 @@ services:
       COMPLIANCE_SERVICE_URL: http://compliance-service:3006
       EVENT_SERVICE_URL: http://event-service:3007
       AI_SERVICE_URL: http://ai-service:8000
+    volumes:
+      - ./services/api-gateway:/app
+      - /app/node_modules
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:8001/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
@@ -131,12 +108,16 @@ services:
     depends_on:
       postgres_main:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       NODE_ENV: development
       PORT: 3001
       DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      REDIS_URL: redis://redis:6379/0
       JWT_SECRET: a-very-strong-and-super-secret-jwt-key-for-local-dev-!@#$
       JWT_EXPIRY: 7d
+    volumes: []
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3001/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
@@ -154,14 +135,14 @@ services:
     ports:
       - "3003:3003"
     depends_on:
-      postgres_alerts:
+      postgres_main:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     environment:
       NODE_ENV: development
       PORT: 3003
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_alerts:5432/blockchain_alerts
+      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3003/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
@@ -203,7 +184,7 @@ services:
     ports:
       - "3004:3004"
     depends_on:
-      postgres_transfers:
+      postgres_main:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -222,7 +203,7 @@ services:
     networks:
       - blockchain_network
 
-  # Analytics Service (port 3005) - Python (AI engines)
+  # Analytics Service (port 3005)
   analytics-service:
     build:
       context: ./services/analytics-service
@@ -234,9 +215,11 @@ services:
       postgres_main:
         condition: service_healthy
     environment:
+      NODE_ENV: development
       PYTHONUNBUFFERED: 1
       PORT: 3005
       DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      REDIS_URL: redis://redis:6379/0
       ALCHEMY_API_KEY: ${ALCHEMY_API_KEY}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3005/health')"]
@@ -272,7 +255,7 @@ services:
     networks:
       - blockchain_network
 
-  # Event Service (port 3007) - WebSocket + Event broadcasting
+  # Event Service (port 3007)
   event-service:
     build:
       context: ./services/event-service
@@ -295,43 +278,142 @@ services:
     networks:
       - blockchain_network
 
-  # Scanner Service - Autonomous threat detection
+  # Traffic Generator for Demo
+  traffic-generator:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blockchain_traffic_generator
+    command: python /demo-scripts/sim_generate_traffic.py
+    environment:
+      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+    volumes:
+      - ./demo-scripts:/demo-scripts
+    depends_on:
+      postgres_main:
+        condition: service_healthy
+    networks:
+      - blockchain_network
+
+  # Scenario Injector for Demo (Tests blocking features)
+  scenario-injector:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blockchain_scenario_injector
+    command: python /demo-scripts/sim_inject_threats.py
+    environment:
+      - API_URL=http://api-gateway:8001
+    volumes:
+      - ./demo-scripts:/demo-scripts
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - blockchain_network
+
+  # Autonomous Narrative Demo (Tests full functional flow)
+  narrative-demo:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blockchain_narrative_demo
+    command: python /demo-scripts/sim_ai_sentinel_scenarios.py
+    environment:
+      - API_URL=http://api-gateway:8001
+    volumes:
+      - ./demo-scripts:/demo-scripts
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - blockchain_network
+
+  # Evasion Prevention Simulation
+  evasion-prevention-sim:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blockchain_evasion_sim
+    command: python /demo-scripts/sim_evasion_prevention.py
+    environment:
+      - API_URL=http://api-gateway:8001
+    volumes:
+      - ./demo-scripts:/demo-scripts
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - blockchain_network
+
+  # Blacklist & IP Evasion Simulation
+  blacklist-evasion-sim:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blockchain_blacklist_evasion_sim
+    command: python /demo-scripts/sim_ip_wallet_blacklist_evasion.py
+    environment:
+      - API_URL=http://api-gateway:8001
+      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+    volumes:
+      - ./demo-scripts:/demo-scripts
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      postgres_main:
+        condition: service_healthy
+    networks:
+      - blockchain_network
+
+  # Scanner Service
   scanner:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: blockchain_scanner_micro
     restart: always
-    command: python scanner.py
+    command: python /app/scanner.py
     environment:
+      - NODE_ENV=development
       - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
       - ALERT_SERVICE_URL=http://alert-service:3003
+      - ANALYTICS_SERVICE_URL=http://analytics-service:3005
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
     depends_on:
       postgres_main:
         condition: service_healthy
       alert-service:
         condition: service_healthy
+    volumes:
+      - ./backend:/app
     networks:
       - blockchain_network
 
-  # AI Service (port 8000) - Core Python Backend
+  # AI Service (port 8000)
   ai-service:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: blockchain_ai_service
+    restart: on-failure
     ports:
       - "8000:8000"
     command: /bin/sh -c "python bootstrap_supabase.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
+      - ./backend:/app
       - ./database:/database
     environment:
+      - NODE_ENV=development
       - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GOOGLE_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       postgres_main:
         condition: service_healthy
@@ -351,6 +433,7 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - NODE_ENV=development
       - NEXT_PUBLIC_SOCKET_URL=http://localhost:3007
       - NEXT_PUBLIC_SENDER_ADDRESS=${NEXT_PUBLIC_SENDER_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
       - BACKEND_URL=http://api-gateway:8001
@@ -361,8 +444,6 @@ services:
 
 volumes:
   postgres_main_data:
-  postgres_alerts_data:
-  postgres_transfers_data:
   rabbitmq_data:
 
 networks:

@@ -22,6 +22,23 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+// Tracing middleware
+app.use((req, res, next) => {
+  req.correlationId = req.headers['x-correlation-id'] || `internal-${Math.random().toString(36).substring(7)}`;
+  res.setHeader('x-correlation-id', req.correlationId);
+  next();
+});
+
+// Logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${req.correlationId}] ${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
+  });
+  next();
+});
+
 const queue = require('./services/queue');
 
 // ==========================================
@@ -99,7 +116,7 @@ app.get('/wallets', async (req, res) => {
     res.json({
       wallets: result.rows.map(w => ({
         ...w,
-        id: w.id.toString(), // Convert BigInt to string
+        id: w.id.toString(),
         risk_score: parseFloat(w.risk_score || 0),
         total_transactions: parseInt(w.total_transactions || 0)
       })),
@@ -118,10 +135,9 @@ app.get('/wallets', async (req, res) => {
 });
 
 /**
- * PUT /wallets/:address/status
- * Update wallet status
+ * PUT /wallet/:address/status
  */
-app.put('/wallets/:address/status', async (req, res) => {
+app.put('/wallet/:address/status', async (req, res) => {
   const address = req.params.address.toLowerCase().trim();
   const { status, reason, admin_id } = req.body;
 
@@ -163,10 +179,9 @@ app.put('/wallets/:address/status', async (req, res) => {
 });
 
 /**
- * GET /wallets/:address/stats
- * Get detailed stats for a wallet
+ * GET /wallet/:address/stats
  */
-app.get('/wallets/:address/stats', async (req, res) => {
+app.get('/wallet/:address/stats', async (req, res) => {
   const address = req.params.address.toLowerCase().trim();
 
   try {
@@ -177,15 +192,18 @@ app.get('/wallets/:address/stats', async (req, res) => {
 
     const wallet = walletResult.rows[0];
 
-    // Get transaction counts
     const txStats = await pool.query(
-      'SELECT COUNT(*) as total, SUM(value) as total_value FROM transactions WHERE LOWER(from_address) = $1 OR LOWER(to_address) = $1',
+      `SELECT 
+        COUNT(*) FILTER (WHERE LOWER(from_address) = $1) as sent_count,
+        COUNT(*) FILTER (WHERE LOWER(to_address) = $1) as received_count,
+        COALESCE(SUM(value) FILTER (WHERE LOWER(from_address) = $1), 0) as eth_sent,
+        COALESCE(SUM(value) FILTER (WHERE LOWER(to_address) = $1), 0) as eth_received
+       FROM transactions WHERE LOWER(from_address) = $1 OR LOWER(to_address) = $1`,
       [address]
     );
 
-    // Get alert counts
     const alertStats = await pool.query(
-      'SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE severity = \'CRITICAL\') as critical FROM alerts WHERE LOWER(wallet_address) = $1',
+      "SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE severity = 'CRITICAL') as critical FROM alerts WHERE LOWER(wallet_address) = $1",
       [address]
     );
 
@@ -193,16 +211,125 @@ app.get('/wallets/:address/stats', async (req, res) => {
       address: wallet.address,
       risk_score: parseFloat(wallet.risk_score || 0),
       account_status: wallet.account_status,
-      stats: {
-        total_transactions: parseInt(txStats.rows[0].total),
-        total_value_wei: txStats.rows[0].total_value ? txStats.rows[0].total_value.toString() : '0',
-        total_alerts: parseInt(alertStats.rows[0].total),
-        critical_alerts: parseInt(alertStats.rows[0].critical)
-      }
+      eth_sent: parseFloat(txStats.rows[0].eth_sent) / 1e18,
+      eth_received: parseFloat(txStats.rows[0].eth_received) / 1e18,
+      eth_balance: (parseFloat(txStats.rows[0].eth_received) - parseFloat(txStats.rows[0].eth_sent)) / 1e18,
+      sent_count: parseInt(txStats.rows[0].sent_count),
+      received_count: parseInt(txStats.rows[0].received_count),
+      total_transactions: parseInt(txStats.rows[0].sent_count) + parseInt(txStats.rows[0].received_count),
+      total_alerts: parseInt(alertStats.rows[0].total),
+      critical_alerts: parseInt(alertStats.rows[0].critical)
     });
   } catch (error) {
     console.error('Error fetching wallet stats:', error);
     res.status(500).json({ error: 'Failed to fetch wallet stats' });
+  }
+});
+
+/**
+ * GET /wallet/:address/connections
+ */
+app.get('/wallet/:address/connections', async (req, res) => {
+  const address = req.params.address.toLowerCase().trim();
+
+  try {
+    const query = `
+      WITH counterparty_txs AS (
+        SELECT to_address as address, 'outgoing' as direction, value, id FROM transactions WHERE LOWER(from_address) = $1
+        UNION ALL
+        SELECT from_address as address, 'incoming' as direction, value, id FROM transactions WHERE LOWER(to_address) = $1
+      )
+      SELECT 
+        c.address, 
+        c.direction, 
+        COUNT(*) as tx_count, 
+        SUM(c.value) as total_value_wei,
+        w.risk_score,
+        w.account_status
+      FROM counterparty_txs c
+      LEFT JOIN wallets w ON LOWER(c.address) = LOWER(w.address)
+      WHERE LOWER(c.address) != $1
+      GROUP BY c.address, c.direction, w.risk_score, w.account_status
+      ORDER BY tx_count DESC
+      LIMIT 20
+    `;
+    const result = await pool.query(query, [address]);
+
+    res.json({
+      wallet: { address },
+      connections: result.rows.map(r => ({
+        address: r.address,
+        direction: r.direction,
+        tx_count: parseInt(r.tx_count),
+        total_value_eth: parseFloat(r.total_value_wei) / 1e18,
+        risk_score: parseFloat(r.risk_score || 0),
+        account_status: r.account_status || 'active'
+      })),
+      total_connections: result.rows.length
+    });
+  } catch (error) {
+    console.error('Error fetching connections:', error);
+    res.status(500).json({ error: 'Failed to fetch wallet connections' });
+  }
+});
+
+/**
+ * GET /wallet/:address/balance
+ */
+app.get('/wallet/:address/balance', async (req, res) => {
+  const address = req.params.address.toLowerCase().trim();
+  const chain = (req.query.chain || 'ethereum').toLowerCase();
+
+  try {
+    // Get wallet basic info
+    const walletResult = await pool.query('SELECT * FROM wallets WHERE LOWER(address) = $1', [address]);
+    
+    // Calculate balance from transactions table for the specific chain
+    const balanceResult = await pool.query(`
+      SELECT 
+        (SELECT COALESCE(SUM(value), 0) FROM transactions WHERE LOWER(to_address) = $1 AND chain_id = $2 AND status = 1) -
+        (SELECT COALESCE(SUM(value), 0) FROM transactions WHERE LOWER(from_address) = $1 AND chain_id = $2 AND status = 1) as balance
+    `, [address, chain]);
+
+    const balanceWei = balanceResult.rows[0].balance || '0';
+    const balanceEth = parseFloat(balanceWei) / 1e18;
+
+    res.json({
+      address,
+      chain,
+      balance_eth: balanceEth,
+      balance_wei: balanceWei.toString(),
+      risk_score: walletResult.rows.length > 0 ? parseFloat(walletResult.rows[0].risk_score || 0) : 0,
+      account_status: walletResult.rows.length > 0 ? walletResult.rows[0].account_status : 'unknown'
+    });
+  } catch (error) {
+    console.error('Error fetching balance:', error);
+    res.status(500).json({ error: 'Failed to fetch balance' });
+  }
+});
+
+/**
+ * GET /wallet/:address/transactions
+ * Get transaction history for a specific wallet
+ */
+app.get('/wallet/:address/transactions', async (req, res) => {
+  const address = req.params.address.toLowerCase().trim();
+  const limit = parseInt(req.query.limit || 10);
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM transactions WHERE LOWER(from_address) = $1 OR LOWER(to_address) = $1 ORDER BY timestamp DESC LIMIT $2',
+      [address, limit]
+    );
+
+    res.json(result.rows.map(tx => ({
+      ...tx,
+      value_eth: parseFloat(tx.value || 0) / 1e18,
+      value_wei: tx.value ? tx.value.toString() : '0'
+    })));
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    res.status(500).json({ error: 'Failed to fetch transactions' });
   }
 });
 
