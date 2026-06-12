@@ -50,7 +50,6 @@ def _percentile(values: list[float], percentile: float) -> float:
 
 
 @router.get("/system/slo-metrics")
-@router.get("/system/slo-metrics")
 def system_slo_metrics(
     days: int = Query(default=7, ge=1, le=90),
     db: Session = Depends(get_db),

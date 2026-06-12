@@ -154,16 +154,16 @@ export default function AdminDiagnosticsDashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">AI Service (Gemini)</CardTitle>
+                <CardTitle className="text-sm">AI Service (HF Token)</CardTitle>
               </CardHeader>
               <CardContent>
-                <Badge variant={systemStatus.ai_service.gemini_api_key_configured ? "default" : "secondary"}>
-                  {systemStatus.ai_service.gemini_api_key_configured ? "Configured" : "Not Configured"}
+                <Badge variant={systemStatus.ai_service.hf_token_configured ? "default" : "secondary"}>
+                  {systemStatus.ai_service.hf_token_configured ? "Configured" : "Not Configured"}
                 </Badge>
                 <p className="text-xs text-slate-400 mt-2">
-                  {systemStatus.ai_service.gemini_api_key_configured
-                    ? `GEMINI_API_KEY is set (${systemStatus.ai_service.gemini_model || "default model"})`
-                    : "GEMINI_API_KEY missing - fallback mode"}
+                  {systemStatus.ai_service.hf_token_configured
+                    ? "HF token is set"
+                    : "HF token missing - fallback mode"}
                 </p>
               </CardContent>
             </Card>

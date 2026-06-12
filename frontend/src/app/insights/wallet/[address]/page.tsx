@@ -334,7 +334,7 @@ function WalletInsightContent() {
                       <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800">
                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">AI Summary</p>
                          <p className="text-sm text-slate-300 leading-relaxed italic">
-                            "{aiAnalysis?.ai_insight || "Analyzing behavioral signatures against multi-chain clusters. Waiting for scan completion..."}"
+                            &quot;{aiAnalysis?.ai_insight || "Analyzing behavioral signatures against multi-chain clusters. Waiting for scan completion..."}&quot;
                          </p>
                       </div>
                       <div className="space-y-3">

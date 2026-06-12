@@ -287,6 +287,7 @@ export interface WalletStats {
   sent_count: number;
   received_count: number;
   total_transactions: number;
+  account_status: string;
   wallet_info: {
     label: string | null;
     entity_type: string;
@@ -505,9 +506,15 @@ export async function sendFeedback(category: string, message: string, wallet_add
 }
 
 export async function sendTestNotification(): Promise<{ message: string; timestamp: string }> {
-  const res = await authFetch(`${API_BASE}/security/notifications/test`, {
+  const res = await authFetch(`${API_BASE}/ops/security/notifications/test`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" }
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      channel: "email",
+      recipient: "admin@sentinel.io",
+      severity: "LOW",
+      message: "Test notification from Blockchain AI Sentinel"
+    })
   });
   if (!res.ok) throw new Error("Failed to send test notification");
   return res.json();

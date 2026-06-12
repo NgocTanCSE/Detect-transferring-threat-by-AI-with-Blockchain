@@ -3,16 +3,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
-  swcMinify: false,
+  swcMinify: true,
   experimental: {
     cpus: 1,
     workerThreads: false,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   async rewrites() {
     const backendUrl = process.env.BACKEND_URL || "http://api-gateway:8001";

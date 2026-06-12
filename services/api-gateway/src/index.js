@@ -176,19 +176,13 @@ const verifyAuth = async (req, res, next) => {
     '/auth/register', '/auth/login', '/auth/validate',
     '/socket.io',
     // Dashboard monitoring endpoints — read-only, no auth needed
-    '/api/statistics', '/api/dashboard', '/api/alerts/recent', '/api/alerts/latest',
-    '/api/blocked-transfers', '/api/analyze',
-    '/api/wallet', '/api/wallets',
-    '/api/diagnostics',
     '/statistics', '/dashboard', '/alerts/recent', '/alerts/latest',
-    '/blocked-transfers',
-    '/api/ops/', '/api/admin/diagnostics',
-    '/api/cases',
+    '/blocked-transfers', '/analyze',
+    '/wallets', '/wallet/',
+    '/diagnostics',
     '/ops/', '/admin/diagnostics',
     '/cases',
-    '/analyze',
-    '/assistant', '/api/assistant',
-    '/diagnostics'
+    '/assistant',
   ];
   if (publicRoutes.some(route => req.path.startsWith(route))) {
     return next();
@@ -267,14 +261,20 @@ const ROUTE_MAP = {
   '/aml': 'compliance',
   '/policy-rules': 'compliance',
 
-  // AI Service (8000) - Assistant, Ops, Case Management
+  // User endpoints (FastAPI backend)
+  '/user': 'ai',
+  // Feedback endpoints (FastAPI backend)
+  '/feedback': 'ai',
+  // Security endpoints (FastAPI backend)
+  '/security': 'ai',
+  // Admin diagnostics endpoints (FastAPI backend)
+  '/admin': 'ai',
+
+  // AI Service (FastAPI backend on port 8000) - Assistant, Ops, Case Management
   '/assistant': 'ai',
-  '/admin/diagnostics': 'ai',
-  '/ops/system': 'ai', // Move system ops to ai by default unless specific analytics match
+  '/ops/system': 'ai',
   '/ops/ai': 'ai',
   '/ops/security': 'ai',
-  '/api': 'ai',
-  '/admin': 'ai', 
   '/analyze': 'ai', 
   '/blocked-transfers': 'ai',
   '/socket.io': 'event',
@@ -283,7 +283,6 @@ const ROUTE_MAP = {
 // Prefixes to strip when forwarding to specific services
 const STRIP_PREFIXES = {
   'auth': ['/auth'],
-  'ai': ['/api'],
   'compliance': ['/ops/compliance'],
   'transfer': ['/transfer', '/transfers'],
 };

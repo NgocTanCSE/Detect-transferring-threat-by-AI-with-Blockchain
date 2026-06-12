@@ -29,8 +29,11 @@ const WalletNetworkGraph: React.FC<WalletNetworkGraphProps> = ({
       x: 250,
       y: 250,
       isCenter: true,
-      risk: 0, // Will be updated if needed
-      label: 'Target'
+      risk: 0,
+      label: 'Target',
+      direction: 'outgoing' as const,
+      count: 0,
+      value: 0
     };
 
     const outerNodes = connections.map((conn, i) => {
@@ -79,7 +82,7 @@ const WalletNetworkGraph: React.FC<WalletNetworkGraphProps> = ({
             x2={node.x}
             y2={node.y}
             stroke={node.risk && node.risk > 50 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(20, 184, 166, 0.15)'}
-            strokeWidth={1 + Math.min((node.count || 0) / 5, 4)}
+            strokeWidth={1 + Math.min(('count' in node ? (node as any).count || 0 : 0) / 5, 4)}
             strokeDasharray={node.direction === 'incoming' ? '4 2' : '0'}
             className={node.direction === 'incoming' ? 'animate-[dash_10s_linear_infinite]' : ''}
           />
@@ -134,7 +137,7 @@ const WalletNetworkGraph: React.FC<WalletNetworkGraphProps> = ({
       {/* Legend */}
       <div className="absolute bottom-4 left-4 flex flex-col gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-red-500" /> High Risk (>80)
+            <div className="w-2 h-2 rounded-full bg-red-500" /> High Risk (&gt;80)
          </div>
          <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-teal-500" /> Low Risk

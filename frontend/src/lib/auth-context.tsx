@@ -27,14 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedToken) {
       setToken(storedToken);
     } else {
-      // AUTO-LOGIN GUEST ADMIN
-      setUser({
-        id: "guest-admin-id",
-        username: "Guest Admin",
-        email: "admin@sentinel.io",
-        role: "admin",
-        wallet_address: "0x742d35cc6634c0532925a3b844bc454e4438f44e"
-      });
+      // No token - redirect to login instead of auto-login as guest
       setIsLoading(false);
     }
   }, []);
@@ -53,14 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
     } catch (error) {
       console.error("Failed to fetch user:", error);
-      // Fallback to guest admin instead of logout
-      setUser({
-        id: "guest-admin-id",
-        username: "Guest Admin",
-        email: "admin@sentinel.io",
-        role: "admin",
-        wallet_address: "0x742d35cc6634c0532925a3b844bc454e4438f44e"
-      });
+      // Token invalid - clear and redirect to login
+      localStorage.removeItem(TOKEN_KEY);
+      document.cookie = "auth_token=; path=/; max-age=0";
+      setToken(null);
+      setUser(null);
     } finally {
       setIsLoading(false);
     }

@@ -63,12 +63,13 @@ export default function UserExchange() {
     if (!authLoading && !isAuthenticated) router.push("/login");
   }, [user, authLoading, isAuthenticated, router]);
 
+  // Fetch balance and transactions
   const refreshData = useCallback(async () => {
     if (!fromWalletId) return;
     setLoading(prev => ({ ...prev, balance: true, tx: true }));
     try {
       const [bal, txs] = await Promise.all([
-        fetchWalletBalance(fromWalletId, selectedChain),
+        fetchWalletBalance(fromWalletId),
         fetchWalletTransactions(fromWalletId, 10)
       ]);
       setSenderBalance(bal);
@@ -76,7 +77,7 @@ export default function UserExchange() {
     } finally {
       setLoading(prev => ({ ...prev, balance: false, tx: false }));
     }
-  }, [fromWalletId, selectedChain]);
+  }, [fromWalletId]);
 
   useEffect(() => { refreshData(); }, [refreshData]);
 
@@ -105,16 +106,16 @@ export default function UserExchange() {
   const handleTransfer = async (force = false) => {
     setLoading(prev => ({ ...prev, transfer: true }));
     try {
-      const res = await sendProtectedTransfer({
-        sender: fromWalletId,
-        receiver: toAddress,
-        amount,
-        chain: selectedChain,
-        asset: selectedAsset,
-        force_proceed: force
-      });
+      const res = await sendProtectedTransfer(
+        fromWalletId,
+        toAddress,
+        parseFloat(amount),
+        force,
+        selectedChain,
+        selectedAsset
+      );
       setTransferResponse(res);
-      if (res.status === "blocked" || res.blocked) setDialogs(d => ({ ...d, blocked: true }));
+      if (res.status === "blocked") setDialogs(d => ({ ...d, blocked: true }));
       else if (res.status === "warning") setDialogs(d => ({ ...d, warning: true }));
       else {
         setDialogs(d => ({ ...d, success: true }));
@@ -210,7 +211,7 @@ export default function UserExchange() {
             </CardHeader>
             <CardContent className="p-0 max-h-[400px] overflow-y-auto">
               {senderTransactions.map(tx => (
-                <div key={tx.id} className="p-4 border-b border-slate-800/40 hover:bg-slate-800/20 flex items-center justify-between">
+                <div key={tx.tx_hash} className="p-4 border-b border-slate-800/40 hover:bg-slate-800/20 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? <ArrowUpRight className="text-slate-500 h-5 w-5" /> : <ArrowDownLeft className="text-teal-500 h-5 w-5" />}
                     <div>
@@ -219,7 +220,7 @@ export default function UserExchange() {
                     </div>
                   </div>
                   <span className={`font-bold ${tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? "text-slate-100" : "text-teal-400"}`}>
-                    {tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? "-" : "+"}{formatEth(tx.value || tx.value_wei)}
+                    {tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? "-" : "+"}{formatEth(Number(tx.value_wei) / 1e18 || 0)}
                   </span>
                 </div>
               ))}

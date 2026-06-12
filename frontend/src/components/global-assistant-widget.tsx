@@ -58,7 +58,7 @@ export default function GlobalAssistantWidget() {
 
   const { data: dashboardStats } = useQuery({
     queryKey: ["assistant-dashboard-stats"],
-    queryFn: fetchDashboardStats,
+    queryFn: () => fetchDashboardStats(),
     enabled: open,
     staleTime: 30_000,
   });

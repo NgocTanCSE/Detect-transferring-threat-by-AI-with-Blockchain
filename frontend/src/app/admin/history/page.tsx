@@ -45,18 +45,21 @@ import {
 
 export default function AdminHistory() {
   // Fetch blocked transfers
-  const { data: blockedTransfers, isLoading: blockedLoading } = useQuery<
-    BlockedTransfer[]
-  >({
+  const { data: blockedData, isLoading: blockedLoading } = useQuery<{
+    blocked_transfers: BlockedTransfer[];
+    statistics: Record<string, unknown>;
+  }>({
     queryKey: ["blockedTransfers"],
-    queryFn: fetchBlockedTransfers,
+    queryFn: () => fetchBlockedTransfers(),
     refetchInterval: 30000,
   });
+
+  const blockedTransfers = blockedData?.blocked_transfers || [];
 
   // Fetch flow stats
   const { data: flowStats, isLoading: flowLoading } = useQuery<FlowStats[]>({
     queryKey: ["flowStats"],
-    queryFn: fetchFlowStats,
+    queryFn: () => fetchFlowStats(),
   });
 
   // Calculate summary stats

@@ -218,12 +218,14 @@ app.post(['/protected-transfer', '/transfer/protected', '/protected'], requireRo
       );
       await client.query('COMMIT');
       return res.status(403).json({
-        status: 'blocked',
-        blocked: true,
-        reason: 'Receiver is high-risk or blocked',
-        receiver_risk: receiverRisk,
-        receiver_status: receiverStatus,
-        message: `Giao dịch đã bị chặn bởi AI Sentinel. Địa chỉ nhận có mức độ rủi ro cực cao (${receiverRisk}%).`
+        data: {
+          status: 'blocked',
+          blocked: true,
+          reason: 'Receiver is high-risk or blocked',
+          receiver_risk: receiverRisk,
+          receiver_status: receiverStatus,
+          message: `Giao dịch đã bị chặn bởi AI Sentinel. Địa chỉ nhận có mức độ rủi ro cực cao (${receiverRisk}%).`
+        }
       });
     }
 
@@ -231,13 +233,15 @@ app.post(['/protected-transfer', '/transfer/protected', '/protected'], requireRo
     if (receiverRisk >= 50 && !finalForceProceed) {
       await client.query('ROLLBACK');
       return res.json({
-        status: 'warning',
-        requires_confirmation: true,
-        receiver_risk: receiverRisk,
-        current_warnings: warningCount,
-        max_warnings: 3,
-        message: `⚠️ Ví này có điểm rủi ro là ${receiverRisk}%. Bạn có chắc chắn muốn tiếp tục?`,
-        warning_text: `Bạn còn ${3 - warningCount} lần cảnh báo trước khi tài khoản bị khóa.`
+        data: {
+          status: 'warning',
+          requires_confirmation: true,
+          receiver_risk: receiverRisk,
+          current_warnings: warningCount,
+          max_warnings: 3,
+          message: `⚠️ Ví này có điểm rủi ro là ${receiverRisk}%. Bạn có chắc chắn muốn tiếp tục?`,
+          warning_text: `Bạn còn ${3 - warningCount} lần cảnh báo trước khi tài khoản bị khóa.`
+        }
       });
     }
 
@@ -264,11 +268,13 @@ app.post(['/protected-transfer', '/transfer/protected', '/protected'], requireRo
 
         await client.query('COMMIT');
         return res.status(403).json({
-          status: 'blocked',
-          suspended: true,
-          reason: 'Account suspended after 3 ignored risk warnings',
-          warning_count: newWarningCount,
-          message: 'Tài khoản của bạn đã bị tạm khóa do phớt lờ cảnh báo rủi ro quá 3 lần.'
+          data: {
+            status: 'blocked',
+            suspended: true,
+            reason: 'Account suspended after 3 ignored risk warnings',
+            warning_count: newWarningCount,
+            message: 'Tài khoản của bạn đã bị tạm khóa do phớt lờ cảnh báo rủi ro quá 3 lần.'
+          }
         });
       }
     }
@@ -304,16 +310,18 @@ app.post(['/protected-transfer', '/transfer/protected', '/protected'], requireRo
     await client.query('COMMIT');
 
     res.json({
-      status: 'success',
-      tx_hash: txHash,
-      from: finalSender,
-      to: finalReceiver,
-      amount_eth: finalAmount,
-      asset: normalizedAsset,
-      chain: normalizedChain,
-      receiver_risk_score: receiverRisk,
-      warning_count: finalForceProceed && receiverRisk >= 50 ? warningCount + 1 : warningCount,
-      message: 'Giao dịch đã được thực hiện thành công.'
+      data: {
+        status: 'success',
+        tx_hash: txHash,
+        from: finalSender,
+        to: finalReceiver,
+        amount_eth: finalAmount,
+        asset: normalizedAsset,
+        chain: normalizedChain,
+        receiver_risk_score: receiverRisk,
+        warning_count: finalForceProceed && receiverRisk >= 50 ? warningCount + 1 : warningCount,
+        message: 'Giao dịch đã được thực hiện thành công.'
+      }
     });
 
   } catch (error) {

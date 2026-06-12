@@ -351,8 +351,6 @@ def _initialize_database() -> None:
 
 _initialize_database()
 
-from fastapi import FastAPI, Depends, HTTPException, Query, Request
-...
 app = FastAPI(
     title="Blockchain Risk Assessment API",
     version="3.0.0",
@@ -764,6 +762,7 @@ def _build_dashboard_assistant_context(
     role: str,
     wallet_address: str | None = None,
     screen_scope: str = "dashboard",
+    org_id: str | None = None,
 ) -> Dict[str, Any]:
     from datetime import timedelta
 

@@ -38,6 +38,7 @@ import {
 } from "@/lib/api";
 import { authFetch } from "@/lib/auth-fetch";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Bar,
   BarChart,
@@ -486,15 +487,16 @@ export default function LiveDashboard() {
       notify(`Critical threat detected on ${threat.chain}: ${threat.address}`, "error");
       // Optionally update the recentAlerts state immediately
       setRecentAlerts(prev => [{
-        id: Math.random().toString(36).substring(7),
+        alert_id: Math.random().toString(36).substring(7),
         alert_type: "REAL_TIME_DETECTION",
         severity: threat.level,
         wallet_address: threat.address,
         risk_score: threat.score,
         detected_at: threat.timestamp,
         message: `Automated detection on ${threat.chain}`,
-        is_acknowledged: false
-      }, ...prev]);
+        context: {},
+        acknowledged: false
+      } as Alert, ...prev]);
     });
 
     return () => {
@@ -1664,6 +1666,7 @@ function BatchUploadPanel() {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const { notify } = useToast();
 
   const handleUpload = async () => {
     if (!file) return;

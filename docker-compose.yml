@@ -76,7 +76,7 @@ services:
       NODE_ENV: development
       PORT: 8001
       DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
-      JWT_SECRET: a-very-strong-and-super-secret-jwt-key-for-local-dev-!@#$
+      JWT_SECRET: ${JWT_SECRET:-change_this_to_a_strong_random_secret}
       JWT_ALGORITHM: HS256
       AUTH_SERVICE_URL: http://auth-service:3001
       ALERT_SERVICE_URL: http://alert-service:3003
@@ -115,7 +115,7 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
       REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: a-very-strong-and-super-secret-jwt-key-for-local-dev-!@#$
+      JWT_SECRET: ${JWT_SECRET:-change_this_to_a_strong_random_secret}
       JWT_EXPIRY: 7d
     volumes: []
     healthcheck:

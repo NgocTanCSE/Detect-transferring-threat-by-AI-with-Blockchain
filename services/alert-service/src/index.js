@@ -57,7 +57,7 @@ function normalizeChain(chain) {
 async function ensureSchema() {
   await pool.query(`
 		CREATE TABLE IF NOT EXISTS alerts (
-			id BIGSERIAL PRIMARY KEY,
+			id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 			wallet_address VARCHAR(255),
 			alert_type VARCHAR(100) NOT NULL DEFAULT 'SUSPICIOUS_ACTIVITY',
 			severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
@@ -66,6 +66,8 @@ async function ensureSchema() {
 			meta JSONB,
 			chain_id VARCHAR(50) NOT NULL DEFAULT 'ethereum',
 			acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+			acknowledged_at TIMESTAMPTZ,
+			acknowledged_by VARCHAR(255),
 			detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)
 	`);
@@ -74,6 +76,21 @@ async function ensureSchema() {
   await pool.query('CREATE INDEX IF NOT EXISTS idx_alerts_chain_id ON alerts(chain_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_alerts_wallet_address ON alerts(wallet_address)');
+
+  // Add chain_id column if missing (for existing tables from init.sql)
+  await pool.query(`DO $$ BEGIN
+    ALTER TABLE alerts ADD COLUMN IF NOT EXISTS chain_id VARCHAR(50) DEFAULT 'ethereum';
+  EXCEPTION WHEN duplicate_column THEN null;
+  END $$`);
+
+  // Add meta column if missing (init.sql uses 'metadata' instead)
+  await pool.query(`DO $$ BEGIN
+    ALTER TABLE alerts ADD COLUMN IF NOT EXISTS meta JSONB;
+  EXCEPTION WHEN duplicate_column THEN null;
+  END $$`);
+
+  // Copy metadata to meta for backwards compatibility
+  await pool.query(`UPDATE alerts SET meta = metadata WHERE meta IS NULL AND metadata IS NOT NULL`);
 }
 
 app.get('/health', async (req, res) => {
@@ -100,7 +117,7 @@ app.get('/alerts/latest', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `
-				SELECT id, wallet_address, alert_type, severity, message, risk_score, metadata, chain_id, detected_at
+				SELECT id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, detected_at
 				FROM alerts
 				ORDER BY detected_at DESC
 				LIMIT $1
@@ -117,8 +134,8 @@ app.get('/alerts/latest', async (req, res) => {
         severity: alert.severity,
         message: alert.message,
         risk_score: Number(alert.risk_score || 0),
-        metadata: alert.metadata || {},
-        meta: alert.metadata || {},
+        metadata: alert.meta || {},
+        meta: alert.meta || {},
         chain_id: alert.chain_id || 'ethereum',
         detected_at: new Date(alert.detected_at).toISOString(),
       })),
@@ -173,7 +190,7 @@ app.get('/alerts/recent', async (req, res) => {
 
     const alertResult = await pool.query(
       `
-				SELECT id, wallet_address, alert_type, severity, message, risk_score, metadata, chain_id, acknowledged, detected_at
+				SELECT id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, acknowledged, detected_at
 				FROM alerts
 				${whereClause}
 				ORDER BY detected_at DESC
@@ -204,8 +221,8 @@ app.get('/alerts/recent', async (req, res) => {
         severity: alert.severity,
         message: alert.message,
         risk_score: Number(alert.risk_score || 0),
-        context: alert.metadata || {},
-        meta: alert.metadata || {},
+        context: alert.meta || {},
+        meta: alert.meta || {},
         chain_id: alert.chain_id || 'ethereum',
         detected_at: new Date(alert.detected_at).toISOString(),
         acknowledged: Boolean(alert.acknowledged),
@@ -253,7 +270,7 @@ app.get('/alerts', async (req, res) => {
 
     const rowsResult = await pool.query(
       `
-				SELECT id, wallet_address, alert_type, severity, message, risk_score, metadata, chain_id, acknowledged, detected_at
+				SELECT id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, acknowledged, detected_at
 				FROM alerts
 				${whereClause}
 				ORDER BY detected_at DESC
@@ -268,7 +285,7 @@ app.get('/alerts', async (req, res) => {
       limit,
       items: rowsResult.rows.map(row => ({
         ...row,
-        meta: row.metadata || {}
+        meta: row.meta || {}
       })),
     });
   } catch (error) {
@@ -313,9 +330,9 @@ app.post('/alerts', async (req, res) => {
       `
         INSERT INTO alerts (
           wallet_address, alert_type, severity, message, 
-          risk_score, metadata, chain_id, detected_at
+          risk_score, meta, chain_id, detected_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-        RETURNING id, wallet_address, alert_type, severity, message, risk_score, metadata, chain_id, detected_at
+        RETURNING id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, detected_at
       `,
       [
         wallet_address,
@@ -333,13 +350,13 @@ app.post('/alerts', async (req, res) => {
     // Publish to MQ
     await queue.publishAlert({
       ...newAlert,
-      meta: newAlert.metadata || {},
+      meta: newAlert.meta || {},
       event_type: 'ALERT_CREATED'
     });
 
     res.status(201).json({
       ...newAlert,
-      meta: newAlert.metadata || {}
+      meta: newAlert.meta || {}
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -355,7 +372,7 @@ app.post('/alerts/:id/acknowledge', async (req, res) => {
 				UPDATE alerts
 				SET acknowledged = TRUE
 				WHERE id = $1
-				RETURNING id, wallet_address, alert_type, severity, message, risk_score, metadata, chain_id, acknowledged, detected_at
+				RETURNING id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, acknowledged, detected_at
 			`,
       [id]
     );

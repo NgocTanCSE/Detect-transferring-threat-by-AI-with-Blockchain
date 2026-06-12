@@ -169,8 +169,7 @@ app.put('/wallet/:address/status', async (req, res) => {
     });
 
     res.json({
-      message: 'Wallet status updated',
-      wallet: updatedWallet
+      data: updatedWallet
     });
   } catch (error) {
     console.error('Error updating wallet status:', error);
@@ -208,17 +207,19 @@ app.get('/wallet/:address/stats', async (req, res) => {
     );
 
     res.json({
-      address: wallet.address,
-      risk_score: parseFloat(wallet.risk_score || 0),
-      account_status: wallet.account_status,
-      eth_sent: parseFloat(txStats.rows[0].eth_sent) / 1e18,
-      eth_received: parseFloat(txStats.rows[0].eth_received) / 1e18,
-      eth_balance: (parseFloat(txStats.rows[0].eth_received) - parseFloat(txStats.rows[0].eth_sent)) / 1e18,
-      sent_count: parseInt(txStats.rows[0].sent_count),
-      received_count: parseInt(txStats.rows[0].received_count),
-      total_transactions: parseInt(txStats.rows[0].sent_count) + parseInt(txStats.rows[0].received_count),
-      total_alerts: parseInt(alertStats.rows[0].total),
-      critical_alerts: parseInt(alertStats.rows[0].critical)
+      data: {
+        address: wallet.address,
+        risk_score: parseFloat(wallet.risk_score || 0),
+        account_status: wallet.account_status,
+        eth_sent: parseFloat(txStats.rows[0].eth_sent) / 1e18,
+        eth_received: parseFloat(txStats.rows[0].eth_received) / 1e18,
+        eth_balance: (parseFloat(txStats.rows[0].eth_received) - parseFloat(txStats.rows[0].eth_sent)) / 1e18,
+        sent_count: parseInt(txStats.rows[0].sent_count),
+        received_count: parseInt(txStats.rows[0].received_count),
+        total_transactions: parseInt(txStats.rows[0].sent_count) + parseInt(txStats.rows[0].received_count),
+        total_alerts: parseInt(alertStats.rows[0].total),
+        critical_alerts: parseInt(alertStats.rows[0].critical)
+      }
     });
   } catch (error) {
     console.error('Error fetching wallet stats:', error);
@@ -256,16 +257,20 @@ app.get('/wallet/:address/connections', async (req, res) => {
     const result = await pool.query(query, [address]);
 
     res.json({
-      wallet: { address },
-      connections: result.rows.map(r => ({
-        address: r.address,
-        direction: r.direction,
-        tx_count: parseInt(r.tx_count),
-        total_value_eth: parseFloat(r.total_value_wei) / 1e18,
-        risk_score: parseFloat(r.risk_score || 0),
-        account_status: r.account_status || 'active'
-      })),
-      total_connections: result.rows.length
+      data: {
+        wallet: { address, label: null, risk_score: 0, entity_type: 'Unknown' },
+        connections: result.rows.map(r => ({
+          address: r.address,
+          direction: r.direction,
+          tx_count: parseInt(r.tx_count),
+          total_value_eth: parseFloat(r.total_value_wei) / 1e18,
+          label: null,
+          entity_type: 'Unknown',
+          risk_score: parseFloat(r.risk_score || 0),
+          account_status: r.account_status || 'active'
+        })),
+        total_connections: result.rows.length
+      }
     });
   } catch (error) {
     console.error('Error fetching connections:', error);
@@ -295,12 +300,15 @@ app.get('/wallet/:address/balance', async (req, res) => {
     const balanceEth = parseFloat(balanceWei) / 1e18;
 
     res.json({
-      address,
-      chain,
-      balance_eth: balanceEth,
-      balance_wei: balanceWei.toString(),
-      risk_score: walletResult.rows.length > 0 ? parseFloat(walletResult.rows[0].risk_score || 0) : 0,
-      account_status: walletResult.rows.length > 0 ? walletResult.rows[0].account_status : 'unknown'
+      data: {
+        address,
+        chain,
+        balance_eth: balanceEth,
+        balance_wei: balanceWei.toString(),
+        risk_score: walletResult.rows.length > 0 ? parseFloat(walletResult.rows[0].risk_score || 0) : 0,
+        account_status: walletResult.rows.length > 0 ? walletResult.rows[0].account_status : 'unknown',
+        total_transactions: 0
+      }
     });
   } catch (error) {
     console.error('Error fetching balance:', error);
@@ -322,11 +330,13 @@ app.get('/wallet/:address/transactions', async (req, res) => {
       [address, limit]
     );
 
-    res.json(result.rows.map(tx => ({
-      ...tx,
-      value_eth: parseFloat(tx.value || 0) / 1e18,
-      value_wei: tx.value ? tx.value.toString() : '0'
-    })));
+    res.json({
+      transactions: result.rows.map(tx => ({
+        ...tx,
+        value_eth: parseFloat(tx.value || 0) / 1e18,
+        value_wei: tx.value ? tx.value.toString() : '0'
+      }))
+    });
   } catch (error) {
     console.error('Error fetching transactions:', error);
     res.status(500).json({ error: 'Failed to fetch transactions' });

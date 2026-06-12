@@ -258,20 +258,19 @@ app.post('/compliance/sar/export', async (req, res) => {
 // Middleware to enforce Role-Based Access Control
 const requireRole = (allowedRoles) => {
   return (req, res, next) => {
-    // const userRole = req.headers['x-user-role'];
-    
-    // // In dev mode, if no gateway header is present, allow all (optional)
-    // if (!userRole && process.env.NODE_ENV === 'development') {
-    //   return next();
-    // }
+    const userRole = req.headers['x-user-role'];
 
-    // if (!userRole || !allowedRoles.includes(userRole)) {
-    //   console.warn(`[RBAC] Access denied for role: ${userRole}`);
-    //   return res.status(403).json({ 
-    //     error: 'Forbidden: You do not have the required permissions for this compliance action.' 
-    //   });
-    // }
-    // Bypass auth check as requested: "dashboard không cần đăng nhập"
+    // In dev mode, if no gateway header is present, allow all (optional)
+    if (!userRole && process.env.NODE_ENV === 'development') {
+      return next();
+    }
+
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      console.warn(`[RBAC] Access denied for role: ${userRole}`);
+      return res.status(403).json({
+        error: 'Forbidden: You do not have the required permissions for this compliance action.'
+      });
+    }
     next();
   };
 };
@@ -355,6 +354,12 @@ app.get('/reporting/summary', async (req, res) => {
     const policiesCount = await pool.query('SELECT COUNT(*) FROM policy_rules WHERE is_active = true');
     const auditCount = await pool.query('SELECT COUNT(*) FROM audit_logs WHERE timestamp >= $1', [period_start]);
 
+    // Fetch real case counts
+    const pendingCases = await pool.query("SELECT COUNT(*) FROM transactions WHERE case_status = 'PENDING' OR case_status IS NULL");
+    const verifiedCases = await pool.query("SELECT COUNT(*) FROM transactions WHERE case_status = 'VERIFIED'");
+    const fraudCases = await pool.query("SELECT COUNT(*) FROM transactions WHERE case_status = 'FRAUD'");
+    const ignoredCases = await pool.query("SELECT COUNT(*) FROM transactions WHERE case_status = 'IGNORED'");
+
     res.json({
       period: {
         days: days,
@@ -372,10 +377,10 @@ app.get('/reporting/summary', async (req, res) => {
         audit_events: parseInt(auditCount.rows[0].count)
       },
       cases: {
-        PENDING: 45,
-        VERIFIED: 120,
-        FRAUD: 12,
-        IGNORED: 8
+        PENDING: parseInt(pendingCases.rows[0].count),
+        VERIFIED: parseInt(verifiedCases.rows[0].count),
+        FRAUD: parseInt(fraudCases.rows[0].count),
+        IGNORED: parseInt(ignoredCases.rows[0].count)
       }
     });
   } catch (error) {
