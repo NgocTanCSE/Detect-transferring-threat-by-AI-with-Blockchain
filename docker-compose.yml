@@ -434,7 +434,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_SOCKET_URL=http://localhost:3007
+      - NEXT_PUBLIC_SOCKET_URL=http://localhost:8001
       - NEXT_PUBLIC_SENDER_ADDRESS=${NEXT_PUBLIC_SENDER_ADDRESS:-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb}
       - BACKEND_URL=http://api-gateway:8001
     depends_on:

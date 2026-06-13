@@ -6,6 +6,9 @@ const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const morgan = require('morgan');
+
+// Add correlation ID token for request logs
+morgan.token('corr', (req) => req.correlationId || '-');
 const CircuitBreaker = require('opossum');
 const logger = require('./utils/logger');
 require('dotenv').config();
@@ -97,7 +100,7 @@ app.use((req, res, next) => {
 });
 
 // Logging middleware (Morgan)
-app.use(morgan(':method :url :status :res[content-length] - :response-time ms', {
+app.use(morgan(':corr :method :url :status :response-time ms', {
   stream: {
     write: (message) => logger.info(message.trim())
   }
