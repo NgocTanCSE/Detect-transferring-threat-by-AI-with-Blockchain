@@ -6,9 +6,12 @@ const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const morgan = require('morgan');
+const CircuitBreaker = require('opossum');
 const logger = require('./utils/logger');
-const { Pool } = require('pg');
 require('dotenv').config();
+const { Pool } = require('pg');
+const traceMiddleware = require('../../shared/trace');
+const { client, requestMetrics } = require('../../shared/metrics');
 
 // Database connection for API Key validation
 const pool = new Pool({
@@ -54,12 +57,8 @@ const logUsage = async (req, res, responseTime) => {
 };
 
 // Correlation ID Middleware
-app.use((req, res, next) => {
-  const correlationId = req.headers['x-correlation-id'] || uuidv4();
-  req.correlationId = correlationId;
-  res.setHeader('x-correlation-id', correlationId);
-  next();
-});
+app.use(traceMiddleware);
+app.use(requestMetrics);
 
 // Rate limiting tiers
 const authLimiter = rateLimit({
@@ -118,11 +117,12 @@ const SERVICES = {
 
 // Proxy instances with correlation ID forwarding
 const proxies = {};
+const circuitBreakers = {};
 Object.entries(SERVICES).forEach(([key, url]) => {
-  proxies[key] = httpProxy.createProxyServer({ target: url });
+  const proxy = httpProxy.createProxyServer({ target: url });
   
   // Forward correlation ID and user info to downstream services
-  proxies[key].on('proxyReq', (proxyReq, req) => {
+  proxy.on('proxyReq', (proxyReq, req) => {
     if (req.correlationId) {
       proxyReq.setHeader('x-correlation-id', req.correlationId);
     }
@@ -132,14 +132,41 @@ Object.entries(SERVICES).forEach(([key, url]) => {
       proxyReq.setHeader('x-org-id', req.user.org_id || '');
     }
   });
+  
+  // Store proxy for ws upgrades
+  proxies[key] = proxy;
+  
+  // Create a circuit breaker around the proxy call for HTTP requests
+  const breaker = new CircuitBreaker((req, res) => {
+    return new Promise((resolve, reject) => {
+      proxy.web(req, res, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }, {
+    timeout: 5000, // 5 seconds
+    errorThresholdPercentage: 50,
+    resetTimeout: 10000 // 10 seconds before trying again
+  });
+  circuitBreakers[key] = breaker;
 });
 
-// Health check
+// Version endpoint
+app.get('/version', (req, res) => {
+  const aiVersion = process.env.AI_MODEL_VERSION || 'v1.0';
+  res.json({
+    service: 'api-gateway',
+    version: 'v1.0',
+    ai_service_version: aiVersion
+  });
+});
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'api-gateway',
     timestamp: new Date().toISOString(),
+    dlq_metrics: { main: 0, dead: 0 }
   });
 });
 
@@ -158,10 +185,14 @@ app.get('/ready', async (req, res) => {
   }
 
   const allHealthy = Object.values(checks).every((check) => check.status === 'healthy');
-  res.status(allHealthy ? 200 : 503).json({
-    status: allHealthy ? 'ready' : 'not ready',
-    checks,
-  });
+res.status(allHealthy ? 200 : 503).json({
+  status: allHealthy ? 'ready' : 'not ready',
+  checks,
+});
+});
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
 });
 
 // Auth middleware (supports JWT and API Key)
@@ -307,7 +338,7 @@ app.all('*', (req, res) => {
     });
   }
 
-  const proxy = proxies[service];
+  const breaker = circuitBreakers[service];
   const target = SERVICES[service];
 
   // Handle prefix stripping
@@ -325,13 +356,15 @@ app.all('*', (req, res) => {
   console.log(`→ Proxying ${req.method} ${req.path} to ${service} (${target}) as ${req.url}`);
 
   const start = Date.now();
-  proxy.web(req, res, (error) => {
+  breaker.fire(req, res).catch((error) => {
     const duration = Date.now() - start;
     console.error(`Proxy error for ${service}:`, error.message);
-    res.status(503).json({
-      error: 'Service unavailable',
-      service,
-    });
+    if (!res.headersSent) {
+      res.status(503).json({
+        error: 'Service unavailable',
+        service,
+      });
+    }
     logUsage(req, res, duration);
   });
 

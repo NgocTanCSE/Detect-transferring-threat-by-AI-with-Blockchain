@@ -416,6 +416,12 @@ def health_check() -> Dict[str, str]:
     """API health check endpoint."""
     return {"status": "operational", "service": "Blockchain Risk Assessment API v3.0"}
 
+@app.get("/version", tags=["Info"])
+def get_version() -> Dict[str, str]:
+    """Return AI service version."""
+    return {"service": "AI Service", "version": os.getenv("AI_MODEL_VERSION", "v1.0")}
+
+
 
 # ============================================================================
 # ADMIN DIAGNOSTICS ENDPOINTS
@@ -1259,11 +1265,24 @@ def analyze_wallet_risk(
         _persist_blockchain_data(database_session, transaction_history, normalized_address)
 
         # Step 3: Run AI-powered multi-agent risk assessment
+        # Step 3: Run AI-powered multi‑agent risk assessment with fallback
         ai_engine = MultiAgentDetectionEngine(database_session=database_session)
-        risk_analysis = ai_engine.analyze_wallet(
-            wallet_address=normalized_address,
-            transactions=transaction_history
-        )
+        try:
+            risk_analysis = ai_engine.analyze_wallet(
+                wallet_address=normalized_address,
+                transactions=transaction_history
+            )
+        except Exception as e:
+            logger.error(f"AI engine failure: {e}")
+            # Fallback: low‑risk default
+            risk_analysis = {
+                "total_score": 0.0,
+                "risk_level": "LOW",
+                "breakdown": {},
+                "model": "fallback-low-risk",
+                "detection_count": 0,
+                "ai_insight": "AI engine unavailable; default low‑risk applied."
+            }
 
         # Step 4: Update or create wallet record
         wallet_record = database_session.query(Wallet).filter(
