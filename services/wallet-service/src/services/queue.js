@@ -1,4 +1,5 @@
 const amqp = require('amqplib');
+const { setupDLQ } = require('../../../dlqHelper');
 
 let connection = null;
 let channel = null;
@@ -10,6 +11,8 @@ async function connect() {
     connection = await amqp.connect(rabbitUrl);
     channel = await connection.createChannel();
     await channel.assertExchange(EXCHANGE, 'topic', { durable: true });
+    // Ensure a dead‑letter exchange & queue exist for this service
+    await setupDLQ(channel, EXCHANGE);
     console.log('✅ Connected to RabbitMQ (Wallet Service)');
   } catch (error) {
     console.error('❌ RabbitMQ connection failed:', error.message);

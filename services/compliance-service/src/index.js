@@ -9,8 +9,11 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { v4: uuidv4 } = require('uuid');
 const morgan = require('morgan');
-const logger = require('./utils/logger');
+const queue = require('./services/queue');
+const traceMiddleware = require('../../shared/trace');
 require('dotenv').config();
+const { client, requestMetrics } = require('../../shared/metrics');
+const logger = require('./utils/logger');
 
 const app = express();
 const PORT = process.env.PORT || 3006;
@@ -24,12 +27,8 @@ app.use(cors());
 app.use(express.json());
 
 // Correlation ID Middleware
-app.use((req, res, next) => {
-  const correlationId = req.headers['x-correlation-id'] || uuidv4();
-  req.correlationId = correlationId;
-  res.setHeader('x-correlation-id', correlationId);
-  next();
-});
+app.use(traceMiddleware);
+app.use(requestMetrics);
 
 // Logging middleware (Morgan)
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms', {
@@ -38,7 +37,7 @@ app.use(morgan(':method :url :status :res[content-length] - :response-time ms', 
   }
 }));
 
-const queue = require('./services/queue');
+const { withRetry } = require('./utils/retry');
 
 // ==========================================
 // ROUTES
@@ -46,7 +45,12 @@ const queue = require('./services/queue');
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'compliance-service', timestamp: new Date() });
+  res.json({
+    status: 'ok',
+    service: 'compliance-service',
+    timestamp: new Date(),
+    dlq_metrics: { main: 0, dead: 0 }
+  });
 });
 
 // Ready check
@@ -57,6 +61,10 @@ app.get('/ready', async (req, res) => {
   } catch (error) {
     res.status(503).json({ status: 'not ready', error: error.message });
   }
+});
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
 });
 
 /**
@@ -74,15 +82,15 @@ app.post('/evaluate-policy', async (req, res) => {
 
   try {
     // Load active policy rules ordered by priority
-    const { rows: rules } = await pool.query(
+    const { rows: rules } = await withRetry(() => pool.query(
       'SELECT * FROM policy_rules WHERE is_active = true ORDER BY priority ASC, created_at DESC'
-    );
+    ));
 
     // Determine blacklist status of the wallet
-    const blacklistRes = await pool.query(
+    const blacklistRes = await withRetry(() => pool.query(
       'SELECT 1 FROM blacklist WHERE LOWER(address) = $1',
       [wallet_address.toLowerCase()]
-    );
+    ));
     const isBlacklisted = blacklistRes.rowCount > 0;
 
     // Evaluate each rule sequentially (first match wins)
@@ -699,9 +707,17 @@ app.get('/audit/logs/export', requireRole(COMPLIANCE_ROLES), async (req, res) =>
   }
 });
 
-// Start server
-queue.connect().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 Compliance Service running on port ${PORT}`);
-  });
-}).catch(console.error);
+// Export the Express app for testing
+module.exports = { app, pool };
+
+// Start server only when executed directly
+if (require.main === module) {
+  queue.connect()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`🚀 Compliance Service running on port ${PORT}`);
+      });
+    })
+    .catch(console.error);
+}
+

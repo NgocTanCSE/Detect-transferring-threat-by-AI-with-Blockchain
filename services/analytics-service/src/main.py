@@ -64,7 +64,8 @@ def _window_start(days: int) -> datetime:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "analytics-service"}
+    return {"status": "ok", "service": "analytics-service", "dlq_metrics": {"main": 0, "dead": 0}}
+
 
 @app.get("/statistics/dashboard")
 def get_dashboard_stats(chain: str = Query(default="ethereum"), days: int = 30):

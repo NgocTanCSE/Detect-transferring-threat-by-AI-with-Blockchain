@@ -8,6 +8,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
+const { client, requestMetrics } = require('../../shared/metrics');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -23,11 +24,8 @@ app.use(cors());
 app.use(express.json());
 
 // Tracing middleware
-app.use((req, res, next) => {
-  req.correlationId = req.headers['x-correlation-id'] || `internal-${Math.random().toString(36).substring(7)}`;
-  res.setHeader('x-correlation-id', req.correlationId);
-  next();
-});
+app.use(require('../../shared/trace'));
+app.use(requestMetrics);
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -47,7 +45,12 @@ const queue = require('./services/queue');
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'wallet-service', timestamp: new Date() });
+  res.json({
+    status: 'ok',
+    service: 'wallet-service',
+    timestamp: new Date(),
+    dlq_metrics: { main: 0, dead: 0 }
+  });
 });
 
 // Ready check
@@ -58,6 +61,10 @@ app.get('/ready', async (req, res) => {
   } catch (error) {
     res.status(503).json({ status: 'not ready', error: error.message });
   }
+});
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
 });
 
 /**

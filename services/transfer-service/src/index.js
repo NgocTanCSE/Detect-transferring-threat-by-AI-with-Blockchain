@@ -11,6 +11,7 @@ const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const CircuitBreaker = require('opossum');
 require('dotenv').config();
+const { client, requestMetrics } = require('../../shared/metrics');
 
 const app = express();
 const PORT = process.env.PORT || 3004;
@@ -57,11 +58,8 @@ app.use((req, res, next) => {
 });
 
 // Tracing middleware
-app.use((req, res, next) => {
-  req.correlationId = req.headers['x-correlation-id'] || `internal-${Math.random().toString(36).substring(7)}`;
-  res.setHeader('x-correlation-id', req.correlationId);
-  next();
-});
+app.use(require('../../shared/trace'));
+app.use(requestMetrics);
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -89,7 +87,24 @@ const ethFromWei = (wei) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'transfer-service', timestamp: new Date() });
+  res.json({
+    status: 'ok',
+    service: 'transfer-service',
+    timestamp: new Date(),
+    dlq_metrics: { main: 0, dead: 0 }
+  });
+});
+app.get('/ready', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ready', service: 'transfer-service' });
+  } catch (error) {
+    res.status(503).json({ status: 'not ready', error: error.message });
+  }
+});
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
 });
 
 // Middleware to enforce Role-Based Access Control

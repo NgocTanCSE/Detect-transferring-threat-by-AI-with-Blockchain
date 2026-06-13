@@ -18,10 +18,11 @@ const helmet = require('helmet');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const morgan = require('morgan');
-const logger = require('./utils/logger');
+const traceMiddleware = require('../../shared/trace');
 require('dotenv').config();
+const { client, requestMetrics } = require('../../shared/metrics');
 
-const PORT = process.env.PORT || 3001;
+const logger = require('./utils/logger');
 
 // Database connection
 const pool = new Pool({
@@ -34,12 +35,8 @@ authApp.use(cors());
 authApp.use(express.json());
 
 // Correlation ID Middleware
-authApp.use((req, res, next) => {
-  const correlationId = req.headers['x-correlation-id'] || uuidv4();
-  req.correlationId = correlationId;
-  res.setHeader('x-correlation-id', correlationId);
-  next();
-});
+authApp.use(traceMiddleware);
+authApp.use(requestMetrics);
 
 // Logging middleware (Morgan)
 authApp.use(morgan(':method :url :status :res[content-length] - :response-time ms', {
@@ -256,11 +253,8 @@ function createApp(dbPool = pool) {
   authApp.use(express.urlencoded({ extended: true }));
 
   // Tracing middleware
-  authApp.use((req, res, next) => {
-    req.correlationId = req.headers['x-correlation-id'] || `internal-${uuidv4()}`;
-    res.setHeader('x-correlation-id', req.correlationId);
-    next();
-  });
+  authApp.use(traceMiddleware);
+  authApp.use(requestMetrics);
 
   // Logging middleware (Request logging)
   authApp.use((req, res, next) => {
@@ -281,18 +275,27 @@ function createApp(dbPool = pool) {
   // ==========================================
   // Health check
   authApp.get('/health', (req, res) => {
-    res.json({ status: 'ok', service: 'auth-service' });
+    res.json({
+      status: 'ok',
+      service: 'auth-service',
+      dlq_metrics: { main: 0, dead: 0 }
+    });
   });
 
   // Ready check - verify database connection
-  authApp.get('/ready', async (req, res) => {
-    try {
-      await dbPool.query('SELECT 1');
-      res.json({ status: 'ready', service: 'auth-service' });
-    } catch (error) {
-      res.status(503).json({ status: 'not ready', error: error.message });
-    }
-  });
+authApp.get('/ready', async (req, res) => {
+  try {
+    await dbPool.query('SELECT 1');
+    res.json({ status: 'ready', service: 'auth-service' });
+  } catch (error) {
+    res.status(503).json({ status: 'not ready', error: error.message });
+  }
+});
+
+authApp.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
+});
 
   // Register endpoint
   authApp.post('/register', async (req, res) => {

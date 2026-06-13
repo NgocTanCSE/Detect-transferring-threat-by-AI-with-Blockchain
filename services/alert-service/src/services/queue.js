@@ -36,8 +36,11 @@ const connect = async () => {
       messageTtl: 30000 // 30 seconds TTL
     });
     
-    // Bind main queue to all alert types
-    await channel.bindQueue(ALERT_QUEUE, ALERT_EXCHANGE, 'alert.#');
+  // Bind main queue to all alert types
+  await channel.bindQueue(ALERT_QUEUE, ALERT_EXCHANGE, 'alert.#');
+  // Also listen for generic risk events (risk.*)
+  await channel.bindQueue(ALERT_QUEUE, ALERT_EXCHANGE, 'risk.#');
+
     
     console.log('✓ RabbitMQ Infrastructure (Main + DLQ) Ready.');
     

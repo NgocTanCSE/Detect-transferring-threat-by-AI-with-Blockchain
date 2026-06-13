@@ -1,4 +1,5 @@
 const amqp = require('amqplib');
+const { setupDLQ } = require('../../../dlqHelper');
 
 let connection;
 let channel;
@@ -19,9 +20,13 @@ const startConsuming = async (onEvent) => {
     
     // Assert Exchange
     await channel.assertExchange(ALERT_EXCHANGE, 'topic', { durable: true });
+    // Ensure DLX/DLQ for the consumer queue
+    const { dlx, dlq } = await setupDLQ(channel, ALERT_EXCHANGE);
+    // We'll bind the dead‑letter exchange later when we create the consumer queue.
+    console.log('✅ DLQ setup completed for Event Service');
     
     // Assert Queue (exclusive for this instance of event-service)
-    const q = await channel.assertQueue('', { exclusive: true });
+    const q = await channel.assertQueue('', { exclusive: true, deadLetterExchange: dlx });
     
     // Bind to all alert events
     await channel.bindQueue(q.queue, ALERT_EXCHANGE, 'alert.#');

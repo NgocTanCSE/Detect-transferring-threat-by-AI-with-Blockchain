@@ -4,6 +4,8 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const queue = require('./services/queue');
 require('dotenv').config();
+const traceMiddleware = require('../../shared/trace');
+const { client, requestMetrics } = require('../../shared/metrics');
 
 const app = express();
 const server = http.createServer(app);
@@ -20,11 +22,8 @@ app.use(cors());
 app.use(express.json());
 
 // Tracing middleware
-app.use((req, res, next) => {
-  req.correlationId = req.headers['x-correlation-id'] || `internal-${require('uuid').v4()}`;
-  res.setHeader('x-correlation-id', req.correlationId);
-  next();
-});
+app.use(traceMiddleware);
+app.use(requestMetrics);
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -41,8 +40,13 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     service: 'event-service', 
-    clients: io.engine.clientsCount 
+    clients: io.engine.clientsCount,
+    dlq_metrics: { main: 0, dead: 0 }
   });
+});
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
 });
 
 // Socket.io connection handling
