@@ -40,6 +40,9 @@ COPY --from=frontend-builder /app/frontend/.next/static ./frontend/.next/static
 # Copy supervisord config
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# Copy debug script
+RUN chmod +x /app/backend/debug_start.sh 2>/dev/null || true
+
 # Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
