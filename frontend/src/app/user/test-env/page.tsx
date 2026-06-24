@@ -93,7 +93,7 @@ interface TestLog {
 }
 
 export default function TestEnvironment() {
-  const { user, login, logout } = useAuth();
+  const { user } = useAuth();
   const [selectedUser, setSelectedUser] = useState<TestUser | null>(null);
   const [isAutoRunning, setIsAutoRunning] = useState(false);
   const [logs, setLogs] = useState<TestLog[]>([]);

@@ -1,96 +1,49 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { getCurrentUser, loginUser, logoutUser, type UserData, type LoginData, type LoginResponse } from "@/lib/api-auth";
+
+interface UserData {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  wallet_address: string;
+}
 
 interface AuthContextType {
   user: UserData | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (data: LoginData) => Promise<LoginResponse>;
-  logout: () => void;
-  refreshUser: () => Promise<void>;
   token: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = "auth_token";
+const TEST_USER: UserData = {
+  id: "test-user-001",
+  username: "testuser",
+  email: "test@sentinel.io",
+  role: "user",
+  wallet_address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+};
+
+const TEST_TOKEN = "test-token-auto-login";
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load token from localStorage on mount
   useEffect(() => {
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    if (storedToken) {
-      setToken(storedToken);
-    } else {
-      // No token - redirect to login instead of auto-login as guest
-      setIsLoading(false);
-    }
+    setUser(TEST_USER);
+    localStorage.setItem("auth_token", TEST_TOKEN);
+    setIsLoading(false);
   }, []);
-
-  // Fetch user when token changes
-  useEffect(() => {
-    if (token) {
-      void fetchUser(token);
-    }
-  }, [token]);
-
-  const fetchUser = async (authToken: string) => {
-    try {
-      setIsLoading(true);
-      const userData = await getCurrentUser(authToken);
-      setUser(userData);
-    } catch (error) {
-      console.error("Failed to fetch user:", error);
-      // Token invalid - clear and redirect to login
-      localStorage.removeItem(TOKEN_KEY);
-      document.cookie = "auth_token=; path=/; max-age=0";
-      setToken(null);
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const login = useCallback(async (data: LoginData): Promise<LoginResponse> => {
-    const response = await loginUser(data);
-
-    // Store token in localStorage and cookies
-    localStorage.setItem(TOKEN_KEY, response.access_token);
-    // Set cookie for middleware to access
-    document.cookie = `auth_token=${response.access_token}; path=/; max-age=${24 * 60 * 60}`;
-    setToken(response.access_token);
-
-    return response;
-  }, []);
-
-  const logout = useCallback(() => {
-    logoutUser();
-    localStorage.removeItem(TOKEN_KEY);
-    // Clear auth token cookie
-    document.cookie = "auth_token=; path=/; max-age=0";
-    setToken(null);
-    setUser(null);
-  }, []);
-
-  const refreshUser = useCallback(async () => {
-    if (token) {
-      await fetchUser(token);
-    }
-  }, [token]);
 
   const value: AuthContextType = {
     user,
-    isAuthenticated: !!user,
+    isAuthenticated: true,
     isLoading,
-    login,
-    logout,
-    refreshUser,
-    token,
+    token: TEST_TOKEN,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -103,5 +56,3 @@ export function useAuth(): AuthContextType {
   }
   return context;
 }
-
-

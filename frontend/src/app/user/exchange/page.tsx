@@ -1,27 +1,22 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import {
   Wallet,
   Send,
-  ArrowUpRight,
-  ArrowDownLeft,
   AlertTriangle,
   ShieldCheck,
-  ShieldAlert,
-  Clock,
-  CheckCircle2,
-  XCircle,
   AlertOctagon,
   Loader2,
-  LogOut,
+  Clock,
+  ArrowUpRight,
+  ArrowDownLeft,
+  CheckCircle2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/lib/toast-context";
 import {
   Dialog,
@@ -44,8 +39,7 @@ import { formatAddress, formatEth, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 
 export default function UserExchange() {
-  const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const { user } = useAuth();
   const { notify } = useToast();
   const [fromWalletId, setFromWalletId] = useState("");
   const [toAddress, setToAddress] = useState("");
@@ -63,8 +57,7 @@ export default function UserExchange() {
 
   useEffect(() => {
     if (user?.wallet_address) setFromWalletId(user.wallet_address);
-    if (!authLoading && !isAuthenticated) router.push("/login");
-  }, [user, authLoading, isAuthenticated, router]);
+  }, [user]);
 
   // Fetch balance and transactions
   const refreshData = useCallback(async () => {
@@ -142,9 +135,6 @@ export default function UserExchange() {
             </div>
             <span className="text-xl font-bold">Sentinel <span className="text-teal-400">Wallet</span></span>
           </div>
-          <Button variant="ghost" onClick={() => { logout(); router.push("/user"); }} className="text-slate-400 hover:text-white">
-            <LogOut className="h-5 w-5 mr-2" /> Logout
-          </Button>
         </div>
       </header>
 
