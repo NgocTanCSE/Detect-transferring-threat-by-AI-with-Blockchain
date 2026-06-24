@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth-context";
 import { ToastProvider } from "@/lib/toast-context";
+import { ErrorBoundary } from "@/components/error-boundary";
 import GlobalAssistantWidget from "@/components/global-assistant-widget";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -21,18 +22,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ToastProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <TooltipProvider>
-            {children}
-            <Suspense fallback={null}>
-              <GlobalAssistantWidget />
-            </Suspense>
-          </TooltipProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <TooltipProvider>
+              {children}
+              <Suspense fallback={null}>
+                <GlobalAssistantWidget />
+              </Suspense>
+            </TooltipProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 

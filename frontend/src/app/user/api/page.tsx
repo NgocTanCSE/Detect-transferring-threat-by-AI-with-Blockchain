@@ -7,9 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Key, Copy, RefreshCw, Check, Zap, Shield, Globe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
+function generateDemoKey(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let key = "bk_demo_";
+  for (let i = 0; i < 32; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
+  return key;
+}
+
 export default function ApiKeyPage() {
   const [copied, setCopied] = useState(false);
-  const apiKey = "bk_live_51Px9X2J2X2X2X2X2X2X2X2X2X2X2X2";
+  const [apiKey] = useState(generateDemoKey);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(apiKey);

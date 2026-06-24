@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class DeepScanService:
         
         return {
             "wallet": target_address,
-            "scan_timestamp": datetime.utcnow().isoformat(),
+            "scan_timestamp": datetime.now(timezone.utc).isoformat(),
             "cycle_detected": len(cycles) > 0,
             "cycles": cycles,
             "trace_back": trace_back,

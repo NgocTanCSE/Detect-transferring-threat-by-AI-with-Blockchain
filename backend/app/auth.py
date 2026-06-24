@@ -2,10 +2,11 @@
 
 import logging
 import os
+import re
 import secrets
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Optional, Dict, List
 import uuid
@@ -16,25 +17,49 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.database import get_db
-from app.models.models import User, Wallet, Transaction, Alert, BlockedTransfer
+from app.models.models import User, Wallet, Transaction, Alert, BlockedTransfer, UserProfile
 
 
-# Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "blockchain-sentinel-super-secret-key-change-in-production")
+# --- Pydantic Request Schemas ---
+
+class UpdateProfileDetailsRequest(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+
+class UpdateProfilePreferencesRequest(BaseModel):
+    email: Optional[bool] = None
+    push: Optional[bool] = None
+    sms: Optional[bool] = None
+
+
+# Configuration — lazy JWT secret: checked at first use, not at import time
+def _get_jwt_secret() -> str:
+    secret = os.getenv("JWT_SECRET_KEY", "")
+    if not secret:
+        raise RuntimeError("JWT_SECRET_KEY environment variable is not set. Authentication cannot function without a secret key.")
+    return secret
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 AUTH_DISABLED = os.getenv("AUTH_DISABLED", "false").lower() == "true"
 
 # Anti-spam configuration for registration
-REGISTRATION_RATE_LIMIT = 3  # Max registrations per IP per hour
-REGISTRATION_WINDOW_SECONDS = 3600  # 1 hour
-MIN_REGISTRATION_INTERVAL = 30  # Minimum 30 seconds between registrations
+REGISTRATION_RATE_LIMIT = int(os.getenv("REGISTRATION_RATE_LIMIT", "3"))  # Max registrations per IP per hour
+REGISTRATION_WINDOW_SECONDS = int(os.getenv("REGISTRATION_WINDOW_SECONDS", "3600"))  # 1 hour
+MIN_REGISTRATION_INTERVAL = int(os.getenv("MIN_REGISTRATION_INTERVAL", "30"))  # Min seconds between registrations
+
+# Account lockout
+MAX_LOGIN_ATTEMPTS = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
+LOGIN_LOCKOUT_MINUTES = int(os.getenv("LOGIN_LOCKOUT_MINUTES", "15"))
+_login_attempts: Dict[str, List[float]] = defaultdict(list)
+_login_attempts_lock = Lock()
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -47,10 +72,18 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 def _ensure_auth_enabled() -> None:
     if AUTH_DISABLED:
+        return
+
+
+def _safe_parse_user_id(user_id: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(str(user_id))
+    except (TypeError, ValueError) as exc:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication is temporarily disabled"
-        )
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
 
 def _link_registered_user_wallet(db: Session, user: User) -> None:
@@ -108,7 +141,7 @@ def _link_registered_user_wallet(db: Session, user: User) -> None:
             total_transactions=int(tx_total),
             total_value_sent=tx_sent_value,
             total_value_received=tx_recv_value,
-            first_seen_at=datetime.utcnow(),
+            first_seen_at=datetime.now(timezone.utc),
             last_activity_at=tx_last_activity,
             notes="Auto-linked during user registration",
         )
@@ -367,7 +400,8 @@ class UserCreate(BaseModel):
     organization_id: Optional[str] = None
     organization_name: Optional[str] = None
 
-    @validator('username')
+    @field_validator('username')
+    @classmethod
     def username_valid(cls, v):
         if len(v) < 3:
             raise ValueError('Username must be at least 3 characters')
@@ -375,17 +409,30 @@ class UserCreate(BaseModel):
             raise ValueError('Username must be less than 50 characters')
         return v.lower().strip()
 
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def password_valid(cls, v):
-        if len(v) < 6:
-            raise ValueError('Password must be at least 6 characters')
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters')
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not re.search(r'[a-z]', v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not re.search(r'[0-9]', v):
+            raise ValueError('Password must contain at least one digit')
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
+            raise ValueError('Password must contain at least one special character')
         return v
 
-    @validator('wallet_address')
+    @field_validator('wallet_address')
+    @classmethod
     def wallet_address_valid(cls, v):
-        if v and (len(v) != 42 or not v.startswith('0x')):
-            raise ValueError('Invalid Ethereum wallet address')
-        return v.lower() if v else None
+        if v:
+            normalized = v.lower().strip()
+            if not re.match(r"^0x[a-f0-9]{40}$", normalized):
+                raise ValueError('Invalid Ethereum wallet address')
+            return normalized
+        return None
 
 
 class UserLogin(BaseModel):
@@ -412,8 +459,38 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
+
+
+class TokenData(BaseModel):
+    """JWT token payload data."""
+    username: str
+    user_id: str
+    role: str = "user"
+
+
+# ==========================================
+# ACCOUNT LOCKOUT
+# ==========================================
+
+def _check_login_lockout(username: str) -> None:
+    now = time.time()
+    with _login_attempts_lock:
+        attempts = _login_attempts.get(username, [])
+        attempts = [t for t in attempts if now - t < LOGIN_LOCKOUT_MINUTES * 60]
+        _login_attempts[username] = attempts
+        if len(attempts) >= MAX_LOGIN_ATTEMPTS:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Account locked due to too many failed login attempts. Try again in {LOGIN_LOCKOUT_MINUTES} minutes."
+            )
+
+def _record_login_attempt(username: str, success: bool) -> None:
+    with _login_attempts_lock:
+        if success:
+            _login_attempts.pop(username, None)
+        else:
+            _login_attempts[username].append(time.time())
 
 
 # ==========================================
@@ -421,25 +498,14 @@ class UserResponse(BaseModel):
 # ==========================================
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against its hash.
-
-    Supports both:
-    - Plaintext passwords (from seed/dev data)
-    - Bcrypt hashed passwords (from production registrations)
-    """
+    """Verify a plain password against its bcrypt hash."""
     try:
         if not hashed_password:
             return False
-            
-        # Support plaintext passwords for seed data (safe for dev, will be removed in prod)
-        if plain_password == hashed_password:
-            return True
-
         return pwd_context.verify(plain_password, hashed_password)
     except ValueError as e:
         logger.error(f"Password verification error (bcrypt/passlib incompatibility?): {e}")
-        # Final fallback for development matching
-        return plain_password == hashed_password
+        return False
     except Exception as e:
         logger.error(f"Unexpected error during password verification: {e}")
         return False
@@ -519,6 +585,7 @@ def _fetch_login_user(db: Session, normalized_username: str) -> Optional[Dict[st
         "email": user.email,
         "password_hash": user.password_hash,
         "role": user.role,
+        "organization_id": user.organization_id,
         "is_active": user.is_active,
     }
 
@@ -526,9 +593,9 @@ def _fetch_login_user(db: Session, normalized_username: str) -> Optional[Dict[st
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, _get_jwt_secret(), algorithm=ALGORITHM)
     return encoded_jwt
 
 
@@ -546,7 +613,7 @@ def get_current_user(
         return None
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, _get_jwt_secret(), algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             return None
@@ -557,7 +624,8 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user_id_uuid = _safe_parse_user_id(user_id)
+    user = db.query(User).filter(User.id == user_id_uuid).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -579,6 +647,7 @@ def require_auth(
     db: Session = Depends(get_db)
 ) -> User:
     """Require authentication - raises 401 if not authenticated."""
+    _ensure_auth_enabled()
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -597,10 +666,43 @@ def require_auth(
     return user
 
 
+def optional_auth(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """Optional authentication - returns User or None without raising errors."""
+    return get_current_user(token, db)
+
+
+def require_admin(
+    current_user: User = Depends(require_auth)
+) -> User:
+    """Require admin-capable role - raises 403 if not admin-capable."""
+    if current_user.role not in ("admin", "system_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return current_user
+
+
+def admin_or_analyst(
+    current_user: User = Depends(require_auth)
+) -> User:
+    """Require admin, analyst, or governance role - raises 403 otherwise."""
+    if current_user.role not in ("admin", "system_admin", "analyst", "security_analyst", "compliance_risk_manager", "ai_data_engineer"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or analyst privileges required"
+        )
+    return current_user
+
+
 # ==========================================
 # AUTH ENDPOINTS
 # ==========================================
 
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/_legacy_/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user_data: UserCreate, request: Request, db: Session = Depends(get_db)):
     """
@@ -658,13 +760,21 @@ def register_user(user_data: UserCreate, request: Request, db: Session = Depends
             detail="Username already registered"
         )
 
+    # Check if email exists
+    existing_email = db.query(User).filter(User.email == user_data.email).first()
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
     # Handle organization
     org_id = user_data.organization_id
     if not org_id and user_data.organization_name:
         # Create new organization if name provided
         from app.models.models import Organization
-        org_slug = user_data.organization_name.lower().replace(" ", "-")
-        existing_org = db.query(Organization).filter(Organization.name == user_data.organization_name).first()
+        org_slug = re.sub(r"[^a-z0-9]+", "-", user_data.organization_name.lower()).strip("-") or "organization"
+        existing_org = db.query(Organization).filter(Organization.slug == org_slug).first()
         if existing_org:
             org_id = str(existing_org.id)
         else:
@@ -702,8 +812,8 @@ def register_user(user_data: UserCreate, request: Request, db: Session = Depends
             total_transactions=0,
             total_value_sent=0,
             total_value_received=0,
-            first_seen_at=datetime.utcnow(),
-            last_activity_at=datetime.utcnow(),
+            first_seen_at=datetime.now(timezone.utc),
+            last_activity_at=datetime.now(timezone.utc),
             notes="Auto-created during user registration",
         )
         db.add(wallet_profile)
@@ -722,33 +832,21 @@ def register_user(user_data: UserCreate, request: Request, db: Session = Depends
     )
 
     db.add(new_user)
+    db.flush()  # Get new_user.id before commit
+
+    # Auto-create UserProfile with default preferences
+    from app.models.models import UserProfile as UserProfileModel
+    user_profile = UserProfileModel(
+        user_id=new_user.id,
+        full_name=user_data.username,
+        phone=None,
+        address=None,
+        preferences={"email": True, "push": False, "sms": False}
+    )
+    db.add(user_profile)
+
     db.commit()
     db.refresh(new_user)
-
-    # Add welcome balance for new users (10 ETH)
-    try:
-        welcome_tx = Transaction(
-            id=uuid.uuid4(),
-            tx_hash="0x" + secrets.token_hex(32),
-            from_address="0x0000000000000000000000000000000000000000",
-            to_address=wallet_address,
-            value=10 * 10**18, # 10 ETH in wei
-            block_number=1000000,
-            timestamp=datetime.utcnow(),
-            status=1,
-            case_status='PENDING'
-        )
-        db.add(welcome_tx)
-        
-        # Also update wallet profile
-        wallet_profile.total_transactions = (wallet_profile.total_transactions or 0) + 1
-        wallet_profile.total_value_received = (wallet_profile.total_value_received or 0) + (10 * 10**18)
-        wallet_profile.last_activity_at = datetime.utcnow()
-        
-        db.commit()
-    except Exception as e:
-        logger.error(f"Failed to add welcome bonus: {e}")
-        db.rollback()
 
     # Auto-link this account to existing wallet-centric records.
     _link_registered_user_wallet(db, new_user)
@@ -791,19 +889,24 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
             detail="Username/email and password are required"
         )
 
+    _check_login_lockout(normalized_username)
+
     try:
         user = _fetch_login_user(db, normalized_username)
 
         if not user or not verify_password(form_data.password, str(user.get("password_hash") or "")):
+            _record_login_attempt(normalized_username, False)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        _record_login_attempt(normalized_username, True)
+
         if not bool(user.get("is_active", True)):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account is disabled. Contact admin for assistance."
             )
 
@@ -811,7 +914,7 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
         try:
             db.execute(
                 text("UPDATE users SET last_login_at = :ts WHERE id = :user_id"),
-                {"ts": datetime.utcnow(), "user_id": str(user.get("id"))},
+                {"ts": datetime.now(timezone.utc), "user_id": str(user.get("id"))},
             )
             db.commit()
         except Exception:
@@ -824,6 +927,7 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
                 "sub": str(user.get("id")),
                 "username": str(user.get("username") or normalized_username),
                 "role": str(user.get("role") or "user"),
+                "org_id": str(user.get("organization_id")) if user.get("organization_id") else None,
             }
         )
 
@@ -883,3 +987,172 @@ def logout_user():
         Success message
     """
     return {"message": "Successfully logged out"}
+
+
+@router.post("/refresh")
+def refresh_token(current_user: User = Depends(require_auth)):
+    """
+    Refresh JWT access token.
+
+    Returns:
+        New JWT token
+    """
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    new_token = create_access_token(
+        data={
+            "sub": str(current_user.id),
+            "username": current_user.username,
+            "role": current_user.role,
+            "org_id": str(current_user.organization_id) if current_user.organization_id else None,
+        },
+        expires_delta=access_token_expires
+    )
+    return {
+        "access_token": new_token,
+        "token_type": "bearer",
+        "expires_in": int(access_token_expires.total_seconds())
+    }
+
+
+# ==========================================
+# CSRF PROTECTION
+# ==========================================
+
+CSRF_TOKEN_EXPIRE_SECONDS = 3600  # 1 hour
+
+
+def generate_csrf_token(user_id: str) -> str:
+    """Generate a short-lived CSRF token signed with the JWT secret."""
+    expire = datetime.now(timezone.utc) + timedelta(seconds=CSRF_TOKEN_EXPIRE_SECONDS)
+    return jwt.encode(
+        {"sub": user_id, "exp": expire, "type": "csrf"},
+        _get_jwt_secret(),
+        algorithm=ALGORITHM,
+    )
+
+
+def verify_csrf_token(csrf_token: str) -> Optional[str]:
+    """
+    Verify a CSRF token and return the user_id if valid.
+    Returns None if invalid or expired.
+    """
+    try:
+        payload = jwt.decode(csrf_token, _get_jwt_secret(), algorithms=[ALGORITHM])
+        if payload.get("type") != "csrf":
+            return None
+        return payload.get("sub")
+    except JWTError:
+        return None
+
+
+def require_csrf(request: Request) -> None:
+    """
+    Dependency that checks CSRF token on mutating requests
+    when the request carries a cookie but no Authorization header.
+
+    Usage:
+        @app.post("/endpoint")
+        def my_endpoint(..., _: None = Depends(require_csrf)):
+    """
+    auth_header = request.headers.get("Authorization", "")
+    csrf_cookie = request.cookies.get("auth_token")
+    csrf_header = request.headers.get("X-CSRF-Token", "")
+
+    # Only check CSRF if there's a cookie but no bearer token
+    if csrf_cookie and not auth_header.startswith("Bearer "):
+        if not csrf_header or not verify_csrf_token(csrf_header):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="CSRF token missing or invalid",
+            )
+
+
+@router.get("/csrf-token", tags=["Authentication"])
+def get_csrf_token(current_user: User = Depends(require_auth)):
+    """Get a CSRF token for state-changing requests."""
+    token = generate_csrf_token(str(current_user.id))
+    return {"csrf_token": token, "expires_in": CSRF_TOKEN_EXPIRE_SECONDS}
+
+
+@router.post("/validate")
+def validate_token(current_user: User = Depends(require_auth)):
+    """
+    Validate the current JWT token.
+
+    Returns:
+        Token validity information
+    """
+    return {
+        "valid": True,
+        "user_id": str(current_user.id),
+        "username": current_user.username,
+        "role": current_user.role,
+        "org_id": str(current_user.organization_id) if current_user.organization_id else None
+    }
+
+
+@router.get("/profile/full", tags=["Profile"])
+def get_profile_full(
+    current_user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=current_user.id)
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+    return {
+        "id": str(current_user.id),
+        "username": current_user.username,
+        "email": current_user.email,
+        "wallet_address": current_user.wallet_address,
+        "full_name": profile.full_name or "",
+        "phone": profile.phone or "",
+        "address": profile.address or "",
+        "preferences": profile.preferences or {"email": True, "push": False, "sms": False}
+    }
+
+
+@router.patch("/profile/details", tags=["Profile"])
+def update_profile_details(
+    payload: UpdateProfileDetailsRequest,
+    current_user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=current_user.id)
+        db.add(profile)
+        db.flush()
+    if payload.full_name is not None:
+        profile.full_name = payload.full_name
+    if payload.phone is not None:
+        profile.phone = payload.phone
+    if payload.address is not None:
+        profile.address = payload.address
+    db.commit()
+    return {"success": True, "full_name": profile.full_name, "phone": profile.phone, "address": profile.address}
+
+
+@router.patch("/profile/preferences", tags=["Profile"])
+def update_profile_preferences(
+    payload: UpdateProfilePreferencesRequest,
+    current_user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=current_user.id)
+        db.add(profile)
+        db.flush()
+    prefs = profile.preferences or {}
+    if payload.email is not None:
+        prefs["email"] = payload.email
+    if payload.push is not None:
+        prefs["push"] = payload.push
+    if payload.sms is not None:
+        prefs["sms"] = payload.sms
+    profile.preferences = prefs
+    db.commit()
+    return {"success": True, "preferences": prefs}

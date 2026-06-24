@@ -13,7 +13,7 @@ import random
 import signal
 import sys
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Optional, Callable, Any
 
@@ -138,19 +138,19 @@ def create_alert(session: Session, wallet_address: str, risk_score: float, risk_
         session.add(wallet)
 
     wallet.risk_score = max(float(wallet.risk_score or 0.0), float(risk_score or 0.0))
-    wallet.last_activity_at = datetime.utcnow()
-    wallet.updated_at = datetime.utcnow()
+    wallet.last_activity_at = datetime.now(timezone.utc)
+    wallet.updated_at = datetime.now(timezone.utc)
 
     # Auto-update wallet status based on risk score
     if risk_score >= 90:
         wallet.account_status = 'frozen'
-        wallet.flagged_at = datetime.utcnow()
+        wallet.flagged_at = datetime.now(timezone.utc)
         wallet.flagged_by = 'SCANNER_AUTO_FREEZE'
         logger.warning(f"WALLET_FROZEN | address={wallet_address} | risk={risk_score}%")
     elif risk_score >= 80:
         if wallet.account_status not in ['frozen']:
             wallet.account_status = 'suspended'
-            wallet.flagged_at = datetime.utcnow()
+            wallet.flagged_at = datetime.now(timezone.utc)
             wallet.flagged_by = 'SCANNER_AUTO_SUSPEND'
             logger.warning(f"WALLET_SUSPENDED | address={wallet_address} | risk={risk_score}%")
     elif risk_score >= 50:

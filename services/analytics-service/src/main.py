@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException, Request
+from fastapi import FastAPI, Query, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text, create_engine
 from datetime import datetime, timedelta, timezone
@@ -32,7 +32,7 @@ class PipelineMetricCreate(BaseModel):
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[os.getenv("CORS_ORIGIN", "http://localhost:3000")],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -64,7 +64,25 @@ def _window_start(days: int) -> datetime:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "analytics-service", "dlq_metrics": {"main": 0, "dead": 0}}
+    return {"status": "ok", "service": "analytics-service"}
+
+@app.get("/ready")
+async def ready():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        cache.ping()
+        return {"status": "ready", "service": "analytics-service"}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+@app.get("/metrics")
+def metrics():
+    try:
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        return {"status": "metrics_endpoint_exists"}
 
 
 @app.get("/statistics/dashboard")
@@ -150,26 +168,14 @@ def get_money_flow(chain: str = Query(default="ethereum"), minutes: int = 5):
             if result and len(result) >= 3:
                 output = [{"date": r[0].strftime("%H:%M:%S"), "inflow": float(r[1]), "outflow": float(r[2])} for r in result]
             else:
-                # For demo: If no real data or too little data, generate mock history for the line chart
-                now = datetime.now(timezone.utc)
-                points = min(60, minutes * 60)
-                for i in range(points):
-                    dt = now - timedelta(seconds=(points-1-i))
-                    # Generate stable-ish mock values that look realistic
-                    base = 5.0 if chain == "ethereum" else 50.0
-                    output.append({
-                        "date": dt.strftime("%H:%M:%S"),
-                        "inflow": round(base + (i * 0.1) + (abs(hash(dt.strftime("%H:%M:%S"))) % 10) / 5.0, 2),
-                        "outflow": round(base * 0.8 + (i * 0.08) + (abs(hash(dt.strftime("%H:%M:%S") + "x")) % 10) / 5.0, 2)
-                    })
+                # Not enough real data – return empty list; frontend will handle the no‑data state
+                output = []
             
             cache.setex(cache_key, 2, json.dumps(output)) # Very short cache for real-time feel
             return output
         except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            print(f"Error fetching flow stats: {error_details}")
-            return [{"error": str(e), "traceback": error_details}]
+            print(f"Error fetching flow stats: {e}")
+            return {"error": "Failed to fetch flow statistics"}
 
 @app.get("/ops/system/node-endpoints")
 def get_node_endpoints(only_active: bool = Query(default=False)):
@@ -185,6 +191,24 @@ def get_node_endpoints(only_active: bool = Query(default=False)):
                     "id": str(r[0]), "name": r[1], "url": r[2], "chain": r[3],
                     "is_active": bool(r[4]), "health_status": r[5],
                     "last_check_at": str(r[6]) if r[6] else None
+                } for r in result
+            ]
+        }
+
+@app.get("/organizations")
+def get_organizations():
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT id, name, slug, contact_email, api_key, is_active FROM organizations ORDER BY name")).fetchall()
+        return {
+            "count": len(result),
+            "items": [
+                {
+                    "id": str(r[0]),
+                    "name": r[1],
+                    "slug": r[2],
+                    "contact_email": r[3],
+                    "api_key": r[4],
+                    "is_active": bool(r[5])
                 } for r in result
             ]
         }
@@ -271,6 +295,7 @@ def get_pipeline_summary(chain: str = Query(default="ethereum")):
             return {"error": "Failed to fetch pipeline summary"}
 
 @app.get("/system/slo-metrics")
+@app.get("/ops/system/slo-metrics")
 def system_slo_metrics(days: int = Query(default=7, ge=1, le=90)):
     period_start = _window_start(days)
     
@@ -314,3 +339,45 @@ def system_slo_metrics(days: int = Query(default=7, ge=1, le=90)):
             "sample_points": len(metrics),
         },
     }
+
+@app.get("/ops/system/data-integrity")
+def data_integrity(batch: int = Query(default=100)):
+    with engine.connect() as conn:
+        try:
+            wallets_count = conn.execute(text("SELECT COUNT(*) FROM wallets")).scalar() or 0
+            alerts_count = conn.execute(text("SELECT COUNT(*) FROM alerts")).scalar() or 0
+            tx_count = conn.execute(text("SELECT COUNT(*) FROM transactions")).scalar() or 0
+            blocked_count = conn.execute(text("SELECT COUNT(*) FROM blocked_transfers")).scalar() or 0
+            blacklist_count = conn.execute(text("SELECT COUNT(*) FROM blacklist WHERE is_active")).scalar() or 0
+
+            checks = []
+            check_wallets = {"name": "wallets_table", "ok": wallets_count > 0}
+            check_alerts = {"name": "alerts_table", "ok": alerts_count > 0}
+            check_tx = {"name": "transactions_table", "ok": tx_count > 0}
+            checks.extend([check_wallets, check_alerts, check_tx])
+
+            missing_controls = []
+            if not check_wallets["ok"]:
+                missing_controls.append({"control": "wallets_population", "required_action": "seed_wallets"})
+            if not check_alerts["ok"]:
+                missing_controls.append({"control": "alerts_population", "required_action": "seed_alerts"})
+
+            return {
+                "overall_ok": len(missing_controls) == 0,
+                "counts": {
+                    "wallets": int(wallets_count),
+                    "alerts": int(alerts_count),
+                    "transactions": int(tx_count),
+                    "blocked": int(blocked_count),
+                    "blacklist": int(blacklist_count)
+                },
+                "checks": checks,
+                "missing_controls": missing_controls,
+                "role_readiness": {
+                    "system_admin": check_wallets["ok"] and check_tx["ok"],
+                    "security_analyst": check_alerts["ok"],
+                    "compliance_manager": check_alerts["ok"] and check_wallets["ok"]
+                }
+            }
+        except Exception as e:
+            return {"overall_ok": False, "error": str(e)}

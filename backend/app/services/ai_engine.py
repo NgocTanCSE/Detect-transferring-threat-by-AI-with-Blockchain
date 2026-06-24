@@ -3,6 +3,7 @@
 import logging
 import os
 import json
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Tuple, Optional
 from collections import defaultdict
@@ -18,7 +19,8 @@ from app.core.config import (
     MODEL_DIRECTORY,
     RISK_MODEL_FILENAME,
     SCALER_FILENAME,
-    FEATURES_FILENAME
+    FEATURES_FILENAME,
+    DECISION_THRESHOLD_FILENAME
 )
 
 logger = logging.getLogger(__name__)
@@ -27,42 +29,54 @@ logger = logging.getLogger(__name__)
 class MLRiskPredictor:
     """
     Machine Learning-based risk predictor using trained Random Forest model.
-
-    Loads the pre-trained model artifacts and provides probability-based
-    risk scoring for wallet transaction patterns.
+    Thread-safe singleton with atomic reload capability.
     """
 
     _instance: Optional['MLRiskPredictor'] = None
+    _lock: threading.Lock = threading.Lock()
     _initialized: bool = False
 
     def __new__(cls):
-        """Singleton pattern to avoid reloading model on each request."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        """Thread-safe singleton pattern."""
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+            return cls._instance
 
     def __init__(self):
-        """Load model artifacts on first initialization."""
-        if MLRiskPredictor._initialized:
-            return
+        with MLRiskPredictor._lock:
+            if MLRiskPredictor._initialized:
+                return
+            self._init_artifacts()
+            MLRiskPredictor._initialized = True
 
+    def _init_artifacts(self) -> None:
         self.model = None
         self.scaler = None
         self.feature_names = None
+        self.decision_threshold = 0.5
         self.is_available = False
-
         self._load_model_artifacts()
-        MLRiskPredictor._initialized = True
+
+    def reload(self) -> None:
+        """Atomically reload model artifacts (thread-safe). Safe to call after retrain."""
+        with MLRiskPredictor._lock:
+            MLRiskPredictor._initialized = False
+            self._init_artifacts()
 
     def _load_model_artifacts(self) -> None:
         """Attempt to load trained model, scaler, and feature names."""
         try:
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             model_dir = os.path.join(base_dir, MODEL_DIRECTORY)
+            active_link = os.path.join(model_dir, "current")
+            if os.path.isdir(active_link) or os.path.islink(active_link):
+                model_dir = os.path.realpath(active_link)
 
             model_path = os.path.join(model_dir, RISK_MODEL_FILENAME)
             scaler_path = os.path.join(model_dir, SCALER_FILENAME)
             features_path = os.path.join(model_dir, FEATURES_FILENAME)
+            threshold_path = os.path.join(model_dir, DECISION_THRESHOLD_FILENAME)
 
             if not all(os.path.exists(p) for p in [model_path, scaler_path, features_path]):
                 logger.warning(f"Model artifacts not found in {model_dir}. ML predictions disabled.")
@@ -72,9 +86,11 @@ class MLRiskPredictor:
             self.scaler = joblib.load(scaler_path)
             self.feature_names = joblib.load(features_path)
             self.is_available = True
+            if os.path.exists(threshold_path):
+                self.decision_threshold = joblib.load(threshold_path)
 
             logger.info(f"ML model loaded successfully from {model_dir}")
-            logger.info(f"Model expects {len(self.feature_names)} features")
+            logger.info(f"Model expects {len(self.feature_names)} features, threshold={self.decision_threshold}")
 
         except Exception as e:
             logger.error(f"Failed to load ML model: {e}")
@@ -122,8 +138,9 @@ class MLRiskPredictor:
             # Convert to 0-100 score
             ml_score = fraud_probability * 100.0
 
-            # Confidence based on how far from 0.5 (decision boundary)
-            confidence = abs(fraud_probability - 0.5) * 2
+            # Confidence based on how far from the decision threshold
+            norm = max(self.decision_threshold, 1.0 - self.decision_threshold)
+            confidence = abs(fraud_probability - self.decision_threshold) / norm if norm > 0 else 0.0
 
             logger.info(f"ML prediction for {wallet_address[:10]}...: score={ml_score:.1f}, conf={confidence:.2f}")
 
@@ -217,6 +234,13 @@ class MultiAgentDetectionEngine:
         Returns:
             Detailed risk analysis with breakdown by detection type
         """
+        if not wallet_address:
+            return {"total_score": 0.0, "risk_level": "LOW", "breakdown": {
+                "money_laundering": {"detected": False, "confidence": 0.0, "reasons": []},
+                "wash_trading": {"detected": False, "confidence": 0.0, "reasons": []},
+                "scam": {"detected": False, "confidence": 0.0, "reasons": []},
+                "ml_prediction": {"ml_score": 0.0, "ml_confidence": 0.0, "ml_available": False, "ml_reason": "No address provided"},
+            }}
         normalized_address = wallet_address.lower()
 
         # Calculate wallet age if not provided
@@ -243,17 +267,6 @@ class MultiAgentDetectionEngine:
             ml_prediction=ml_prediction,
             transactions=transactions
         )
-
-        # HARDCODE FOR DEMO KỊCH BẢN 2
-        if normalized_address == "0x1111111111111111111111111111111111111111":
-            final_risk['total_score'] = 65.0
-            final_risk['risk_level'] = 'MEDIUM'
-            final_risk['detection_count'] = max(1, final_risk['detection_count'])
-            final_risk['breakdown']['scam'] = {
-                'detected': True,
-                'confidence': 0.85,
-                'reasons': ["AI Sentiment: Giao dịch có dấu hiệu bất thường, cần theo dõi thêm (Demo)"]
-            }
 
         # Step 5: Advanced AI Analyst Reasoning (using Gemini API)
         final_risk['suggested_actions'] = []
@@ -546,7 +559,7 @@ class MultiAgentDetectionEngine:
         ml_score = ml_prediction.get('ml_score', 0.0)
         ml_confidence = ml_prediction.get('ml_confidence', 0.0)
 
-        if ml_available and ml_confidence > 0.3:
+        if ml_available and ml_confidence > 0.2:
             # Weighted blend: 60% ML + 40% heuristic
             # Adjust weights based on ML confidence
             ml_weight = 0.6 * ml_confidence
@@ -742,7 +755,7 @@ class MultiAgentDetectionEngine:
                 if parsed.tzinfo is None:
                     return parsed.replace(tzinfo=timezone.utc)
                 return parsed.astimezone(timezone.utc)
-            except:
+            except (ValueError, TypeError):
                 return datetime.now(timezone.utc)
         elif isinstance(timestamp, (int, float)):
             return datetime.fromtimestamp(timestamp, tz=timezone.utc)

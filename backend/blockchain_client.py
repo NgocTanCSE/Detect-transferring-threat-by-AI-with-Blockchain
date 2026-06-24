@@ -3,7 +3,7 @@
 import logging
 import time
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from abc import ABC, abstractmethod
 
 import requests
@@ -127,7 +127,7 @@ class AlchemyClient(BlockchainClient):
                 "to_address": to_addr,
                 "value": int(random.uniform(0.01, 10.0) * 10**18),
                 "block_number": 18000000 + i,
-                "timestamp": datetime.utcnow(),
+                "timestamp": datetime.now(timezone.utc),
                 "category": "external",
                 "asset": "ETH",
                 "chain": self.chain_name
@@ -163,7 +163,7 @@ class AlchemyClient(BlockchainClient):
         if timestamp_str:
             timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         else:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
 
         value_raw = raw_transfer.get("value", 0)
         value_wei = int(value_raw * 10**18) if isinstance(value_raw, (int, float)) else 0

@@ -2,7 +2,7 @@
 FROM node:18-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci
 COPY frontend/ ./
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
@@ -11,7 +11,7 @@ RUN npm run build
 FROM python:3.11-slim AS runtime
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install --no-install-recommends -y \
   gcc \
   libpq-dev \
   curl \
@@ -52,6 +52,10 @@ RUN mkdir -p /var/log/supervisor && chmod -R 777 /var/log/supervisor
 
 # Hugging Face Spaces port
 EXPOSE 7860
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -f http://127.0.0.1:8000/health || exit 1
 
 # We use a custom entrypoint script to handle potential migrations or seeding
 COPY entrypoint.sh /app/entrypoint.sh

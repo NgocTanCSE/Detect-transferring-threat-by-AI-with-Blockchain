@@ -1,7 +1,7 @@
 """Phase 3 governance APIs: policy rules, security summaries, and notification adapters."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 import uuid
 
@@ -22,6 +22,7 @@ from app.models.models import (
 from app.admin_diagnostics import log_diagnostic, DiagnosticLogType
 from app.utils.api_response import api_success
 from app.utils.auth_utils import get_org_id
+from app.auth import optional_auth, require_admin
 
 router = APIRouter(prefix="/ops", tags=["Phase 3 Governance"])
 logger = logging.getLogger(__name__)
@@ -92,10 +93,12 @@ class NotificationSendRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
+@router.get("/compliance/policy-rules")
 def list_policy_rules(
     only_active: bool = Query(default=False),
     db: Session = Depends(get_db),
-    org_id: str | None = Depends(get_org_id)
+    org_id: str | None = Depends(get_org_id),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     try:
         query = db.query(PolicyRule)
@@ -133,7 +136,8 @@ def list_policy_rules(
             status_code=200,
             endpoint="/ops/compliance/policy-rules"
         )
-        return api_success(data=response, message="Policy rules fetched", meta={"count": response["count"]}, legacy=response)
+        # Return raw response for frontend compatibility (frontend expects data.items directly)
+        return response
     except Exception as e:
         logger.exception(f"Failed to list policy rules: {e}")
         log_diagnostic(
@@ -147,7 +151,7 @@ def list_policy_rules(
 
 
 @router.post("/compliance/policy-rules")
-def create_policy_rule(payload: PolicyRuleCreate, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def create_policy_rule(payload: PolicyRuleCreate, db: Session = Depends(get_db), org_id: str | None = Depends(get_org_id), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     existing = db.query(PolicyRule).filter(PolicyRule.rule_name == payload.rule_name).first()
     if existing:
         raise HTTPException(status_code=409, detail="rule_name already exists")
@@ -188,7 +192,7 @@ def create_policy_rule(payload: PolicyRuleCreate, db: Session = Depends(get_db))
 
 
 @router.put("/compliance/policy-rules/{rule_id}")
-def update_policy_rule(rule_id: str, payload: PolicyRuleUpdate, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def update_policy_rule(rule_id: str, payload: PolicyRuleUpdate, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     rule_uuid = _parse_uuid(rule_id, "rule_id")
     item = db.query(PolicyRule).filter(PolicyRule.id == rule_uuid).first()
     if not item:
@@ -227,7 +231,7 @@ def update_policy_rule(rule_id: str, payload: PolicyRuleUpdate, db: Session = De
 
 
 @router.delete("/compliance/policy-rules/{rule_id}")
-def delete_policy_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def delete_policy_rule(rule_id: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     rule_uuid = _parse_uuid(rule_id, "rule_id")
     item = db.query(PolicyRule).filter(PolicyRule.id == rule_uuid).first()
     if not item:
@@ -252,7 +256,7 @@ def delete_policy_rule(rule_id: str, db: Session = Depends(get_db)) -> Dict[str,
 
 
 @router.post("/compliance/policy-evaluate")
-def evaluate_policy(payload: PolicyEvaluateRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def evaluate_policy(payload: PolicyEvaluateRequest, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     active_rules = (
         db.query(PolicyRule)
         .filter(PolicyRule.is_active.is_(True))
@@ -296,7 +300,7 @@ def evaluate_policy(payload: PolicyEvaluateRequest, db: Session = Depends(get_db
 
 
 @router.get("/security/case-summary")
-def get_case_summary(db: Session = Depends(get_db), org_id: str | None = Depends(get_org_id)) -> Dict[str, Any]:
+def get_case_summary(db: Session = Depends(get_db), org_id: str | None = Depends(get_org_id), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
     try:
         query = db.query(Transaction.case_status, func.count(Transaction.tx_hash))
         if org_id:
@@ -344,7 +348,7 @@ def get_case_summary(db: Session = Depends(get_db), org_id: str | None = Depends
 
 
 @router.post("/security/notifications/test")
-def send_test_notification(payload: NotificationSendRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def send_test_notification(payload: NotificationSendRequest, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     channel = payload.channel.lower().strip()
     if channel not in {"slack", "telegram", "email", "webhook"}:
         raise HTTPException(status_code=400, detail="Invalid channel")
@@ -359,8 +363,8 @@ def send_test_notification(payload: NotificationSendRequest, db: Session = Depen
         severity=severity,
         message=payload.message,
         status="sent",
-        meta=payload.metadata,
-        sent_at=datetime.utcnow(),
+        notification_metadata=payload.metadata,
+        sent_at=datetime.now(timezone.utc),
     )
     db.add(event)
 
@@ -389,6 +393,7 @@ def send_test_notification(payload: NotificationSendRequest, db: Session = Depen
 def list_notification_events(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     records = db.query(NotificationEvent).order_by(NotificationEvent.created_at.desc()).limit(limit).all()
 
@@ -402,7 +407,7 @@ def list_notification_events(
                 "severity": item.severity,
                 "message": item.message,
                 "status": item.status,
-                "metadata": item.meta,
+                "metadata": item.notification_metadata,
                 "created_at": item.created_at.isoformat() if item.created_at else None,
                 "sent_at": item.sent_at.isoformat() if item.sent_at else None,
             }
@@ -413,9 +418,9 @@ def list_notification_events(
 
 
 @router.get("/security/alerts-summary")
-def get_alerts_summary(db: Session = Depends(get_db), org_id: str | None = Depends(get_org_id)) -> Dict[str, Any]:
+def get_alerts_summary(db: Session = Depends(get_db), org_id: str | None = Depends(get_org_id), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
     try:
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
         alerts_query = db.query(Alert.severity, func.count(Alert.id))
         if org_id:

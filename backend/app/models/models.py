@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, Float, DateTime, Date, ForeignKey, BigInteger, DECIMAL, Text, func, SmallInteger, Boolean, Integer, UUID as SA_UUID, JSON
+from sqlalchemy import Column, String, Float, DateTime, Date, ForeignKey, BigInteger, DECIMAL, Text, func, SmallInteger, Boolean, Integer, UUID as SA_UUID, JSON, Index, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB as PG_JSONB, INET as PG_INET
 from sqlalchemy.orm import relationship
 
@@ -42,13 +42,17 @@ class Organization(Base):
 
 
 class User(Base):
-    """Platform user account (admin, analyst, regular user)."""
+    """System user with multi-tenant organization access."""
 
     __tablename__ = "users"
 
+    __table_args__ = (
+        CheckConstraint("role IN ('admin', 'analyst', 'user', 'system_admin', 'security_analyst', 'compliance_risk_manager', 'ai_data_engineer', 'operator', 'api_client')", name="ck_user_role"),
+    )
+
     id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    username = Column(String(100), unique=True, nullable=False, index=True)
-    email = Column(String(255), unique=True, nullable=False, index=True)
+    username = Column(String(100), unique=True, index=True, nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False, default='user')  # admin, analyst, user
     organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
@@ -61,6 +65,7 @@ class User(Base):
 
     organization = relationship("Organization", back_populates="users")
     warnings = relationship("UserWarning", back_populates="user", cascade="all, delete-orphan")
+    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<User(username={self.username}, role={self.role}, org={self.organization_id})>"
@@ -114,8 +119,15 @@ class Wallet(Base):
     flagged_by = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
     chain_id = Column(String(50), default='ethereum', index=True)
+    is_blacklisted = Column(Boolean, default=False)
+    last_scanned_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("ix_wallet_risk_status", "risk_score", "account_status"),
+        CheckConstraint("account_status IN ('active', 'suspended', 'frozen', 'under_review')", name="ck_wallet_account_status"),
+    )
 
     risk_assessments = relationship("RiskAssessment", back_populates="wallet", cascade="all, delete-orphan")
     organization = relationship("Organization", back_populates="wallets")
@@ -150,6 +162,13 @@ class Transaction(Base):
     chain_id = Column(String(50), default='ethereum', index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    __table_args__ = (
+        Index("ix_tx_from_time", "from_address", "timestamp"),
+        Index("ix_tx_to_time", "to_address", "timestamp"),
+        Index("ix_tx_chain_time", "chain_id", "timestamp"),
+        CheckConstraint("case_status IN ('PENDING', 'VERIFIED', 'FRAUD', 'IGNORED')", name="ck_tx_case_status"),
+    )
+
     def __repr__(self) -> str:
         return f"<Transaction(hash={self.tx_hash[:10]}..., value={self.value})>"
 
@@ -165,6 +184,8 @@ class RiskAssessment(Base):
     risk_level = Column(String(20), nullable=False)
     details = Column(JSONB, nullable=True)
     model_version = Column(String(50), nullable=True)
+    feature_count = Column(Integer, nullable=True)
+    confidence_score = Column(Float, nullable=True)
     assessed_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     wallet = relationship("Wallet", back_populates="risk_assessments")
@@ -204,13 +225,19 @@ class Alert(Base):
     severity = Column(String(20), nullable=False)
     message = Column(Text, nullable=False)
     risk_score = Column(Float, nullable=True)
-    meta = Column('metadata', JSONB, nullable=True)
+    alert_metadata = Column("metadata", JSONB, nullable=True)
     chain_id = Column(String(50), default='ethereum', index=True)
     detected_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     acknowledged = Column(Boolean, default=False)
     acknowledged_at = Column(DateTime(timezone=True), nullable=True)
     acknowledged_by = Column(String(255), nullable=True)
     organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
+
+    __table_args__ = (
+        Index("ix_alert_wallet_severity", "wallet_address", "severity", "detected_at"),
+        Index("ix_alert_chain_detected", "chain_id", "detected_at"),
+        CheckConstraint("severity IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')", name="ck_alert_severity"),
+    )
 
     def __repr__(self) -> str:
         return f"<Alert(wallet={self.wallet_address[:10]}, severity={self.severity}, score={self.risk_score})>"
@@ -225,6 +252,7 @@ class BlockedTransfer(Base):
     sender_address = Column(String(255), nullable=False, index=True)
     receiver_address = Column(String(255), nullable=False, index=True)
     amount = Column(DECIMAL(78, 0), nullable=False)
+    amount_eth = Column(DECIMAL(12, 6), nullable=True)
     risk_score = Column(Float, nullable=True)
     block_reason = Column(String(100), nullable=False)
     chain_id = Column(String(50), default='ethereum', index=True)
@@ -232,6 +260,10 @@ class BlockedTransfer(Base):
     sender_user_id = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     organization_id = Column(SA_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
     blocked_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    __table_args__ = (
+        Index("ix_blocked_chain_time", "chain_id", "blocked_at"),
+    )
 
     def __repr__(self) -> str:
         return f"<BlockedTransfer(from={self.sender_address[:10]}, to={self.receiver_address[:10]}, reason={self.block_reason})>"
@@ -321,6 +353,11 @@ class TransactionCase(Base):
     action = Column(String(20), nullable=False)  # ASSIGN, CONFIRM_FRAUD, DISMISS, ESCALATE
     state = Column(String(20), nullable=False, default='PENDING')  # PENDING, VERIFIED, FRAUD, IGNORED
     note = Column(Text, nullable=True)
+    __table_args__ = (
+        CheckConstraint("action IN ('ASSIGN', 'CONFIRM_FRAUD', 'DISMISS', 'ESCALATE')", name="ck_case_action"),
+        CheckConstraint("state IN ('PENDING', 'VERIFIED', 'FRAUD', 'IGNORED')", name="ck_case_state"),
+    )
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -332,6 +369,11 @@ class NodeEndpoint(Base):
     """Configurable blockchain node endpoints for failover and health monitoring."""
 
     __tablename__ = "node_endpoints"
+
+    __table_args__ = (
+        CheckConstraint("protocol IN ('http', 'https', 'ws', 'wss')", name="ck_node_protocol"),
+        CheckConstraint("health_status IN ('unknown', 'healthy', 'degraded', 'down')", name="ck_node_health"),
+    )
 
     id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     provider_name = Column(String(100), nullable=False, index=True)
@@ -438,7 +480,13 @@ class NotificationEvent(Base):
     severity = Column(String(20), nullable=False, default="MEDIUM", index=True)
     message = Column(Text, nullable=False)
     status = Column(String(20), nullable=False, default="queued", index=True)  # queued, sent, failed
-    meta = Column('metadata', JSONB, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("severity IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')", name="ck_notif_severity"),
+        CheckConstraint("status IN ('queued', 'sent', 'failed')", name="ck_notif_status"),
+        CheckConstraint("channel IN ('slack', 'telegram', 'email', 'webhook', 'in_app')", name="ck_notif_channel"),
+    )
+    notification_metadata = Column("meta", JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -462,6 +510,10 @@ class DiagnosticEvent(Base):
     archived_at = Column(DateTime(timezone=True), nullable=True, index=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
+    __table_args__ = (
+        Index("ix_diag_type_time", "log_type", "timestamp"),
+    )
+
     def __repr__(self) -> str:
         return f"<DiagnosticEvent(type={self.log_type}, endpoint={self.endpoint}, status={self.status_code})>"
 
@@ -479,6 +531,25 @@ class MoneyFlowSnapshot(Base):
     wallet_address = Column(String(255), nullable=True, index=True) # null means network-wide
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    def __repr__(self) -> str:
+        return f"<MoneyFlowSnapshot(chain={self.chain_id}, inflow={self.inflow_eth}, outflow={self.outflow_eth})>"
+
+
+class ExchangeRate(Base):
+    """Exchange rates for currency conversion, stored in DB instead of hardcoded."""
+
+    __tablename__ = "exchange_rates"
+
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chain = Column(String(50), nullable=False, index=True)
+    from_currency = Column(String(10), nullable=False, default='ETH')
+    to_currency = Column(String(10), nullable=False, default='USD')
+    rate = Column(DECIMAL(18, 8), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self) -> str:
+        return f"<ExchangeRate(chain={self.chain}, {self.from_currency}/{self.to_currency}={self.rate})>"
+
 
 class ComplianceKPI(Base):
     """Historical snapshots of compliance metrics for reporting."""
@@ -490,6 +561,9 @@ class ComplianceKPI(Base):
     metric_value = Column(Float, nullable=False)
     category = Column(String(50), nullable=True, index=True) # e.g. security, policy
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def __repr__(self) -> str:
+        return f"<ComplianceKPI(key={self.metric_key}, value={self.metric_value})>"
 
 
 class SystemHealthSnapshot(Base):
@@ -504,6 +578,9 @@ class SystemHealthSnapshot(Base):
     sample_points = Column(Integer, default=0)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
+    def __repr__(self) -> str:
+        return f"<SystemHealthSnapshot(availability={self.availability_pct}, p95={self.latency_p95_ms})>"
+
 
 class AIThreatLog(Base):
     """Persistent history of threats detected by the AI deep scan engine."""
@@ -516,6 +593,9 @@ class AIThreatLog(Base):
     risk_score = Column(Float, nullable=False)
     details = Column(JSONB, nullable=True)
     detected_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def __repr__(self) -> str:
+        return f"<AIThreatLog(wallet={self.wallet_address[:10]}, type={self.threat_type}, score={self.risk_score})>"
 
 
 class UsageLog(Base):
@@ -534,6 +614,10 @@ class UsageLog(Base):
     user_agent = Column(Text)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
+    __table_args__ = (
+        Index("ix_usage_org_time", "organization_id", "timestamp"),
+    )
+
     def __repr__(self) -> str:
         return f"<UsageLog(org={self.organization_id}, endpoint={self.endpoint}, status={self.status_code})>"
 
@@ -546,10 +630,30 @@ class AuthSession(Base):
     id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     token_hash = Column(String(255), nullable=False, unique=True)
-    created_at = Column(DateTime, server_default=func.now())
-    expires_at = Column(DateTime, nullable=False, index=True)
-    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:
         return f"<AuthSession(user_id={self.user_id}, expires_at={self.expires_at})>"
+
+
+class UserProfile(Base):
+    """User profile details and preferences."""
+
+    __tablename__ = "user_profiles"
+
+    id = Column(SA_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(SA_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    full_name = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    address = Column(String(500), nullable=True)
+    preferences = Column(JSON, nullable=True, default=lambda: {"email": True, "push": False, "sms": False})
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User", back_populates="profile")
+
+    def __repr__(self) -> str:
+        return f"<UserProfile(user_id={self.user_id}, full_name={self.full_name})>"
 

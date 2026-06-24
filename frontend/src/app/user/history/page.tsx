@@ -33,24 +33,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchUserHistory, fetchWalletBalance, type UserHistory, type WalletBalance } from "@/lib/api";
+import { fetchUserHistory, fetchWalletBalance, type UserHistory, type WalletBalance, type Transaction, type BlockedTransfer, type UserWarning } from "@/lib/api";
 import { formatAddress, formatDate, getRiskColor } from "@/lib/utils";
 
-// Demo wallet - in real app this would come from auth context
-const DEFAULT_WALLET = "0x742d35cc6634c0532925a3b844bc454e4438f44e";
+interface HistoryTransaction extends Transaction {
+  id: string;
+  direction: "sent" | "received";
+  amount_eth: number;
+}
 
 export default function UserHistoryPage() {
-  const [walletAddress, setWalletAddress] = useState(DEFAULT_WALLET);
-  const [inputAddress, setInputAddress] = useState(DEFAULT_WALLET);
+  const [walletAddress, setWalletAddress] = useState("");
+  const [inputAddress, setInputAddress] = useState("");
 
-  // Using 'any' type since API response structure doesn't match strict type definition
-  const { data: history, isLoading, refetch } = useQuery<any>({
+  const { data: history, isLoading, refetch } = useQuery<UserHistory>({
     queryKey: ["userHistory", walletAddress],
     queryFn: () => fetchUserHistory(walletAddress),
     enabled: !!walletAddress,
   });
 
-  const { data: balance, isLoading: balanceLoading } = useQuery<any>({
+  const { data: balance, isLoading: balanceLoading } = useQuery<WalletBalance>({
     queryKey: ["walletBalance", walletAddress],
     queryFn: () => fetchWalletBalance(walletAddress),
     enabled: !!walletAddress,
@@ -230,54 +232,56 @@ export default function UserHistoryPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {history?.successful_transactions?.map((tx: any) => (
-                    <div
-                      key={tx.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-slate-800/50 border border-slate-700/50"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={`p-2.5 rounded-lg ${tx.direction === "sent"
-                            ? "bg-slate-500/10 border border-slate-500/20"
-                            : "bg-slate-500/10 border border-slate-500/20"
-                            }`}
-                        >
-                          {tx.direction === "sent" ? (
-                            <ArrowUpRight className="h-5 w-5 text-slate-400" />
-                          ) : (
-                            <ArrowDownLeft className="h-5 w-5 text-slate-400" />
-                          )}
+                  {history?.successful_transactions?.map((tx) => {
+                    const t = tx as HistoryTransaction;
+                    return (
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between p-4 rounded-lg bg-slate-800/50 border border-slate-700/50"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div
+                            className={`p-2.5 rounded-lg ${t.direction === "sent"
+                              ? "bg-slate-500/10 border border-slate-500/20"
+                              : "bg-slate-500/10 border border-slate-500/20"
+                              }`}
+                          >
+                            {t.direction === "sent" ? (
+                              <ArrowUpRight className="h-5 w-5 text-slate-400" />
+                            ) : (
+                              <ArrowDownLeft className="h-5 w-5 text-slate-400" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium text-white">
+                              {t.direction === "sent" ? "Sent" : "Received"}
+                            </p>
+                            <p className="text-sm text-slate-400 font-mono">
+                              {t.direction === "sent"
+                                ? `To: ${formatAddress(t.to_address)}`
+                                : `From: ${formatAddress(t.from_address)}`}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-white">
-                            {tx.direction === "sent" ? "Sent" : "Received"}
-                          </p>
-                          <p className="text-sm text-slate-400 font-mono">
-                            {tx.direction === "sent"
-                              ? `To: ${formatAddress(tx.to_address)}`
-                              : `From: ${formatAddress(tx.from_address)}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={`font-semibold ${tx.direction === "sent" ? "text-slate-400" : "text-slate-400"
-                            }`}
-                        >
-                          {tx.direction === "sent" ? "-" : "+"}
-                          {tx.value_eth?.toFixed(4) || "0.0000"} ETH
+                        <div className="text-right">
+                          <p
+                            className={`font-semibold ${t.direction === "sent" ? "text-slate-400" : "text-slate-400"
+                              }`}
+                          >
+                          {t.direction === "sent" ? "-" : "+"}
+                          {t.amount_eth?.toFixed(4) || "0.0000"} ETH
                         </p>
                         <p className="text-xs text-slate-500">
-                          {tx.timestamp ? formatDate(tx.timestamp) : "Pending"}
+                          {t.timestamp ? formatDate(t.timestamp) : "Pending"}
                         </p>
                       </div>
-                      {tx.is_flagged && (
+                      {t.is_flagged && (
                         <Badge variant="destructive" className="ml-3">
                           Flagged
                         </Badge>
                       )}
-                    </div>
-                  ))}
+                    </div>);
+                  })}
                 </div>
               )}
             </CardContent>
@@ -319,7 +323,7 @@ export default function UserHistoryPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {history?.blocked_transfers?.map((transfer: any) => (
+                    {history?.blocked_transfers?.map((transfer: BlockedTransfer) => (
                       <TableRow key={transfer.id} className="border-slate-700/50">
                         <TableCell className="text-slate-300">
                           <div className="flex items-center gap-2">
@@ -379,7 +383,7 @@ export default function UserHistoryPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {history?.warnings?.map((warning: any) => (
+                  {history?.warnings?.map((warning: UserWarning) => (
                     <div
                       key={warning.id}
                       className="p-4 rounded-lg bg-slate-800/50 border border-slate-500/20"

@@ -3,40 +3,69 @@
 import logging
 import os
 import re
-from datetime import datetime
-from datetime import timezone
+import secrets
+from datetime import datetime, timezone
 from io import StringIO
 import csv
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import uuid
 import redis
 import json
 
-from fastapi import FastAPI, Depends, HTTPException, Query, Request
+from fastapi import FastAPI, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-# Logging configuration
 class CorrelationIdFilter(logging.Filter):
     def filter(self, record):
-        # Try to get the correlation ID from the current request state
-        # For simple demo we default to "no-id"
         record.correlation_id = getattr(record, 'correlation_id', 'no-id')
         return True
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(correlation_id)s] %(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        log_entry = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
+            "correlation_id": getattr(record, 'correlation_id', 'no-id'),
+            "message": record.getMessage(),
+        }
+        if record.exc_info and record.exc_info[0]:
+            log_entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_entry)
+
+use_json = os.getenv("LOG_FORMAT", "").lower() == "json"
+if use_json:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(JsonFormatter())
+    logging.basicConfig(level=logging.INFO, handlers=[_handler])
+else:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(correlation_id)s] %(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
 logger = logging.getLogger(__name__)
 for handler in logging.root.handlers:
     handler.addFilter(CorrelationIdFilter())
 
 # Redis client for Caching
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
-try:
-    cache = redis.from_url(REDIS_URL, decode_responses=True)
-    logger.info(f"Redis connected at {REDIS_URL}")
-except Exception as e:
-    logger.warning(f"Failed to connect to Redis: {e}. Caching will be disabled.")
+_redis_default = "redis://redis:6379/0" if not os.getenv("SPACE_ID") else None
+REDIS_URL = os.getenv("REDIS_URL", _redis_default)
+if REDIS_URL:
+    try:
+        cache = redis.from_url(REDIS_URL, decode_responses=True)
+        logger.info(f"Redis connected at {REDIS_URL}")
+    except Exception as e:
+        logger.warning(f"Failed to connect to Redis: {e}. Caching will be disabled.")
+        cache = None
+else:
+    logger.info("Redis not configured. Caching disabled.")
     cache = None
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -45,11 +74,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case
 
 from app import schemas  # noqa: F401  # ensure schemas are imported for OpenAPI generation
-from app.core.database import engine, get_db, Base, ensure_schema
-from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase, NodeEndpoint, PipelineMetric, FeatureStoreConfig, ModelRegistry, PolicyRule, NotificationEvent, DiagnosticEvent, MoneyFlowSnapshot, ComplianceKPI, SystemHealthSnapshot, AIThreatLog, Organization
+from app.core.database import get_db, ensure_schema
+from app.models.models import Wallet, Transaction, TokenTransfer, RiskAssessment, Blacklist, Alert, User, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, TransactionCase, NodeEndpoint, PipelineMetric, FeatureStoreConfig, ModelRegistry, PolicyRule, DiagnosticEvent, MoneyFlowSnapshot, Organization, ExchangeRate
 from blockchain_client import fetch_wallet_history
-from app.core.config import ALCHEMY_API_KEY, ALCHEMY_ETH_RPC_URL, ALCHEMY_BSC_RPC_URL
-from app.services.ai_engine import MultiAgentDetectionEngine
+from app.core.config import ALCHEMY_API_KEY, ALCHEMY_ETH_RPC_URL, ALCHEMY_BSC_RPC_URL, GEMINI_API_KEY, GEMINI_MODEL
+from app.services.ai_engine import MultiAgentDetectionEngine, MLRiskPredictor
 from app.services.persistence import persist_transactions
 from app.services.hf_security_analyst import HFSecurityAnalyst
 from app.services.assistant_knowledge_base import retrieve_relevant_snippets
@@ -70,6 +99,54 @@ from app.admin_diagnostics import (
 from app.utils.api_response import api_success, api_error
 
 
+# --- Pydantic Request Schemas ---
+
+class ProtectedTransferRequest(BaseModel):
+    from_wallet_id: str = ""
+    to_wallet_id: str = ""
+    to_address: str = ""
+    amount_eth: float = 0
+    confirm_risk: bool = False
+    chain: str = "ethereum"
+    asset: str = "ETH"
+
+class SendEthRequest(BaseModel):
+    sender: str = ""
+    receiver: str = ""
+    amount: float = 0
+
+class UpdateWalletStatusRequest(BaseModel):
+    status: str = ""
+    reason: str = ""
+    admin_id: str = "system"
+
+class SubmitFeedbackRequest(BaseModel):
+    wallet_address: str = ""
+    admin_label: str = ""
+    admin_category: Optional[str] = None
+    admin_notes: Optional[str] = None
+    admin_username: str = "anonymous"
+
+class SendWithWarningRequest(BaseModel):
+    sender: str = ""
+    receiver: str = ""
+    amount: float = 0
+    force_proceed: bool = False
+
+class BatchTransferItem(BaseModel):
+    from_address: str = ""
+    to_address: str = ""
+    amount_eth: float = 0
+
+class BatchTransferRequest(BaseModel):
+    transfers: List[BatchTransferItem] = []
+
+class ExchangeEstimateRequest(BaseModel):
+    from_currency: str = "ETH"
+    to_currency: str = "USD"
+    amount: float = 0
+
+
 def _get_or_create_wallet(database_session: Session, address: str) -> Wallet:
     wallet = database_session.query(Wallet).filter(Wallet.address == address).first()
     if not wallet:
@@ -87,6 +164,27 @@ def _wei_from_eth(amount_eth: float) -> int:
 
 def _eth_from_wei(amount_wei: int) -> float:
     return float(amount_wei) / 10**18
+
+
+def _execute_single_transfer(database_session: Session, from_addr: str, to_addr: str, amount_eth: float) -> Dict[str, Any]:
+    amount_wei = _wei_from_eth(amount_eth)
+    tx_hash = "0x" + uuid.uuid4().hex
+    sender_wallet = _get_or_create_wallet(database_session, from_addr)
+    receiver_wallet = _get_or_create_wallet(database_session, to_addr)
+    tx = Transaction(
+        tx_hash=tx_hash, from_address=from_addr, to_address=to_addr,
+        value=amount_wei, block_number=0, timestamp=datetime.now(timezone.utc),
+        status=1
+    )
+    database_session.add(tx)
+    sender_wallet.total_value_sent = int(sender_wallet.total_value_sent or 0) + amount_wei
+    sender_wallet.total_transactions = int(sender_wallet.total_transactions or 0) + 1
+    sender_wallet.last_activity_at = datetime.now(timezone.utc)
+    receiver_wallet.total_value_received = int(receiver_wallet.total_value_received or 0) + amount_wei
+    receiver_wallet.total_transactions = int(receiver_wallet.total_transactions or 0) + 1
+    receiver_wallet.last_activity_at = datetime.now(timezone.utc)
+    database_session.commit()
+    return {"tx_hash": tx_hash, "from": from_addr, "to": to_addr, "amount_eth": amount_eth}
 
 
 def _normalize_chain_name(chain: str) -> str:
@@ -197,52 +295,18 @@ def _is_low_quality_answer(answer: str) -> bool:
     return False
 
 
-def _build_structured_context_answer(question: str, context: Dict[str, Any]) -> str:
-    """Build a deterministic response when model output is too short or malformed."""
-    overview = context.get("overview", {}) if isinstance(context, dict) else {}
-    total_wallets = int(overview.get("total_wallets", 0) or 0)
-    total_alerts = int(overview.get("total_alerts", 0) or 0)
-    critical_alerts = int(overview.get("critical_alerts", 0) or 0)
-    alerts_today = int(overview.get("alerts_today", 0) or 0)
-    total_blocked = int(overview.get("total_blocked", 0) or 0)
+def _validate_ethereum_address(address: str) -> str:
+    normalized = address.lower().strip()
+    if not re.match(r"^0x[a-f0-9]{40}$", normalized):
+        raise HTTPException(status_code=400, detail="Invalid wallet address: must be 0x + 40 hex characters")
+    return normalized
 
-    q = (question or "").lower()
 
-    if "4 chỉ số" in q or "4 chi so" in q or "dashboard" in q:
-        return (
-            "1) Giải thích ý nghĩa chỉ số\n"
-            f"- Tổng số ví ({total_wallets}): số lượng ví đang được hệ thống theo dõi rủi ro.\n"
-            f"- Tổng cảnh báo ({total_alerts}): tổng tín hiệu rủi ro đã phát hiện trong kỳ dữ liệu hiện có.\n"
-            f"- Cảnh báo critical ({critical_alerts}): nhóm cảnh báo mức nghiêm trọng cao nhất, cần ưu tiên xử lý.\n"
-            f"- Giao dịch đã chặn ({total_blocked}): số giao dịch bị chặn bởi policy/kiểm soát.\n\n"
-            "2) Nhận định nhanh theo dữ liệu hiện tại\n"
-            f"- Alerts hôm nay hiện là {alerts_today}; nếu tỷ lệ critical cao thì áp lực vận hành đang tăng.\n"
-            f"- Tỷ lệ critical/tổng alerts hiện tại là {(critical_alerts / max(1, total_alerts)) * 100:.1f}%, dùng để đánh giá mức căng thẳng xử lý.\n\n"
-            "3) Hành động đề xuất cho operator\n"
-            "- Ưu tiên xử lý cảnh báo critical trước, sau đó mới đến high/medium.\n"
-            "- Soát các ví/case lặp lại trong ngày để giảm false positives và tránh backlog."
-        )
-
-    if "alerts hôm nay" in q or "alerts hom nay" in q or "tăng hay giảm" in q or "tang hay giam" in q:
-        return (
-            "1) Giải thích ý nghĩa chỉ số\n"
-            f"- Alerts hôm nay = {alerts_today}, là số cảnh báo phát sinh trong ngày hiện tại theo dữ liệu đang có.\n\n"
-            "2) Nhận định nhanh theo dữ liệu hiện tại\n"
-            "- Hiện chỉ có snapshot thời điểm hiện tại, chưa có chuỗi đối chiếu ngày trước trong cùng câu hỏi để kết luận tăng/giảm chắc chắn.\n"
-            f"- Bối cảnh hiện tại: tổng alerts = {total_alerts}, critical = {critical_alerts}.\n\n"
-            "3) Hành động đề xuất cho operator\n"
-            "- Mở so sánh theo mốc 24h hoặc 7 ngày để xác định xu hướng tăng/giảm.\n"
-            "- Nếu critical tăng nhanh, ưu tiên case có risk_score cao và ví tái phạm."
-        )
-
-    return (
-        "1) Giải thích ý nghĩa chỉ số\n"
-        f"- Tổng ví: {total_wallets}, tổng cảnh báo: {total_alerts}, critical: {critical_alerts}, đã chặn: {total_blocked}.\n\n"
-        "2) Nhận định nhanh theo dữ liệu hiện tại\n"
-        f"- Alerts hôm nay: {alerts_today}. Cần theo dõi thêm theo mốc thời gian để kết luận xu hướng.\n\n"
-        "3) Hành động đề xuất cho operator\n"
-        "- Ưu tiên critical trước, sau đó rà soát case tồn và policy gây nhiều chặn."
-    )
+def _validate_transaction_hash(tx_hash: str) -> str:
+    normalized = tx_hash.lower().strip()
+    if not re.match(r"^0x[a-f0-9]{64}$", normalized):
+        raise HTTPException(status_code=400, detail="Invalid transaction hash: must be 0x + 64 hex characters")
+    return normalized
 
 
 def _is_account_support_question(question: str) -> bool:
@@ -293,70 +357,57 @@ def _build_system_component_answer(question: str) -> str:
     )
 
 
-def _is_dashboard_analytics_question(question: str) -> bool:
-    text = (question or "").lower()
-    analytics_terms = [
-        "dashboard",
-        "alert",
-        "alerts",
-        "case",
-        "policy",
-        "wallet",
-        "critical",
-        "blocked",
-        "tổng ví",
-        "tổng cảnh báo",
-        "alerts hôm nay",
-        "chỉ số",
-        "số liệu",
-        "tăng hay giảm",
-        "xu hướng",
-        "rủi ro",
-    ]
-    return any(term in text for term in analytics_terms)
-
-
-def _build_account_support_answer(question: str) -> str:
-    q = (question or "").lower()
-
-    if any(term in q for term in ["đăng nhập", "dang nhap", "login"]):
-        return (
-            "1) Giải thích ý nghĩa chỉ số\n"
-            "- Lỗi đăng nhập thường đến từ tài khoản/mật khẩu sai, tài khoản bị vô hiệu hóa, hoặc token không hợp lệ.\n\n"
-            "2) Nhận định nhanh theo dữ liệu hiện tại\n"
-            "- Nếu màn hình báo lỗi parse JSON hoặc 500, nguyên nhân thường là backend trả lỗi nội bộ thay vì thông báo chuẩn.\n"
-            "- Nếu bạn vừa đăng nhập xong nhưng bị chuyển sai trang, có thể role trong user profile chưa khớp với route hiện tại.\n\n"
-            "3) Hành động đề xuất cho operator\n"
-            "- Kiểm tra lại username/email, mật khẩu, và trạng thái tài khoản trong backend.\n"
-            "- Mở log backend để xem response thật; nếu cần, hãy gửi lại message lỗi đầy đủ để mình dò đúng nguyên nhân."
-        )
-
-    return (
-        "1) Giải thích ý nghĩa chỉ số\n"
-        "- Không tạo được tài khoản thường do thiếu wallet address, username/email bị trùng, hoặc ví chưa có trong dữ liệu hệ thống.\n\n"
-        "2) Nhận định nhanh theo dữ liệu hiện tại\n"
-        "- Ở backend hiện tại, đăng ký user thường yêu cầu wallet_address và ví đó phải đã tồn tại trong wallet profile, transaction, alert, hoặc blocked transfer.\n"
-        "- Nếu backend đang chạy chế độ auth disabled hoặc database chưa seed đủ dữ liệu, form đăng ký cũng có thể bị chặn.\n\n"
-        "3) Hành động đề xuất cho operator\n"
-        "- Kiểm tra lại wallet address đã nhập, đảm bảo nó có trong dữ liệu hệ thống và không bị trùng username/email.\n"
-        "- Nếu vẫn lỗi, mở log backend để xem HTTP status và chi tiết `detail` trả về từ /auth/register."
-    )
-
 def _initialize_database() -> None:
-    ensure_schema()
     try:
-        Base.metadata.create_all(bind=engine)
+        ensure_schema()
     except Exception as error:
-        logger.warning(f"Database metadata initialization skipped or failed: {error}")
-    ensure_schema()
+        logger.warning(f"Database schema initialization skipped or failed: {error}")
 
 _initialize_database()
+
+# Sentry SDK initialization
+_sentry_dsn = os.getenv("SENTRY_DSN", "")
+if _sentry_dsn:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(dsn=_sentry_dsn, traces_sample_rate=0.1)
+        logger.info("Sentry SDK initialized")
+    except Exception as e:
+        logger.warning(f"Sentry SDK init failed: {e}")
 
 app = FastAPI(
     title="Blockchain Risk Assessment API",
     version="3.0.0",
     description="AI-powered financial risk analysis for Ethereum wallets with Alchemy integration"
 )
+
+# Startup validation - check critical configuration
+_api_key_warnings = []
+if not ALCHEMY_API_KEY or ALCHEMY_API_KEY in ("your_alchemy_api_key_here", ""):
+    _api_key_warnings.append("ALCHEMY_API_KEY not configured — blockchain data fetching disabled")
+if not GEMINI_API_KEY or GEMINI_API_KEY in ("your_gemini_api_key_here", ""):
+    _api_key_warnings.append(f"GEMINI_API_KEY not configured — AI analyst ({GEMINI_MODEL}) disabled")
+for _warn in _api_key_warnings:
+    logger.warning(f"CONFIG: {_warn}")
+if _api_key_warnings:
+    logger.warning(f"CONFIG: {len(_api_key_warnings)} configuration issue(s) detected — some features unavailable until API keys are set in .env")
+
+# Rate limiting setup
+_disable_limiter = os.environ.get("DISABLE_RATE_LIMIT", "").lower() in ("1", "true", "yes")
+if _disable_limiter:
+    limiter = Limiter(key_func=get_remote_address, default_limits=["1000000/minute"])
+else:
+    limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Prometheus metrics
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+    logger.info("Prometheus metrics exposed at /metrics")
+except Exception as e:
+    logger.warning(f"Prometheus instrumentation failed: {e}")
 
 @app.middleware("http")
 async def add_correlation_id(request: Request, call_next):
@@ -371,14 +422,14 @@ async def log_requests(request: Request, call_next):
     start_time = datetime.now()
     response = await call_next(request)
     duration = (datetime.now() - start_time).total_seconds() * 1000
-    print(f"[{getattr(request.state, 'correlation_id', 'no-id')}] {request.method} {request.url.path} {response.status_code} - {duration:.2f}ms")
+    logger.info(f"[{getattr(request.state, 'correlation_id', 'no-id')}] {request.method} {request.url.path} {response.status_code} - {duration:.2f}ms")
     return response
 
 # Add CORS middleware; use explicit origins in production.
-raw_cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "*")
+raw_cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 cors_allowed_origins = [item.strip() for item in raw_cors_origins.split(",") if item.strip()]
 if not cors_allowed_origins:
-    cors_allowed_origins = ["*"]
+    cors_allowed_origins = ["http://localhost:3000"]
 
 cors_allow_credentials = "*" not in cors_allowed_origins
 
@@ -386,12 +437,86 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_allowed_origins,
     allow_credentials=cors_allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Requested-With"],
 )
 
+# ---------------------------------------------------------------------------
+# Security Headers
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+# ---------------------------------------------------------------------------
+# CSRF Protection – only enforced when cookie auth is used without Bearer
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def csrf_protection(request: Request, call_next):
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        exempt = ("/auth/login", "/auth/register", "/auth/csrf-token")
+        if not any(request.url.path.startswith(p) for p in exempt):
+            auth_header = request.headers.get("Authorization", "")
+            csrf_cookie = request.cookies.get("auth_token")
+            if csrf_cookie and not auth_header.startswith("Bearer "):
+                csrf_header = request.headers.get("X-CSRF-Token", "")
+                if not csrf_header or not verify_csrf_token(csrf_header):
+                    log_diagnostic(
+                        DiagnosticLogType.API_ERROR,
+                        f"CSRF rejection on {request.method} {request.url.path}",
+                        status_code=403,
+                        endpoint=str(request.url.path),
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        content={"detail": "CSRF token missing or invalid"},
+                    )
+    response = await call_next(request)
+    return response
+
+# ---------------------------------------------------------------------------
+# Global exception handlers – standardise all error responses
+# ---------------------------------------------------------------------------
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    log_diagnostic(
+        DiagnosticLogType.API_ERROR,
+        f"HTTP {exc.status_code}: {exc.detail}",
+        status_code=exc.status_code,
+        endpoint=str(request.url.path),
+    )
+    body = api_error(
+        message=str(exc.detail),
+        code=f"HTTP_{exc.status_code}",
+        details={"path": request.url.path, "method": request.method},
+    )
+    return JSONResponse(status_code=exc.status_code, content=body, headers=getattr(exc, "headers", None))
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
+    log_diagnostic(
+        DiagnosticLogType.ERROR,
+        f"Unhandled exception: {type(exc).__name__}: {exc}",
+        status_code=500,
+        endpoint=str(request.url.path),
+    )
+    body = api_error(
+        message="Internal server error",
+        code="INTERNAL_ERROR",
+        details={"path": request.url.path, "method": request.method, "type": type(exc).__name__},
+    )
+    return JSONResponse(status_code=500, content=body)
+
 # Mount authentication router
-from app.auth import router as auth_router
+from app.auth import router as auth_router, optional_auth, require_admin, admin_or_analyst, require_csrf, verify_csrf_token
 app.include_router(auth_router)
 
 # Mount case-management router
@@ -409,6 +534,9 @@ app.include_router(phase3_governance_router)
 # Mount Phase 4 reporting router
 from app.phase4_reporting import router as phase4_reporting_router
 app.include_router(phase4_reporting_router)
+# Include AI router (has been extracted to separate module)
+from app.ai_router import router as ai_router
+app.include_router(ai_router)
 
 
 @app.get("/", tags=["Health"])
@@ -428,7 +556,7 @@ def get_version() -> Dict[str, str]:
 # ============================================================================
 
 @app.get("/admin/diagnostics/status", tags=["Admin Diagnostics"])
-def get_diagnostics_status(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_diagnostics_status(admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get comprehensive system status for admin dashboard."""
     try:
         status = get_system_status(database_session)
@@ -448,7 +576,7 @@ def get_diagnostics_status(database_session: Session = Depends(get_db)) -> Dict[
             endpoint="/admin/diagnostics/status"
         )
         fallback = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "error": str(e),
             "database": {"health": {"status": "error", "error": str(e)}},
             "seed_data": {},
@@ -489,6 +617,7 @@ def _parse_diagnostic_uuid(raw_id: str) -> uuid.UUID:
 
 @app.get("/admin/diagnostics/logs", tags=["Admin Diagnostics"])
 def get_diagnostics_logs(
+    admin: User = Depends(require_admin),
     limit: int = 50,
     log_type: str = None,
     endpoint: str | None = None,
@@ -543,13 +672,13 @@ def get_diagnostics_logs(
     response = {
         "count": len(logs),
         "logs": logs,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    return api_success(data=response, message="Diagnostics logs fetched", meta={"count": len(logs)}, legacy=response)
+    return api_success(data=response, message="Diagnostics logs fetched", alert_metadata={"count": len(logs)}, legacy=response)
 
 
 @app.post("/admin/diagnostics/logs", tags=["Admin Diagnostics"])
-def create_diagnostics_log(payload: DiagnosticLogCreatePayload, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def create_diagnostics_log(payload: DiagnosticLogCreatePayload, admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     event = DiagnosticEvent(
         log_type=payload.log_type.strip().lower(),
         message=payload.message,
@@ -572,7 +701,7 @@ def create_diagnostics_log(payload: DiagnosticLogCreatePayload, database_session
 
 
 @app.patch("/admin/diagnostics/logs/{log_id}/archive", tags=["Admin Diagnostics"])
-def archive_diagnostics_log(log_id: str, payload: DiagnosticLogArchivePayload, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def archive_diagnostics_log(log_id: str, payload: DiagnosticLogArchivePayload, admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     event_id = _parse_diagnostic_uuid(log_id)
     event = database_session.query(DiagnosticEvent).filter(DiagnosticEvent.id == event_id).first()
     if not event:
@@ -591,7 +720,7 @@ def archive_diagnostics_log(log_id: str, payload: DiagnosticLogArchivePayload, d
 
 
 @app.post("/admin/diagnostics/logs/archive", tags=["Admin Diagnostics"])
-def archive_diagnostics_logs(payload: DiagnosticLogBulkArchivePayload, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def archive_diagnostics_logs(payload: DiagnosticLogBulkArchivePayload, admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     max_rows = max(1, min(int(payload.max_rows or 500), 5000))
     query = database_session.query(DiagnosticEvent)
 
@@ -628,7 +757,7 @@ def archive_diagnostics_logs(payload: DiagnosticLogBulkArchivePayload, database_
 
 
 @app.delete("/admin/diagnostics/logs/{log_id}", tags=["Admin Diagnostics"])
-def delete_diagnostics_log(log_id: str, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def delete_diagnostics_log(log_id: str, admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     event_id = _parse_diagnostic_uuid(log_id)
     event = database_session.query(DiagnosticEvent).filter(DiagnosticEvent.id == event_id).first()
     if not event:
@@ -646,6 +775,7 @@ def export_diagnostics_logs(
     date: str | None = Query(default=None, description="YYYY-MM-DD in UTC"),
     include_archived: bool = False,
     database_session: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ) -> Dict[str, Any]:
     query = database_session.query(DiagnosticEvent)
     if not include_archived:
@@ -658,7 +788,7 @@ def export_diagnostics_logs(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD") from exc
 
-    rows = query.order_by(DiagnosticEvent.timestamp.desc()).all()
+    rows = query.order_by(DiagnosticEvent.timestamp.desc()).limit(5000).all()
     if selected_date is not None:
         rows = [item for item in rows if item.timestamp and item.timestamp.date() == selected_date]
 
@@ -689,11 +819,11 @@ def export_diagnostics_logs(
         "rows": export_rows,
         "csv": csv_buffer.getvalue(),
     }
-    return api_success(data=response, message="Diagnostics export generated", meta={"count": len(export_rows)}, legacy=response)
+    return api_success(data=response, message="Diagnostics export generated", alert_metadata={"count": len(export_rows)}, legacy=response)
 
 
 @app.get("/admin/diagnostics/endpoint-stats", tags=["Admin Diagnostics"])
-def get_endpoint_statistics() -> Dict[str, Any]:
+def get_endpoint_statistics(admin: User = Depends(require_admin)) -> Dict[str, Any]:
     """Get API endpoint statistics and health."""
     log_diagnostic(
         DiagnosticLogType.API_CALL,
@@ -704,13 +834,13 @@ def get_endpoint_statistics() -> Dict[str, Any]:
     stats = diagnostic_logger.get_endpoint_stats()
     response = {
         "endpoints": stats,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     return api_success(data=response, message="Endpoint statistics fetched", legacy=response)
 
 
 @app.get("/admin/diagnostics/seed-data", tags=["Admin Diagnostics"])
-def get_seed_data_status(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_seed_data_status(admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get seed data counts for all tables."""
     try:
         counts = get_seed_data_counts(database_session)
@@ -722,7 +852,7 @@ def get_seed_data_status(database_session: Session = Depends(get_db)) -> Dict[st
             endpoint="/admin/diagnostics/seed-data"
         )
         response = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "counts": counts,
         }
         return api_success(data=response, message="Seed data status fetched", legacy=response)
@@ -735,7 +865,7 @@ def get_seed_data_status(database_session: Session = Depends(get_db)) -> Dict[st
             endpoint="/admin/diagnostics/seed-data"
         )
         fallback = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "error": str(e),
             "counts": {},
         }
@@ -743,7 +873,7 @@ def get_seed_data_status(database_session: Session = Depends(get_db)) -> Dict[st
 
 
 @app.delete("/admin/diagnostics/logs", tags=["Admin Diagnostics"])
-def clear_diagnostics_logs(database_session: Session = Depends(get_db)) -> Dict[str, str]:
+def clear_diagnostics_logs(admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, str]:
     """Clear all diagnostic logs."""
     deleted_count = database_session.query(DiagnosticEvent).delete(synchronize_session=False)
     database_session.commit()
@@ -755,7 +885,7 @@ def clear_diagnostics_logs(database_session: Session = Depends(get_db)) -> Dict[
         status_code=200,
         endpoint="/admin/diagnostics/logs"
     )
-    response = {"status": "cleared", "timestamp": datetime.utcnow().isoformat(), "deleted_rows": int(deleted_count)}
+    response = {"status": "cleared", "timestamp": datetime.now(timezone.utc).isoformat(), "deleted_rows": int(deleted_count)}
     return api_success(data=response, message="Diagnostics logs cleared", legacy=response)
 
 
@@ -773,7 +903,7 @@ def _build_dashboard_assistant_context(
 ) -> Dict[str, Any]:
     from datetime import timedelta
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     seven_days_ago = now - timedelta(days=7)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -885,13 +1015,14 @@ def _build_dashboard_assistant_context(
 
 
 @app.post("/assistant/chat", tags=["Assistant"], summary="Chat with Sentinel Prime AI", description="Interactive AI assistant that answers questions about blockchain risk, system status, and compliance operational guidance based on real-time context.")
-def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    message = str(payload.get("message", "")).strip()
-    role = str(payload.get("role", "operator")).strip() or "operator"
-    wallet_address = str(payload.get("wallet_address", "")).strip() or None
-    screen_scope = str(payload.get("screen_scope", "dashboard")).strip() or "dashboard"
-    conversation_history = payload.get("conversation_history") or []
-    ui_context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
+@limiter.limit("100/minute")
+def assistant_chat(request: Request, payload: schemas.AssistantChatRequest, database_session: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
+    message = payload.message.strip()
+    role = payload.role
+    wallet_address = payload.wallet_address
+    screen_scope = payload.screen_scope
+    conversation_history = payload.conversation_history or []
+    ui_context = payload.context if isinstance(payload.context, dict) else {}
 
     if not message:
         log_diagnostic(
@@ -901,6 +1032,9 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
             endpoint="/assistant/chat"
         )
         raise HTTPException(status_code=400, detail="Missing message")
+
+    if len(message) > 4000:
+        raise HTTPException(status_code=400, detail="Message too long (max 4000 characters)")
 
     is_support_q = _is_account_support_question(message)
     is_system_q = _is_system_component_question(message)
@@ -1093,279 +1227,370 @@ def assistant_chat(payload: Dict[str, Any], database_session: Session = Depends(
         endpoint="/assistant/chat"
     )
     return response
-@app.get("/diagnostics/alchemy/{wallet_address}", tags=["Diagnostics"])
-def diagnose_alchemy_wallet(wallet_address: str, chain: str = Query("ethereum")) -> Dict[str, Any]:
-    """Check whether Alchemy returns fresh transfer data for a wallet address."""
-    normalized_address = wallet_address.lower().strip()
+# DUPLICATE: moved to ai_router.py - /diagnostics/alchemy/{wallet_address}
+# DUPLICATE: moved to ai_router.py - /diagnostics/alchemy/{wallet_address}
+# DUPLICATE: moved to ai_router.py - /diagnostics/alchemy/{wallet_address}
+# # @app.get("/diagnostics/alchemy/{wallet_address}", tags=["Diagnostics"])
+# DUPLICATE def diagnose_alchemy_wallet(wallet_address: str, chain: str = Query("ethereum"), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
+    # DUPLICATE     """Check whether Alchemy returns fresh transfer data for a wallet address."""
+    # DUPLICATE     normalized_address = _validate_ethereum_address(wallet_address)
 
-    if not ALCHEMY_API_KEY:
-        return {
-            "configured": False,
-            "wallet_address": normalized_address,
-            "data_available": False,
-            "transfer_count": 0,
-            "sample_transfer": None,
-            "note": "ALCHEMY_API_KEY is missing",
-        }
+    # DUPLICATE     if not ALCHEMY_API_KEY:
+        # DUPLICATE         return {
+            # DUPLICATE             "configured": False,
+            # DUPLICATE             "wallet_address": normalized_address,
+            # DUPLICATE             "data_available": False,
+            # DUPLICATE             "transfer_count": 0,
+            # DUPLICATE             "sample_transfer": None,
+            # DUPLICATE             "note": "ALCHEMY_API_KEY is missing",
+        # DUPLICATE         }
 
-    try:
-        transfers = fetch_wallet_history(normalized_address, chain=chain, max_count=10)
-        sample_transfer = transfers[0] if transfers else None
+    # DUPLICATE     try:
+        # DUPLICATE         transfers = fetch_wallet_history(normalized_address, chain=chain, max_count=10)
+        # DUPLICATE         sample_transfer = transfers[0] if transfers else None
 
-        return {
-            "configured": True,
-            "rpc_url_ready": bool(ALCHEMY_ETH_RPC_URL if chain == "ethereum" else ALCHEMY_BSC_RPC_URL),
-            "wallet_address": normalized_address,
-            "data_available": len(transfers) > 0,
-            "transfer_count": len(transfers),
-            "sample_transfer": {
-                "tx_hash": sample_transfer.get("tx_hash") if sample_transfer else None,
-                "from_address": sample_transfer.get("from_address") if sample_transfer else None,
-                "to_address": sample_transfer.get("to_address") if sample_transfer else None,
-                "category": sample_transfer.get("category") if sample_transfer else None,
-                "block_number": sample_transfer.get("block_number") if sample_transfer else None,
-                "timestamp": sample_transfer.get("timestamp").isoformat() if sample_transfer and sample_transfer.get("timestamp") else None,
-            },
-            "note": "Alchemy fetch executed directly from live RPC endpoint",
-        }
-    except Exception as error:
-        return {
-            "configured": True,
-            "rpc_url_ready": bool(ALCHEMY_ETH_RPC_URL if chain == "ethereum" else ALCHEMY_BSC_RPC_URL),
-            "wallet_address": normalized_address,
-            "data_available": False,
-            "transfer_count": 0,
-            "sample_transfer": None,
-            "error": str(error),
-            "note": "Alchemy call failed",
-        }
+        # DUPLICATE         return {
+            # DUPLICATE             "configured": True,
+            # DUPLICATE             "rpc_url_ready": bool(ALCHEMY_ETH_RPC_URL if chain == "ethereum" else ALCHEMY_BSC_RPC_URL),
+            # DUPLICATE             "wallet_address": normalized_address,
+            # DUPLICATE             "data_available": len(transfers) > 0,
+            # DUPLICATE             "transfer_count": len(transfers),
+            # DUPLICATE             "sample_transfer": {
+                # DUPLICATE                 "tx_hash": sample_transfer.get("tx_hash") if sample_transfer else None,
+                # DUPLICATE                 "from_address": sample_transfer.get("from_address") if sample_transfer else None,
+                # DUPLICATE                 "to_address": sample_transfer.get("to_address") if sample_transfer else None,
+                # DUPLICATE                 "category": sample_transfer.get("category") if sample_transfer else None,
+                # DUPLICATE                 "block_number": sample_transfer.get("block_number") if sample_transfer else None,
+                # DUPLICATE                 "timestamp": sample_transfer.get("timestamp").isoformat() if sample_transfer and sample_transfer.get("timestamp") else None,
+            # DUPLICATE             },
+            # DUPLICATE             "note": "Alchemy fetch executed directly from live RPC endpoint",
+        # DUPLICATE         }
+    # DUPLICATE     except Exception as error:
+        # DUPLICATE         return {
+            # DUPLICATE             "configured": True,
+            # DUPLICATE             "rpc_url_ready": bool(ALCHEMY_ETH_RPC_URL if chain == "ethereum" else ALCHEMY_BSC_RPC_URL),
+            # DUPLICATE             "wallet_address": normalized_address,
+            # DUPLICATE             "data_available": False,
+            # DUPLICATE             "transfer_count": 0,
+            # DUPLICATE             "sample_transfer": None,
+            # DUPLICATE             "error": str(error),
+            # DUPLICATE             "note": "Alchemy call failed",
+        # DUPLICATE         }
 
 
-@app.get("/analyze/{wallet_address}", tags=["Risk Assessment"], summary="Analyze Wallet Risk", description="Performs a comprehensive risk assessment on a wallet address, combining ML scores, heuristics, and blacklist checks.")
-def analyze_wallet_risk(
-    wallet_address: str,
-    chain: str = Query("ethereum"),
-    database_session: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """
-    Perform comprehensive risk assessment on an Ethereum wallet address.
-    """
-    normalized_address = wallet_address.lower().strip()
-    target_chain = _normalize_chain_name(chain)
+# DUPLICATE: moved to ai_router.py - /analyze/{wallet_address}
+# DUPLICATE: moved to ai_router.py - /analyze/{wallet_address}
+# DUPLICATE: moved to ai_router.py - /analyze/{wallet_address}
+# # @app.get("/analyze/{wallet_address}", tags=["Risk Assessment"], summary="Analyze Wallet Risk", description="Performs a comprehensive risk assessment on a wallet address, combining ML scores, heuristics, and blacklist checks.")
+# DUPLICATE def analyze_wallet_risk(
+    # DUPLICATE     wallet_address: str,
+    # DUPLICATE     chain: str = Query("ethereum"),
+    # DUPLICATE     database_session: Session = Depends(get_db),
+    # DUPLICATE     current_user: Optional[User] = Depends(optional_auth),
+# DUPLICATE ) -> Dict[str, Any]:
+    # DUPLICATE     """
+    # DUPLICATE     Perform comprehensive risk assessment on an Ethereum wallet address.
+    # DUPLICATE     """
+    # DUPLICATE     normalized_address = _validate_ethereum_address(wallet_address)
+    # DUPLICATE     target_chain = _normalize_chain_name(chain)
 
     # 1. Check Redis Cache
-    cache_key = f"risk_analysis:{target_chain}:{normalized_address}"
-    if cache:
-        try:
-            cached_result = cache.get(cache_key)
-            if cached_result:
-                logger.info(f"CACHE_HIT | risk_analysis | wallet={normalized_address}")
-                return json.loads(cached_result)
-        except Exception as e:
-            logger.error(f"Redis get error: {e}")
+    # DUPLICATE     cache_key = f"risk_analysis:{target_chain}:{normalized_address}"
+    # DUPLICATE     if cache:
+        # DUPLICATE         try:
+            # DUPLICATE             cached_result = cache.get(cache_key)
+            # DUPLICATE             if cached_result:
+                # DUPLICATE                 logger.info(f"CACHE_HIT | risk_analysis | wallet={normalized_address}")
+                # DUPLICATE                 return json.loads(cached_result)
+        # DUPLICATE         except Exception as e:
+            # DUPLICATE             logger.error(f"Redis get error: {e}")
 
-    def _risk_level_from_score(score: float) -> str:
-        if score >= 90:
-            return "CRITICAL"
-        if score >= 80:
-            return "HIGH"
-        if score >= 50:
-            return "MEDIUM"
-        return "LOW"
+    # DUPLICATE     def _risk_level_from_score(score: float) -> str:
+        # DUPLICATE         if score >= 90:
+            # DUPLICATE             return "CRITICAL"
+        # DUPLICATE         if score >= 80:
+            # DUPLICATE             return "HIGH"
+        # DUPLICATE         if score >= 50:
+            # DUPLICATE             return "MEDIUM"
+        # DUPLICATE         return "LOW"
 
     # Step 0: Check blacklist first (instant response for known threats)
-    blacklist_record = database_session.query(Blacklist).filter(
-        Blacklist.address == normalized_address
-    ).first()
+    # DUPLICATE     blacklist_record = database_session.query(Blacklist).filter(
+        # DUPLICATE         Blacklist.address == normalized_address
+    # DUPLICATE     ).first()
 
-    if blacklist_record:
-        logger.warning(f"Blacklisted wallet detected: {normalized_address}")
-        response = {
-            "address": normalized_address,
-            "risk_score": 100.0,
-            "risk_level": "CRITICAL",
-            "details": {
-                "money_laundering": {"detected": False, "confidence": 0.0, "reasons": []},
-                "wash_trading": {"detected": False, "confidence": 0.0, "reasons": []},
-                "scam": {"detected": True, "confidence": 1.0, "reasons": ["Blacklist Match: Address flagged in database"]}
-            },
-            "detection_count": 1,
-            "model": "Blacklist-Check",
-            "cached": True,
-            "blacklisted": True,
-            "transaction_count": 0,
-            "recent_transactions": []
-        }
-        if cache: cache.setex(cache_key, 3600, json.dumps(response))
-        return response
+    # DUPLICATE     if blacklist_record:
+        # DUPLICATE         logger.warning(f"Blacklisted wallet detected: {normalized_address}")
+        # DUPLICATE         response = {
+            # DUPLICATE             "address": normalized_address,
+            # DUPLICATE             "risk_score": 100.0,
+            # DUPLICATE             "risk_level": "CRITICAL",
+            # DUPLICATE             "details": {
+                # DUPLICATE                 "money_laundering": {"detected": False, "confidence": 0.0, "reasons": []},
+                # DUPLICATE                 "wash_trading": {"detected": False, "confidence": 0.0, "reasons": []},
+                # DUPLICATE                 "scam": {"detected": True, "confidence": 1.0, "reasons": ["Blacklist Match: Address flagged in database"]}
+            # DUPLICATE             },
+            # DUPLICATE             "detection_count": 1,
+            # DUPLICATE             "model": "Blacklist-Check",
+            # DUPLICATE             "cached": True,
+            # DUPLICATE             "blacklisted": True,
+            # DUPLICATE             "transaction_count": 0,
+            # DUPLICATE             "recent_transactions": []
+        # DUPLICATE         }
+        # DUPLICATE         if cache: cache.set(cache_key, json.dumps(response), ex=3600)
+        # DUPLICATE         return response
 
-    try:
+    # DUPLICATE     try:
         # Step 1: Fetch fresh blockchain data from Alchemy
-        logger.info(f"Fetching transaction history for {normalized_address} on {chain}")
-        transaction_history = fetch_wallet_history(normalized_address, chain=chain, max_count=50)
+        # DUPLICATE         logger.info(f"Fetching transaction history for {normalized_address} on {chain}")
+        # DUPLICATE         transaction_history = fetch_wallet_history(normalized_address, chain=chain, max_count=50)
 
-        if not transaction_history:
-            logger.warning(f"No transaction history found for {normalized_address}")
+        # DUPLICATE         if not transaction_history:
+            # DUPLICATE             logger.warning(f"No transaction history found for {normalized_address}")
 
             # Fall back to cached DB info (wallet record + latest alert)
-            wallet_record = database_session.query(Wallet).filter(
-                Wallet.address == normalized_address
-            ).first()
-            latest_alert = (
-                database_session.query(Alert)
-                .filter(Alert.wallet_address == normalized_address)
-                .order_by(Alert.detected_at.desc())
-                .first()
-            )
+            # DUPLICATE             wallet_record = database_session.query(Wallet).filter(
+                # DUPLICATE                 Wallet.address == normalized_address
+            # DUPLICATE             ).first()
+            # DUPLICATE             latest_alert = (
+                # DUPLICATE                 database_session.query(Alert)
+                # DUPLICATE                 .filter(Alert.wallet_address == normalized_address)
+                # DUPLICATE                 .order_by(Alert.detected_at.desc())
+                # DUPLICATE                 .first()
+            # DUPLICATE             )
 
-            cached_score = 0.0
-            if wallet_record and wallet_record.risk_score is not None:
-                cached_score = max(cached_score, float(wallet_record.risk_score or 0.0))
-            if latest_alert and latest_alert.risk_score is not None:
-                cached_score = max(cached_score, float(latest_alert.risk_score or 0.0))
+            # DUPLICATE             cached_score = 0.0
+            # DUPLICATE             if wallet_record and wallet_record.risk_score is not None:
+                # DUPLICATE                 cached_score = max(cached_score, float(wallet_record.risk_score or 0.0))
+            # DUPLICATE             if latest_alert and latest_alert.risk_score is not None:
+                # DUPLICATE                 cached_score = max(cached_score, float(latest_alert.risk_score or 0.0))
 
-            tx_count = 0
-            try:
-                tx_count = int(
-                    database_session.query(func.count(Transaction.id))
-                    .filter(
-                        (Transaction.from_address == normalized_address)
-                        | (Transaction.to_address == normalized_address)
-                    )
-                    .scalar()
-                    or 0
-                )
-            except Exception:
-                tx_count = int(wallet_record.total_transactions or 0) if wallet_record else 0
+            # DUPLICATE             tx_count = 0
+            # DUPLICATE             try:
+                # DUPLICATE                 tx_count = int(
+                    # DUPLICATE                     database_session.query(func.count(Transaction.id))
+                    # DUPLICATE                     .filter(
+                        # DUPLICATE                         (Transaction.from_address == normalized_address)
+                        # DUPLICATE                         | (Transaction.to_address == normalized_address)
+                    # DUPLICATE                     )
+                    # DUPLICATE                     .scalar()
+                    # DUPLICATE                     or 0
+                # DUPLICATE                 )
+            # DUPLICATE             except Exception:
+                # DUPLICATE                 tx_count = int(wallet_record.total_transactions or 0) if wallet_record else 0
 
-            response = {
-                "address": normalized_address,
-                "risk_score": cached_score,
-                "risk_level": _risk_level_from_score(cached_score),
-                "details": {
-                    "money_laundering": {"detected": False, "confidence": 0.0, "reasons": []},
-                    "wash_trading": {"detected": False, "confidence": 0.0, "reasons": []},
-                    "scam": {"detected": False, "confidence": 0.0, "reasons": []}
-                },
-                "detection_count": 0,
-                "model": "Cached-DB",
-                "cached": True,
-                "blacklisted": False,
-                "first_seen_at": wallet_record.first_seen_at.isoformat() if wallet_record and wallet_record.first_seen_at else None,
-                "last_activity_at": wallet_record.last_activity_at.isoformat() if wallet_record and wallet_record.last_activity_at else None,
-                "transaction_count": tx_count,
-                "recent_transactions": []
-            }
-            if cache: cache.setex(cache_key, 3600, json.dumps(response))
-            return response
+            # DUPLICATE             response = {
+                # DUPLICATE                 "address": normalized_address,
+                # DUPLICATE                 "risk_score": cached_score,
+                # DUPLICATE                 "risk_level": _risk_level_from_score(cached_score),
+                # DUPLICATE                 "details": {
+                    # DUPLICATE                     "money_laundering": {"detected": False, "confidence": 0.0, "reasons": []},
+                    # DUPLICATE                     "wash_trading": {"detected": False, "confidence": 0.0, "reasons": []},
+                    # DUPLICATE                     "scam": {"detected": False, "confidence": 0.0, "reasons": []}
+                # DUPLICATE                 },
+                # DUPLICATE                 "detection_count": 0,
+                # DUPLICATE                 "model": "Cached-DB",
+                # DUPLICATE                 "cached": True,
+                # DUPLICATE                 "blacklisted": False,
+                # DUPLICATE                 "first_seen_at": wallet_record.first_seen_at.isoformat() if wallet_record and wallet_record.first_seen_at else None,
+                # DUPLICATE                 "last_activity_at": wallet_record.last_activity_at.isoformat() if wallet_record and wallet_record.last_activity_at else None,
+                # DUPLICATE                 "transaction_count": tx_count,
+                # DUPLICATE                 "recent_transactions": []
+            # DUPLICATE             }
+            # DUPLICATE             if cache: cache.set(cache_key, json.dumps(response), ex=3600)
+            # DUPLICATE             return response
 
-        logger.info(f"Retrieved {len(transaction_history)} transactions")
+        # DUPLICATE         logger.info(f"Retrieved {len(transaction_history)} transactions")
 
         # Step 2: Persist to database for caching and analysis
-        _persist_blockchain_data(database_session, transaction_history, normalized_address)
+        # DUPLICATE         _persist_blockchain_data(database_session, transaction_history, normalized_address)
 
         # Step 3: Run AI-powered multi-agent risk assessment
         # Step 3: Run AI-powered multi‑agent risk assessment with fallback
-        ai_engine = MultiAgentDetectionEngine(database_session=database_session)
-        try:
-            risk_analysis = ai_engine.analyze_wallet(
-                wallet_address=normalized_address,
-                transactions=transaction_history
-            )
-        except Exception as e:
-            logger.error(f"AI engine failure: {e}")
+        # DUPLICATE         ai_engine = MultiAgentDetectionEngine(database_session=database_session)
+        # DUPLICATE         try:
+            # DUPLICATE             risk_analysis = ai_engine.analyze_wallet(
+                # DUPLICATE                 wallet_address=normalized_address,
+                # DUPLICATE                 transactions=transaction_history
+            # DUPLICATE             )
+        # DUPLICATE         except Exception as e:
+            # DUPLICATE             logger.error(f"AI engine failure: {e}")
             # Fallback: low‑risk default
-            risk_analysis = {
-                "total_score": 0.0,
-                "risk_level": "LOW",
-                "breakdown": {},
-                "model": "fallback-low-risk",
-                "detection_count": 0,
-                "ai_insight": "AI engine unavailable; default low‑risk applied."
-            }
+            # DUPLICATE             risk_analysis = {
+                # DUPLICATE                 "total_score": 0.0,
+                # DUPLICATE                 "risk_level": "LOW",
+                # DUPLICATE                 "breakdown": {},
+                # DUPLICATE                 "model": "fallback-low-risk",
+                # DUPLICATE                 "detection_count": 0,
+                # DUPLICATE                 "ai_insight": "AI engine unavailable; default low‑risk applied."
+            # DUPLICATE             }
 
         # Step 4: Update or create wallet record
-        wallet_record = database_session.query(Wallet).filter(
-            Wallet.address == normalized_address
-        ).first()
+        # DUPLICATE         wallet_record = database_session.query(Wallet).filter(
+            # DUPLICATE             Wallet.address == normalized_address
+        # DUPLICATE         ).first()
 
-        if not wallet_record:
-            wallet_record = Wallet(
-                address=normalized_address,
-                risk_score=risk_analysis["total_score"],
-                total_transactions=len(transaction_history),
-                first_seen_at=transaction_history[-1]["timestamp"] if transaction_history else None,
-                last_activity_at=transaction_history[0]["timestamp"] if transaction_history else None
-            )
-            database_session.add(wallet_record)
-            database_session.commit()
-            database_session.refresh(wallet_record)
-        else:
-            wallet_record.risk_score = risk_analysis["total_score"]
-            wallet_record.total_transactions = len(transaction_history)
-            if not wallet_record.first_seen_at and transaction_history:
-                wallet_record.first_seen_at = transaction_history[-1]["timestamp"]
-            wallet_record.last_activity_at = transaction_history[0]["timestamp"] if transaction_history else None
-            wallet_record.updated_at = datetime.utcnow()
-            database_session.commit()
+        # DUPLICATE         if not wallet_record:
+            # DUPLICATE             wallet_record = Wallet(
+                # DUPLICATE                 address=normalized_address,
+                # DUPLICATE                 risk_score=risk_analysis["total_score"],
+                # DUPLICATE                 total_transactions=len(transaction_history),
+                # DUPLICATE                 first_seen_at=transaction_history[-1]["timestamp"] if transaction_history else None,
+                # DUPLICATE                 last_activity_at=transaction_history[0]["timestamp"] if transaction_history else None
+            # DUPLICATE             )
+            # DUPLICATE             database_session.add(wallet_record)
+            # DUPLICATE             database_session.commit()
+            # DUPLICATE             database_session.refresh(wallet_record)
+        # DUPLICATE         else:
+            # DUPLICATE             wallet_record.risk_score = risk_analysis["total_score"]
+            # DUPLICATE             wallet_record.total_transactions = len(transaction_history)
+            # DUPLICATE             if not wallet_record.first_seen_at and transaction_history:
+                # DUPLICATE                 wallet_record.first_seen_at = transaction_history[-1]["timestamp"]
+            # DUPLICATE             wallet_record.last_activity_at = transaction_history[0]["timestamp"] if transaction_history else None
+            # DUPLICATE             wallet_record.updated_at = datetime.now(timezone.utc)
+            # DUPLICATE             database_session.commit()
 
         # Step 5: Save risk assessment record
-        assessment_record = RiskAssessment(
-            wallet_id=wallet_record.id,
-            score=risk_analysis["total_score"],
-            risk_level=risk_analysis["risk_level"],
-            details={**risk_analysis["breakdown"], "ai_insight": risk_analysis.get("ai_insight")},
-            model_version=risk_analysis.get("model", "Multi-Agent-v1.0")
-        )
-        database_session.add(assessment_record)
-        database_session.commit()
+        # DUPLICATE         assessment_record = RiskAssessment(
+            # DUPLICATE             wallet_id=wallet_record.id,
+            # DUPLICATE             score=risk_analysis["total_score"],
+            # DUPLICATE             risk_level=risk_analysis["risk_level"],
+            # DUPLICATE             details={**risk_analysis["breakdown"], "ai_insight": risk_analysis.get("ai_insight")},
+            # DUPLICATE             model_version=risk_analysis.get("model", "Multi-Agent-v1.0")
+        # DUPLICATE         )
+        # DUPLICATE         database_session.add(assessment_record)
+        # DUPLICATE         database_session.commit()
 
         # Step 6: Return comprehensive results with breakdown
-        response = {
-            "address": normalized_address,
-            "risk_score": risk_analysis["total_score"],
-            "risk_level": risk_analysis["risk_level"],
-            "details": risk_analysis["breakdown"],
-            "ai_insight": risk_analysis.get("ai_insight", "No analysis available."),
-            "suggested_actions": risk_analysis.get("suggested_actions", []),
-            "detection_count": risk_analysis["detection_count"],
-            "model": risk_analysis["model"],
-            "cached": False,
-            "first_seen_at": wallet_record.first_seen_at.isoformat() if wallet_record.first_seen_at else None,
-            "last_activity_at": wallet_record.last_activity_at.isoformat() if wallet_record.last_activity_at else None,
-            "transaction_count": len(transaction_history),
-            "recent_transactions": [
-                {**tx, "timestamp": tx["timestamp"].isoformat() if hasattr(tx["timestamp"], "isoformat") else str(tx["timestamp"])}
-                for tx in transaction_history[:10]
-            ]
-        }
+        # DUPLICATE         response = {
+            # DUPLICATE             "address": normalized_address,
+            # DUPLICATE             "risk_score": risk_analysis["total_score"],
+            # DUPLICATE             "risk_level": risk_analysis["risk_level"],
+            # DUPLICATE             "details": risk_analysis["breakdown"],
+            # DUPLICATE             "ai_insight": risk_analysis.get("ai_insight", "No analysis available."),
+            # DUPLICATE             "suggested_actions": risk_analysis.get("suggested_actions", []),
+            # DUPLICATE             "detection_count": risk_analysis["detection_count"],
+            # DUPLICATE             "model": risk_analysis["model"],
+            # DUPLICATE             "cached": False,
+            # DUPLICATE             "first_seen_at": wallet_record.first_seen_at.isoformat() if wallet_record.first_seen_at else None,
+            # DUPLICATE             "last_activity_at": wallet_record.last_activity_at.isoformat() if wallet_record.last_activity_at else None,
+            # DUPLICATE             "transaction_count": len(transaction_history),
+            # DUPLICATE             "recent_transactions": [
+                # DUPLICATE                 {**tx, "timestamp": tx["timestamp"].isoformat() if hasattr(tx["timestamp"], "isoformat") else str(tx["timestamp"])}
+                # DUPLICATE                 for tx in transaction_history[:10]
+            # DUPLICATE             ]
+        # DUPLICATE         }
 
         # 7. Save to Redis Cache (Expire in 1 hour)
-        if cache:
-            try:
+        # DUPLICATE         if cache:
+            # DUPLICATE             try:
                 # Use a custom encoder or manual conversion to ensure JSON serializable
-                cache.setex(cache_key, 3600, json.dumps(response))
-                logger.info(f"CACHE_SET | risk_analysis | wallet={normalized_address}")
-            except Exception as e:
-                logger.error(f"Redis set error (Serialization issue?): {e}")
+                # DUPLICATE                 cache.set(cache_key, json.dumps(response), ex=3600)
+                # DUPLICATE                 logger.info(f"CACHE_SET | risk_analysis | wallet={normalized_address}")
+            # DUPLICATE             except Exception as e:
+                # DUPLICATE                 logger.error(f"Redis set error (Serialization issue?): {e}")
 
-        return response
+        # DUPLICATE         return response
 
-    except Exception as analysis_error:
-        logger.error(f"Analysis failed for {normalized_address}: {analysis_error}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Risk analysis failed: {str(analysis_error)}"
-        )
+    # DUPLICATE     except Exception as analysis_error:
+        # DUPLICATE         logger.error(f"Analysis failed for {normalized_address}: {analysis_error}")
+        # DUPLICATE         raise HTTPException(
+            # DUPLICATE             status_code=500,
+            # DUPLICATE             detail=f"Risk analysis failed: {str(analysis_error)}"
+        # DUPLICATE         )
 
 
-def _persist_blockchain_data(
-    database_session: Session,
-    transactions: List[Dict[str, Any]],
-    wallet_address: str
-) -> None:
-    """Persist transaction data using the shared service."""
-    persist_transactions(database_session, transactions, wallet_address)
+# DUPLICATE: moved to ai_router.py - /predict/{wallet_address}
+# DUPLICATE: moved to ai_router.py - /predict/{wallet_address}
+# DUPLICATE: moved to ai_router.py - /predict/{wallet_address}
+# # @app.get("/predict/{wallet_address}", tags=["Risk Assessment"], summary="ML-only Prediction")
+# DUPLICATE def predict_wallet_risk(
+    # DUPLICATE     wallet_address: str,
+    # DUPLICATE     chain: str = Query("ethereum"),
+    # DUPLICATE     database_session: Session = Depends(get_db),
+    # DUPLICATE     current_user: Optional[User] = Depends(optional_auth),
+# DUPLICATE ) -> Dict[str, Any]:
+    # DUPLICATE     """
+    # DUPLICATE     Standalone ML model inference endpoint.
+
+    # DUPLICATE     Returns raw ML prediction score (0-100) without heuristic blending.
+    # DUPLICATE     Useful for A/B testing, model monitoring, and integration tests.
+    # DUPLICATE     """
+    # DUPLICATE     normalized_address = _validate_ethereum_address(wallet_address)
+
+    # DUPLICATE     txs = (
+        # DUPLICATE         database_session.query(Transaction)
+        # DUPLICATE         .filter(
+            # DUPLICATE             ((Transaction.from_address == normalized_address) | (Transaction.to_address == normalized_address)) &
+            # DUPLICATE             (Transaction.chain_id == chain)
+        # DUPLICATE         )
+        # DUPLICATE         .order_by(Transaction.timestamp.desc().nullslast(), Transaction.created_at.desc())
+        # DUPLICATE         .limit(100)
+        # DUPLICATE         .all()
+    # DUPLICATE     )
+
+    # DUPLICATE     if not txs:
+        # DUPLICATE         history = fetch_wallet_history(normalized_address, chain=chain, max_count=50)
+        # DUPLICATE         if history:
+            # DUPLICATE             _persist_blockchain_data(database_session, history, normalized_address)
+            # DUPLICATE             txs = (
+                # DUPLICATE                 database_session.query(Transaction)
+                # DUPLICATE                 .filter((Transaction.from_address == normalized_address) | (Transaction.to_address == normalized_address))
+                # DUPLICATE                 .order_by(Transaction.timestamp.desc().nullslast(), Transaction.created_at.desc())
+                # DUPLICATE                 .limit(100)
+                # DUPLICATE                 .all()
+            # DUPLICATE             )
+
+    # DUPLICATE     if not txs:
+        # DUPLICATE         return api_success(data={
+            # DUPLICATE             "address": normalized_address,
+            # DUPLICATE             "ml_score": 0.0,
+            # DUPLICATE             "ml_confidence": 0.0,
+            # DUPLICATE             "ml_available": False,
+            # DUPLICATE             "feature_count": 0,
+            # DUPLICATE             "reason": "No transactions found for ML prediction"
+        # DUPLICATE         })
+
+    # DUPLICATE     tx_dicts = [
+        # DUPLICATE         {
+            # DUPLICATE             "tx_hash": tx.tx_hash,
+            # DUPLICATE             "from_address": tx.from_address,
+            # DUPLICATE             "to_address": tx.to_address,
+            # DUPLICATE             "value": int(tx.value or 0),
+            # DUPLICATE             "timestamp": tx.timestamp.isoformat() if tx.timestamp else None,
+            # DUPLICATE             "gas_price": int(tx.gas_price or 0),
+            # DUPLICATE             "gas_used": int(tx.gas_used or 0),
+            # DUPLICATE             "block_number": int(tx.block_number or 0),
+            # DUPLICATE             "chain_id": tx.chain_id,
+        # DUPLICATE         }
+        # DUPLICATE         for tx in txs
+    # DUPLICATE     ]
+
+    # DUPLICATE     predictor = MLRiskPredictor()
+    # DUPLICATE     if not predictor.is_available:
+        # DUPLICATE         return api_success(data={
+            # DUPLICATE             "address": normalized_address,
+            # DUPLICATE             "ml_score": 0.0,
+            # DUPLICATE             "ml_confidence": 0.0,
+            # DUPLICATE             "ml_available": False,
+            # DUPLICATE             "transaction_count": len(txs),
+            # DUPLICATE             "reason": "Model artifacts not available (run train_model.py first)"
+        # DUPLICATE         })
+
+    # DUPLICATE     result = predictor.predict_risk(normalized_address, tx_dicts)
+    # DUPLICATE     result["address"] = normalized_address
+    # DUPLICATE     result["transaction_count"] = len(txs)
+
+    # DUPLICATE     return api_success(data=result, message="ML-only prediction")
+
+
+# DUPLICATE def _persist_blockchain_data(
+    # DUPLICATE     database_session: Session,
+    # DUPLICATE     transactions: List[Dict[str, Any]],
+    # DUPLICATE     wallet_address: str
+# DUPLICATE ) -> None:
+    # DUPLICATE     """Persist transaction data using the shared service."""
+    # DUPLICATE     persist_transactions(database_session, transactions, wallet_address)
 
 
 @app.get("/alerts/recent", tags=["Alerts"])
@@ -1374,7 +1599,8 @@ def get_recent_alerts(
     severity: str | None = None,
     search: str | None = None,
     chain: str = Query(default="ethereum"),
-    database_session: Session = Depends(get_db)
+    database_session: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     """
     Retrieve recent security alerts with optional filtering.
@@ -1420,7 +1646,7 @@ def get_recent_alerts(
     # Apply limit
     recent_alerts = query.limit(limit).all()
 
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     alerts_today = database_session.query(Alert).filter(
         Alert.detected_at >= today_start
     ).count()
@@ -1438,7 +1664,7 @@ def get_recent_alerts(
                 "severity": alert.severity,
                 "message": alert.message,
                 "risk_score": alert.risk_score,
-                "context": alert.meta or {},
+                "context": alert.alert_metadata or {},
                 "detected_at": alert.detected_at.isoformat(),
                 "acknowledged": bool(alert.acknowledged)
             }
@@ -1456,7 +1682,8 @@ def get_recent_alerts(
 @app.get("/alerts/latest", tags=["Alerts"])
 def get_latest_alerts(
     limit: int = 5,
-    database_session: Session = Depends(get_db)
+    database_session: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     """
     Retrieve latest security alerts for real-time ticker display.
@@ -1484,21 +1711,22 @@ def get_latest_alerts(
                 "severity": alert.severity,
                 "message": alert.message,
                 "risk_score": alert.risk_score,
-                "metadata": alert.meta,
+                "metadata": alert.alert_metadata,
                 "detected_at": alert.detected_at.isoformat()
             }
             for alert in latest_alerts
         ],
         "count": len(latest_alerts),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
+@app.get("/wallet/{wallet_address}/balance", tags=["Wallet"])
 @app.get("/balance/{wallet_address}", tags=["Wallet"])
 @app.get("/_legacy_/wallet/{wallet_address}/balance", tags=["Wallet"])
-def get_wallet_balance(wallet_address: str, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_wallet_balance(wallet_address: str, database_session: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
     """Return balance computed from transactions table (in - out)."""
-    normalized_address = wallet_address.lower().strip()
+    normalized_address = _validate_ethereum_address(wallet_address)
     wallet = _get_or_create_wallet(database_session, normalized_address)
 
     received_wei = (
@@ -1528,10 +1756,11 @@ def get_wallet_transactions(
     wallet_address: str,
     limit: int = 20,
     chain: str = Query("ethereum"),
-    database_session: Session = Depends(get_db)
+    database_session: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     """Return recent transactions for a wallet from DB (fallback to Alchemy fetch+persist)."""
-    normalized_address = wallet_address.lower().strip()
+    normalized_address = _validate_ethereum_address(wallet_address)
 
     # Try DB first
     txs = (
@@ -1558,7 +1787,7 @@ def get_wallet_transactions(
                 .all()
             )
 
-    return {
+    return api_success(data={
         "address": normalized_address,
         "count": len(txs),
         "transactions": [
@@ -1579,13 +1808,34 @@ def get_wallet_transactions(
             }
             for tx in txs
         ]
-    }
-
+    }, legacy={
+        "address": normalized_address,
+        "count": len(txs),
+        "transactions": [
+            {
+                "id": str(tx.id),
+                "tx_hash": tx.tx_hash,
+                "from_address": tx.from_address,
+                "to_address": tx.to_address,
+                "value_wei": int(tx.value or 0),
+                "value_eth": _eth_from_wei(int(tx.value or 0)),
+                "timestamp": tx.timestamp.isoformat() if tx.timestamp else None,
+                "status": int(tx.status or 1),
+                "is_flagged": bool(tx.is_flagged),
+                "flag_reason": tx.flag_reason,
+                "gas_price": str(tx.gas_price or 0),
+                "gas_used": int(tx.gas_used or 0),
+                "block_number": int(tx.block_number or 0)
+            }
+            for tx in txs
+        ]
+    })
 
 @app.post("/transfer/protected", tags=["Transaction"])
 def protected_transfer(
-    payload: Dict[str, Any],
-    database_session: Session = Depends(get_db)
+    payload: ProtectedTransferRequest,
+    database_session: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ) -> Dict[str, Any]:
     """
     Protected transfer endpoint with wallet ID validation and AI risk assessment.
@@ -1602,11 +1852,11 @@ def protected_transfer(
         amount_eth: Amount in ETH
         confirm_risk: User acknowledged the risk (for 50-80 case)
     """
-    from_wallet_id = str(payload.get("from_wallet_id", "")).strip()
-    to_wallet_id = str(payload.get("to_wallet_id", "")).strip()
-    to_address = str(payload.get("to_address", "")).lower().strip()
-    amount_eth = float(payload.get("amount_eth", 0))
-    confirm_risk = payload.get("confirm_risk", False)
+    from_wallet_id = payload.from_wallet_id.strip()
+    to_wallet_id = payload.to_wallet_id.strip()
+    to_address = payload.to_address.lower().strip()
+    amount_eth = payload.amount_eth
+    confirm_risk = payload.confirm_risk
 
     # Validate inputs
     if not from_wallet_id or not to_wallet_id or amount_eth <= 0:
@@ -1630,8 +1880,8 @@ def protected_transfer(
         # Try as UUID first
         try:
             import uuid as uuid_module
-            uuid_module.UUID(identifier)
-            wallet = database_session.query(Wallet).filter(Wallet.id == identifier).first()
+            wallet_id = uuid_module.UUID(identifier)
+            wallet = database_session.query(Wallet).filter(Wallet.id == wallet_id).first()
             if wallet:
                 return wallet
         except (ValueError, AttributeError):
@@ -1694,7 +1944,7 @@ def protected_transfer(
 
             # Update wallet with new risk score
             to_wallet.risk_score = receiver_risk
-            to_wallet.last_activity_at = datetime.utcnow()
+            to_wallet.last_activity_at = datetime.now(timezone.utc)
 
             # Auto-update status based on risk
             if receiver_risk >= 90:
@@ -1768,9 +2018,9 @@ def protected_transfer(
         # Check if 3 strikes reached
         if warning_count >= 3:
             from_wallet.account_status = 'suspended'
-            from_wallet.flagged_at = datetime.utcnow()
+            from_wallet.flagged_at = datetime.now(timezone.utc)
             from_wallet.flagged_by = 'SYSTEM_AUTO_SUSPEND'
-            from_wallet.notes = f"{from_wallet.notes or ''}\n[{datetime.utcnow().isoformat()}] Auto-suspended after 3 risk warnings."
+            from_wallet.notes = f"{from_wallet.notes or ''}\n[{datetime.now(timezone.utc).isoformat()}] Auto-suspended after 3 risk warnings."
 
             # Create alert for admin
             suspend_alert = Alert(
@@ -1779,7 +2029,7 @@ def protected_transfer(
                 severity="HIGH",
                 message=f"User account auto-suspended after ignoring 3 risk warnings. Last attempted transfer to {receiver}.",
                 risk_score=receiver_risk,
-                meta={
+                alert_metadata={
                     "warning_count": warning_count,
                     "last_target": receiver,
                     "last_risk": receiver_risk
@@ -1827,7 +2077,7 @@ def protected_transfer(
         to_address=receiver,
         value=amount_wei,
         block_number=0,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         gas_price=0,
         gas_used=0,
         input_data="0x",
@@ -1838,11 +2088,11 @@ def protected_transfer(
     # Update wallets
     from_wallet.total_value_sent = int(from_wallet.total_value_sent or 0) + amount_wei
     from_wallet.total_transactions = int(from_wallet.total_transactions or 0) + 1
-    from_wallet.last_activity_at = datetime.utcnow()
+    from_wallet.last_activity_at = datetime.now(timezone.utc)
 
     to_wallet.total_value_received = int(to_wallet.total_value_received or 0) + amount_wei
     to_wallet.total_transactions = int(to_wallet.total_transactions or 0) + 1
-    to_wallet.last_activity_at = datetime.utcnow()
+    to_wallet.last_activity_at = datetime.now(timezone.utc)
 
     database_session.commit()
 
@@ -1864,13 +2114,14 @@ def protected_transfer(
 
 @app.post("/send", tags=["Transaction"])
 def send_eth(
-    payload: Dict[str, Any],
-    database_session: Session = Depends(get_db)
+    payload: SendEthRequest,
+    database_session: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ) -> Dict[str, Any]:
     """Simulate send ETH with real risk check and DB-ledger updates (no on-chain transfer)."""
-    sender = str(payload.get("sender", "")).lower().strip()
-    receiver = str(payload.get("receiver", "")).lower().strip()
-    amount = float(payload.get("amount", 0))
+    sender = payload.sender.lower().strip()
+    receiver = payload.receiver.lower().strip()
+    amount = payload.amount
 
     if not sender or not receiver:
         raise HTTPException(status_code=400, detail="sender and receiver are required")
@@ -1885,13 +2136,13 @@ def send_eth(
                 severity="HIGH",
                 message=f"Blocked transfer attempt from {sender} to {receiver}: {reason}",
                 risk_score=risk_score,
-                meta={
+                alert_metadata={
                     "sender": sender,
                     "receiver": receiver,
                     "amount": amount,
                     "reason": reason,
                 },
-                detected_at=datetime.utcnow(),
+                detected_at=datetime.now(timezone.utc),
             )
             database_session.add(alert)
             database_session.commit()
@@ -1963,11 +2214,11 @@ def send_eth(
     # Update internal ledger stats
     sender_wallet.total_value_sent = int(sender_wallet.total_value_sent or 0) + amount_wei
     sender_wallet.total_transactions = int(sender_wallet.total_transactions or 0) + 1
-    sender_wallet.last_activity_at = datetime.utcnow()
+    sender_wallet.last_activity_at = datetime.now(timezone.utc)
 
     receiver_wallet.total_value_received = int(receiver_wallet.total_value_received or 0) + amount_wei
     receiver_wallet.total_transactions = int(receiver_wallet.total_transactions or 0) + 1
-    receiver_wallet.last_activity_at = datetime.utcnow()
+    receiver_wallet.last_activity_at = datetime.now(timezone.utc)
     receiver_wallet.risk_score = receiver_risk
 
     # Record a simulated tx into transactions table
@@ -1979,7 +2230,7 @@ def send_eth(
         to_address=receiver,
         value=amount_wei,
         block_number=0,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         gas_price=0,
         gas_used=0,
         input_data="0x",
@@ -2020,6 +2271,7 @@ def send_eth(
 
 @app.get("/wallets", tags=["Admin - Wallets"])
 def get_all_wallets(
+    current_user: User = Depends(admin_or_analyst),
     status: str = None,
     account_status: str = None,  # Alias for status (frontend uses this)
     risk_category: str = None,
@@ -2088,10 +2340,12 @@ def get_all_wallets(
     }
 
 
+@app.put("/wallet/{wallet_address}/status", tags=["Admin - Wallets"])
 @app.put("/wallets/{wallet_address}/status", tags=["Admin - Wallets"])
 def update_wallet_status(
     wallet_address: str,
-    payload: Dict[str, Any],
+    payload: UpdateWalletStatusRequest,
+    admin: User = Depends(require_admin),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -2101,10 +2355,10 @@ def update_wallet_status(
         wallet_address: Target wallet address
         payload: { "status": "suspended", "reason": "...", "admin_id": "..." }
     """
-    normalized_address = wallet_address.lower().strip()
-    new_status = payload.get("status", "").lower()
-    reason = payload.get("reason", "")
-    admin_id = payload.get("admin_id", "system")
+    normalized_address = _validate_ethereum_address(wallet_address)
+    new_status = payload.status.lower()
+    reason = payload.reason
+    admin_id = payload.admin_id
 
     valid_statuses = ["active", "suspended", "frozen", "under_review"]
     if new_status not in valid_statuses:
@@ -2116,10 +2370,10 @@ def update_wallet_status(
 
     old_status = wallet.account_status
     wallet.account_status = new_status
-    wallet.flagged_at = datetime.utcnow() if new_status in ["suspended", "frozen"] else wallet.flagged_at
+    wallet.flagged_at = datetime.now(timezone.utc) if new_status in ["suspended", "frozen"] else wallet.flagged_at
     wallet.flagged_by = admin_id if new_status in ["suspended", "frozen"] else wallet.flagged_by
-    wallet.notes = f"{wallet.notes or ''}\n[{datetime.utcnow().isoformat()}] Status changed: {old_status} -> {new_status}. Reason: {reason}"
-    wallet.updated_at = datetime.utcnow()
+    wallet.notes = f"{wallet.notes or ''}\n[{datetime.now(timezone.utc).isoformat()}] Status changed: {old_status} -> {new_status}. Reason: {reason}"
+    wallet.updated_at = datetime.now(timezone.utc)
 
     # Create audit log
     audit_log = AuditLog(
@@ -2143,7 +2397,7 @@ def update_wallet_status(
         severity="MEDIUM" if new_status == "under_review" else "HIGH",
         message=f"Wallet status changed from {old_status} to {new_status}. Reason: {reason}",
         risk_score=wallet.risk_score,
-        meta={"old_status": old_status, "new_status": new_status, "changed_by": admin_id}
+        alert_metadata={"old_status": old_status, "new_status": new_status, "changed_by": admin_id}
     )
     database_session.add(alert)
 
@@ -2158,15 +2412,17 @@ def update_wallet_status(
     }
 
 
+@app.get("/wallet/{wallet_address}/stats", tags=["Admin - Tracking"])
 @app.get("/wallets/{wallet_address}/stats", tags=["Admin - Tracking"])
 def get_wallet_stats(
     wallet_address: str,
-    database_session: Session = Depends(get_db)
+    database_session: Session = Depends(get_db),
+    current_user: User = Depends(admin_or_analyst),
 ) -> Dict[str, Any]:
     """
     Get detailed wallet statistics including ETH sent/received.
     """
-    normalized_address = wallet_address.lower().strip()
+    normalized_address = _validate_ethereum_address(wallet_address)
 
     # Calculate total ETH sent
     sent_result = database_session.query(
@@ -2216,15 +2472,16 @@ def get_wallet_stats(
 
 
 @app.get("/wallets/{wallet_address}/transactions", tags=["Admin - Tracking"])
-def get_wallet_transactions(
+def get_admin_wallet_transactions(
     wallet_address: str,
     limit: int = 50,
-    database_session: Session = Depends(get_db)
+    database_session: Session = Depends(get_db),
+    current_user: User = Depends(admin_or_analyst),
 ) -> Dict[str, Any]:
     """
     Get transaction history for a wallet.
     """
-    normalized_address = wallet_address.lower().strip()
+    normalized_address = _validate_ethereum_address(wallet_address)
 
     # Get all transactions involving this wallet
     transactions = database_session.query(Transaction).filter(
@@ -2272,171 +2529,181 @@ def get_wallet_transactions(
 # FEEDBACK LOOP ENDPOINTS (AI Training)
 # ==========================================
 
-@app.post("/feedback", tags=["Admin - Feedback"])
-def submit_ai_feedback(
-    payload: Dict[str, Any],
-    database_session: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """
-    Submit admin feedback on AI risk prediction.
+# DUPLICATE: moved to ai_router.py - /feedback
+# DUPLICATE: moved to ai_router.py - /feedback
+# DUPLICATE: moved to ai_router.py - /feedback
+# # @app.post("/feedback", tags=["Admin - Feedback"])
+# DUPLICATE def submit_ai_feedback(
+    # DUPLICATE     payload: SubmitFeedbackRequest,
+    # DUPLICATE     admin: User = Depends(require_admin),
+    # DUPLICATE     database_session: Session = Depends(get_db)
+# DUPLICATE ) -> Dict[str, Any]:
+    # DUPLICATE     """
+    # DUPLICATE     Submit admin feedback on AI risk prediction.
 
-    This enables the feedback loop for model retraining:
-    - Admin confirms or rejects AI verdicts
-    - Labeled data is stored for periodic model retraining
+    # DUPLICATE     This enables the feedback loop for model retraining:
+    # DUPLICATE     - Admin confirms or rejects AI verdicts
+    # DUPLICATE     - Labeled data is stored for periodic model retraining
 
-    Args:
-        wallet_address: Target wallet address
-        admin_label: 'fraud', 'safe', or 'uncertain'
-        admin_category: Optional category (money_laundering, scam, wash_trading)
-        admin_notes: Optional notes explaining the decision
-        admin_username: Who submitted the feedback
-    """
-    wallet_address = str(payload.get("wallet_address", "")).lower().strip()
-    admin_label = str(payload.get("admin_label", "")).lower().strip()
-    admin_category = payload.get("admin_category")
-    admin_notes = payload.get("admin_notes")
-    admin_username = str(payload.get("admin_username", "anonymous"))
+    # DUPLICATE     Args:
+        # DUPLICATE         wallet_address: Target wallet address
+        # DUPLICATE         admin_label: 'fraud', 'safe', or 'uncertain'
+        # DUPLICATE         admin_category: Optional category (money_laundering, scam, wash_trading)
+        # DUPLICATE         admin_notes: Optional notes explaining the decision
+        # DUPLICATE         admin_username: Who submitted the feedback
+    # DUPLICATE     """
+    # DUPLICATE     wallet_address = _validate_ethereum_address(payload.wallet_address)
+    # DUPLICATE     admin_label = payload.admin_label.lower().strip()
+    # DUPLICATE     admin_category = payload.admin_category
+    # DUPLICATE     admin_notes = payload.admin_notes
+    # DUPLICATE     admin_username = payload.admin_username
 
     # Validate inputs
-    if not wallet_address or not wallet_address.startswith("0x"):
-        raise HTTPException(status_code=400, detail="Invalid wallet_address")
+    # DUPLICATE     if not wallet_address or not wallet_address.startswith("0x"):
+        # DUPLICATE         raise HTTPException(status_code=400, detail="Invalid wallet_address")
 
-    valid_labels = ['fraud', 'safe', 'uncertain']
-    if admin_label not in valid_labels:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid admin_label. Must be one of: {valid_labels}"
-        )
+    # DUPLICATE     valid_labels = ['fraud', 'safe', 'uncertain']
+    # DUPLICATE     if admin_label not in valid_labels:
+        # DUPLICATE         raise HTTPException(
+            # DUPLICATE             status_code=400,
+            # DUPLICATE             detail=f"Invalid admin_label. Must be one of: {valid_labels}"
+        # DUPLICATE         )
 
     # Get current AI assessment for this wallet
-    wallet = database_session.query(Wallet).filter(
-        Wallet.address == wallet_address
-    ).first()
+    # DUPLICATE     wallet = database_session.query(Wallet).filter(
+        # DUPLICATE         Wallet.address == wallet_address
+    # DUPLICATE     ).first()
 
-    ai_score = float(wallet.risk_score or 0) if wallet else 0.0
-    ai_risk_level = "LOW"
-    if ai_score >= 90:
-        ai_risk_level = "CRITICAL"
-    elif ai_score >= 70:
-        ai_risk_level = "HIGH"
-    elif ai_score >= 50:
-        ai_risk_level = "MEDIUM"
+    # DUPLICATE     ai_score = float(wallet.risk_score or 0) if wallet else 0.0
+    # DUPLICATE     ai_risk_level = "LOW"
+    # DUPLICATE     if ai_score >= 90:
+        # DUPLICATE         ai_risk_level = "CRITICAL"
+    # DUPLICATE     elif ai_score >= 70:
+        # DUPLICATE         ai_risk_level = "HIGH"
+    # DUPLICATE     elif ai_score >= 50:
+        # DUPLICATE         ai_risk_level = "MEDIUM"
 
     # Create feedback record
-    feedback = FeedbackLabel(
-        wallet_address=wallet_address,
-        ai_score=ai_score,
-        ai_risk_level=ai_risk_level,
-        ai_model_version="Hybrid-ML-v2.0",
-        admin_label=admin_label,
-        admin_category=admin_category,
-        admin_notes=admin_notes,
-        admin_username=admin_username
-    )
-    database_session.add(feedback)
+    # DUPLICATE     feedback = FeedbackLabel(
+        # DUPLICATE         wallet_address=wallet_address,
+        # DUPLICATE         ai_score=ai_score,
+        # DUPLICATE         ai_risk_level=ai_risk_level,
+        # DUPLICATE         ai_model_version="Hybrid-ML-v2.0",
+        # DUPLICATE         admin_label=admin_label,
+        # DUPLICATE         admin_category=admin_category,
+        # DUPLICATE         admin_notes=admin_notes,
+        # DUPLICATE         admin_username=admin_username
+    # DUPLICATE     )
+    # DUPLICATE     database_session.add(feedback)
 
     # Update wallet based on admin feedback
-    if wallet and admin_label == 'fraud':
-        wallet.account_status = 'frozen'
-        wallet.risk_category = admin_category or wallet.risk_category
-        wallet.flagged_at = datetime.utcnow()
-        wallet.flagged_by = f"ADMIN:{admin_username}"
-        wallet.notes = f"{wallet.notes or ''}\n[{datetime.utcnow().isoformat()}] Admin confirmed as fraud." if wallet.notes else f"[{datetime.utcnow().isoformat()}] Admin confirmed as fraud."
+    # DUPLICATE     if wallet and admin_label == 'fraud':
+        # DUPLICATE         wallet.account_status = 'frozen'
+        # DUPLICATE         wallet.risk_category = admin_category or wallet.risk_category
+        # DUPLICATE         wallet.flagged_at = datetime.now(timezone.utc)
+        # DUPLICATE         wallet.flagged_by = f"ADMIN:{admin_username}"
+        # DUPLICATE         wallet.notes = f"{wallet.notes or ''}\n[{datetime.now(timezone.utc).isoformat()}] Admin confirmed as fraud." if wallet.notes else f"[{datetime.now(timezone.utc).isoformat()}] Admin confirmed as fraud."
 
         # Also add to blacklist if not already there
-        existing_blacklist = database_session.query(Blacklist).filter(
-            Blacklist.address == wallet_address
-        ).first()
-        if not existing_blacklist:
-            blacklist_entry = Blacklist(
-                address=wallet_address,
-                category=admin_category or 'admin_flagged',
-                source=f"Admin: {admin_username}",
-                description=admin_notes or "Confirmed fraud by admin",
-                severity="CRITICAL"
-            )
-            database_session.add(blacklist_entry)
+        # DUPLICATE         existing_blacklist = database_session.query(Blacklist).filter(
+            # DUPLICATE             Blacklist.address == wallet_address
+        # DUPLICATE         ).first()
+        # DUPLICATE         if not existing_blacklist:
+            # DUPLICATE             blacklist_entry = Blacklist(
+                # DUPLICATE                 address=wallet_address,
+                # DUPLICATE                 category=admin_category or 'admin_flagged',
+                # DUPLICATE                 source=f"Admin: {admin_username}",
+                # DUPLICATE                 description=admin_notes or "Confirmed fraud by admin",
+                # DUPLICATE                 severity="CRITICAL"
+            # DUPLICATE             )
+            # DUPLICATE             database_session.add(blacklist_entry)
 
-    elif wallet and admin_label == 'safe':
-        wallet.account_status = 'active'
-        wallet.risk_score = max(0, wallet.risk_score - 20) if wallet.risk_score else 0
-        wallet.notes = f"{wallet.notes or ''}\n[{datetime.utcnow().isoformat()}] Admin marked as safe." if wallet.notes else f"[{datetime.utcnow().isoformat()}] Admin marked as safe."
+    # DUPLICATE     elif wallet and admin_label == 'safe':
+        # DUPLICATE         wallet.account_status = 'active'
+        # DUPLICATE         wallet.risk_score = max(0, wallet.risk_score - 20) if wallet.risk_score else 0
+        # DUPLICATE         wallet.notes = f"{wallet.notes or ''}\n[{datetime.now(timezone.utc).isoformat()}] Admin marked as safe." if wallet.notes else f"[{datetime.now(timezone.utc).isoformat()}] Admin marked as safe."
 
     # Create audit log
-    audit = AuditLog(
-        action_type="FEEDBACK_SUBMITTED",
-        entity_type="wallet",
-        user_identifier=admin_username,
-        details={
-            "wallet_address": wallet_address,
-            "ai_score": ai_score,
-            "admin_label": admin_label,
-            "admin_category": admin_category
-        }
-    )
-    database_session.add(audit)
-    database_session.commit()
+    # DUPLICATE     audit = AuditLog(
+        # DUPLICATE         action_type="FEEDBACK_SUBMITTED",
+        # DUPLICATE         entity_type="wallet",
+        # DUPLICATE         user_identifier=admin_username,
+        # DUPLICATE         details={
+            # DUPLICATE             "wallet_address": wallet_address,
+            # DUPLICATE             "ai_score": ai_score,
+            # DUPLICATE             "admin_label": admin_label,
+            # DUPLICATE             "admin_category": admin_category
+        # DUPLICATE         }
+    # DUPLICATE     )
+    # DUPLICATE     database_session.add(audit)
+    # DUPLICATE     database_session.commit()
 
     # Get count of unlabeled data for training info
-    unlabeled_count = database_session.query(FeedbackLabel).filter(
-        FeedbackLabel.used_for_training == False
-    ).count()
+    # DUPLICATE     unlabeled_count = database_session.query(FeedbackLabel).filter(
+        # DUPLICATE         FeedbackLabel.used_for_training == False
+    # DUPLICATE     ).count()
 
-    logger.info(
-        f"FEEDBACK_RECORDED | wallet={wallet_address[:10]}... | "
-        f"label={admin_label} | by={admin_username}"
-    )
+    # DUPLICATE     logger.info(
+        # DUPLICATE         f"FEEDBACK_RECORDED | wallet={wallet_address[:10]}... | "
+        # DUPLICATE         f"label={admin_label} | by={admin_username}"
+    # DUPLICATE     )
 
-    return {
-        "success": True,
-        "feedback_id": str(feedback.id),
-        "wallet_address": wallet_address,
-        "admin_label": admin_label,
-        "ai_score_at_time": ai_score,
-        "wallet_status_updated": wallet.account_status if wallet else None,
-        "unlabeled_samples_for_training": unlabeled_count
-    }
+    # DUPLICATE     return {
+        # DUPLICATE         "success": True,
+        # DUPLICATE         "feedback_id": str(feedback.id),
+        # DUPLICATE         "wallet_address": wallet_address,
+        # DUPLICATE         "admin_label": admin_label,
+        # DUPLICATE         "ai_score_at_time": ai_score,
+        # DUPLICATE         "wallet_status_updated": wallet.account_status if wallet else None,
+        # DUPLICATE         "unlabeled_samples_for_training": unlabeled_count
+    # DUPLICATE     }
 
 
-@app.get("/feedback/stats", tags=["Admin - Feedback"])
-def get_feedback_stats(
-    database_session: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """
-    Get statistics on admin feedback for training monitoring.
-    """
-    from sqlalchemy import func
+# DUPLICATE: moved to ai_router.py - /feedback/stats
+# DUPLICATE: moved to ai_router.py - /feedback/stats
+# DUPLICATE: moved to ai_router.py - /feedback/stats
+# # @app.get("/feedback/stats", tags=["Admin - Feedback"])
+# DUPLICATE def get_feedback_stats(
+    # DUPLICATE     current_user: User = Depends(admin_or_analyst),
+    # DUPLICATE     database_session: Session = Depends(get_db)
+# DUPLICATE ) -> Dict[str, Any]:
+    # DUPLICATE     """
+    # DUPLICATE     Get statistics on admin feedback for training monitoring.
+    # DUPLICATE     """
+    # DUPLICATE     from sqlalchemy import func
 
-    total = database_session.query(FeedbackLabel).count()
-    unlabeled = database_session.query(FeedbackLabel).filter(
-        FeedbackLabel.used_for_training == False
-    ).count()
+    # DUPLICATE     total = database_session.query(FeedbackLabel).count()
+    # DUPLICATE     unlabeled = database_session.query(FeedbackLabel).filter(
+        # DUPLICATE         FeedbackLabel.used_for_training == False
+    # DUPLICATE     ).count()
 
     # Count by label
-    label_counts = database_session.query(
-        FeedbackLabel.admin_label,
-        func.count(FeedbackLabel.id)
-    ).group_by(FeedbackLabel.admin_label).all()
+    # DUPLICATE     label_counts = database_session.query(
+        # DUPLICATE         FeedbackLabel.admin_label,
+        # DUPLICATE         func.count(FeedbackLabel.id)
+    # DUPLICATE     ).group_by(FeedbackLabel.admin_label).all()
 
-    return {
-        "total_feedback": total,
-        "unlabeled_for_training": unlabeled,
-        "used_for_training": total - unlabeled,
-        "by_label": {label: count for label, count in label_counts},
-        "ready_for_retraining": unlabeled >= 50  # Threshold hint
-    }
+    # DUPLICATE     return {
+        # DUPLICATE         "total_feedback": total,
+        # DUPLICATE         "unlabeled_for_training": unlabeled,
+        # DUPLICATE         "used_for_training": total - unlabeled,
+        # DUPLICATE         "by_label": {label: count for label, count in label_counts},
+        # DUPLICATE         "ready_for_retraining": unlabeled >= 50  # Threshold hint
+    # DUPLICATE     }
 
 
+@app.get("/wallet/{wallet_address}/connections", tags=["Admin - Tracking"])
 @app.get("/wallets/{wallet_address}/connections", tags=["Admin - Tracking"])
 def get_wallet_connections(
     wallet_address: str,
-    database_session: Session = Depends(get_db)
+    database_session: Session = Depends(get_db),
+    current_user: User = Depends(admin_or_analyst),
 ) -> Dict[str, Any]:
     """
     Get all wallet connections (who this wallet interacted with).
     Used for the tracking page to show relationship graph.
     """
-    normalized_address = wallet_address.lower().strip()
+    normalized_address = _validate_ethereum_address(wallet_address)
 
     # Get wallets this address sent to
     sent_to = database_session.query(
@@ -2512,6 +2779,7 @@ def get_wallet_connections(
 
 @app.get("/blocked-transfers", tags=["Admin - History"])
 def get_blocked_transfers(
+    current_user: User = Depends(admin_or_analyst),
     limit: int = 100,
     search: str | None = None,
     min_risk: float | None = None,
@@ -2559,7 +2827,7 @@ def get_blocked_transfers(
         blocked = query.limit(limit).all()
 
         total_blocked = database_session.query(BlockedTransfer).count()
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         blocked_today = database_session.query(BlockedTransfer).filter(
             BlockedTransfer.blocked_at >= today_start
         ).count()
@@ -2606,6 +2874,7 @@ def get_blocked_transfers(
 
 @app.get("/_legacy_/cases", tags=["Cases"])
 def get_cases(
+    admin: User = Depends(require_admin),
     limit: int = 100,
     min_risk: float | None = None,
     search: str | None = None,
@@ -2688,6 +2957,7 @@ def get_cases(
 
 @app.get("/statistics/dashboard", tags=["Admin - Dashboard"])
 def get_dashboard_statistics(
+    current_user: User = Depends(admin_or_analyst),
     chain: str = Query(default="ethereum"),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -2702,10 +2972,10 @@ def get_dashboard_statistics(
 
     wallets = database_session.query(Wallet.risk_category, Wallet.risk_score).filter(
         Wallet.chain_id == canonical_chain
-    ).all()
+    ).limit(10000).all()
     alerts = database_session.query(Alert.alert_type, Alert.severity).filter(
         Alert.chain_id == canonical_chain
-    ).all()
+    ).limit(10000).all()
 
     ml_wallets = 0
     manip_wallets = 0
@@ -2755,7 +3025,7 @@ def get_dashboard_statistics(
     critical_alerts = database_session.query(Alert).filter(Alert.chain_id == canonical_chain, Alert.severity == 'CRITICAL').count()
     total_blocked = database_session.query(BlockedTransfer).filter(BlockedTransfer.chain_id == canonical_chain).count()
 
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     alerts_today = database_session.query(Alert).filter(Alert.detected_at >= today_start).count()
 
     return {
@@ -2789,6 +3059,7 @@ def get_dashboard_statistics(
 
 @app.get("/statistics/flow", tags=["Admin - History"])
 def get_money_flow_statistics(
+    current_user: User = Depends(admin_or_analyst),
     wallet_address: str = None,
     minutes: int = 5,
     chain: str = Query(default="ethereum"),
@@ -2808,7 +3079,7 @@ def get_money_flow_statistics(
 
     minutes = max(1, min(int(minutes or 5), 1440))
     normalized_wallet = (wallet_address or "").lower().strip() or None
-    end_date = datetime.utcnow()
+    end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(minutes=minutes)
 
     try:
@@ -2842,23 +3113,6 @@ def get_money_flow_statistics(
                     "outflow_eth": round(data["outflow"], 4)
                 })
         
-        # If no results found, generate high-quality mock data for the requested period
-        if not results:
-            import random
-            # Generate 60 data points (1 per second for the last minute)
-            points = min(60, minutes * 60)
-            for i in range(points):
-                d = end_date - timedelta(seconds=points - i)
-                time_str = d.strftime("%H:%M:%S")
-                # Generate consistent-looking mock data
-                seed_val = sum(ord(c) for c in (wallet_address or "system")) + i
-                random.seed(seed_val)
-                results.append({
-                    "date": time_str,
-                    "inflow_eth": round(random.uniform(5, 50), 2),
-                    "outflow_eth": round(random.uniform(4, 48), 2)
-                })
-
         return {
             "flow_data": results,
             "period_minutes": minutes,
@@ -2880,8 +3134,9 @@ def get_money_flow_statistics(
 
 @app.post("/send-with-warning", tags=["Transaction"])
 def send_eth_with_warning_system(
-    payload: Dict[str, Any],
-    database_session: Session = Depends(get_db)
+    payload: SendWithWarningRequest,
+    database_session: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ) -> Dict[str, Any]:
     """
     Enhanced send endpoint with 3-strike warning system.
@@ -2893,10 +3148,10 @@ def send_eth_with_warning_system(
     4. After 3 warnings: Auto-suspend sender account
     5. If critical (>80): Block immediately
     """
-    sender = str(payload.get("sender", "")).lower().strip()
-    receiver = str(payload.get("receiver", "")).lower().strip()
-    amount = float(payload.get("amount", 0))
-    force_proceed = payload.get("force_proceed", False)  # User clicked "proceed anyway"
+    sender = payload.sender.lower().strip()
+    receiver = payload.receiver.lower().strip()
+    amount = payload.amount
+    force_proceed = payload.force_proceed  # User clicked "proceed anyway"
 
     if not sender or not receiver:
         raise HTTPException(status_code=400, detail="sender and receiver are required")
@@ -2996,9 +3251,9 @@ def send_eth_with_warning_system(
         # Check if 3 strikes reached
         if warning_count >= 3:
             sender_wallet.account_status = 'suspended'
-            sender_wallet.flagged_at = datetime.utcnow()
+            sender_wallet.flagged_at = datetime.now(timezone.utc)
             sender_wallet.flagged_by = 'SYSTEM_AUTO_SUSPEND'
-            sender_wallet.notes = f"{sender_wallet.notes or ''}\n[{datetime.utcnow().isoformat()}] Auto-suspended after 3 risk warnings."
+            sender_wallet.notes = f"{sender_wallet.notes or ''}\n[{datetime.now(timezone.utc).isoformat()}] Auto-suspended after 3 risk warnings."
 
             # Create alert for admin
             suspend_alert = Alert(
@@ -3007,7 +3262,7 @@ def send_eth_with_warning_system(
                 severity="HIGH",
                 message=f"User account auto-suspended after ignoring 3 risk warnings. Last attempted transfer to {receiver}.",
                 risk_score=receiver_risk,
-                meta={
+                alert_metadata={
                     "warning_count": warning_count,
                     "last_target": receiver,
                     "last_risk": receiver_risk
@@ -3053,7 +3308,7 @@ def send_eth_with_warning_system(
         to_address=receiver,
         value=amount_wei,
         block_number=0,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         gas_price=0,
         gas_used=0,
         input_data="0x",
@@ -3064,7 +3319,7 @@ def send_eth_with_warning_system(
     # Update wallets
     sender_wallet.total_value_sent = int(sender_wallet.total_value_sent or 0) + amount_wei
     sender_wallet.total_transactions = int(sender_wallet.total_transactions or 0) + 1
-    sender_wallet.last_activity_at = datetime.utcnow()
+    sender_wallet.last_activity_at = datetime.now(timezone.utc)
 
     if not receiver_wallet:
         receiver_wallet = Wallet(address=receiver)
@@ -3072,7 +3327,7 @@ def send_eth_with_warning_system(
 
     receiver_wallet.total_value_received = int(receiver_wallet.total_value_received or 0) + amount_wei
     receiver_wallet.total_transactions = int(receiver_wallet.total_transactions or 0) + 1
-    receiver_wallet.last_activity_at = datetime.utcnow()
+    receiver_wallet.last_activity_at = datetime.now(timezone.utc)
 
     database_session.commit()
 
@@ -3092,15 +3347,92 @@ def send_eth_with_warning_system(
     }
 
 
+@app.post("/transfers/batch", tags=["Transaction"])
+def batch_transfer(
+    payload: BatchTransferRequest,
+    current_user: Optional[User] = Depends(optional_auth),
+    database_session: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    transfers = payload.transfers
+    if not transfers:
+        raise HTTPException(status_code=400, detail="No transfers provided")
+    results = []
+    for tx in transfers:
+        from_addr = tx.from_address.lower().strip()
+        to_addr = tx.to_address.lower().strip()
+        amount = tx.amount_eth
+        if not from_addr or not to_addr or amount <= 0:
+            results.append({"from": from_addr, "to": to_addr, "amount_eth": amount, "status": "invalid", "error": "Missing or invalid fields"})
+            continue
+        try:
+            result = _execute_single_transfer(database_session, from_addr, to_addr, amount)
+            results.append({**result, "status": "success"})
+        except HTTPException as e:
+            results.append({"from": from_addr, "to": to_addr, "amount_eth": amount, "status": "blocked", "error": e.detail})
+        except Exception as e:
+            results.append({"from": from_addr, "to": to_addr, "amount_eth": amount, "status": "error", "error": str(e)})
+    return {"total": len(transfers), "success_count": sum(1 for r in results if r["status"] == "success"), "results": results}
+
+
+# DUPLICATE: moved to ai_router.py - /exchange/rate
+# DUPLICATE: moved to ai_router.py - /exchange/rate
+# DUPLICATE: moved to ai_router.py - /exchange/rate
+# # @app.get("/exchange/rate", tags=["Exchange"])
+# DUPLICATE def get_exchange_rate(
+    # DUPLICATE     chain: str = "ethereum",
+    # DUPLICATE     current_user: Optional[User] = Depends(optional_auth),
+    # DUPLICATE     database_session: Session = Depends(get_db)
+# DUPLICATE ) -> Dict[str, Any]:
+    # DUPLICATE     canonical = _normalize_chain_name(chain)
+    # Fetch rates from DB instead of hardcoded
+    # DUPLICATE     rate_rows = database_session.query(ExchangeRate).filter(
+        # DUPLICATE         ExchangeRate.chain == canonical
+    # DUPLICATE     ).all()
+    # DUPLICATE     if not rate_rows:
+        # DUPLICATE         return {"chain": canonical, "rates": {}, "updated_at": datetime.now(timezone.utc).isoformat()}
+    # DUPLICATE     rates_map = {}
+    # DUPLICATE     for row in rate_rows:
+        # DUPLICATE         key = row.to_currency.lower()
+        # DUPLICATE         rates_map[key] = float(row.rate)
+    # DUPLICATE     updated_at = max((r.updated_at for r in rate_rows if r.updated_at), default=datetime.now(timezone.utc))
+    # DUPLICATE     return {"chain": canonical, "rates": rates_map, "updated_at": updated_at.isoformat() if updated_at else datetime.now(timezone.utc).isoformat()}
+
+
+# DUPLICATE: moved to ai_router.py - /exchange/estimate
+# DUPLICATE: moved to ai_router.py - /exchange/estimate
+# DUPLICATE: moved to ai_router.py - /exchange/estimate
+# # @app.post("/exchange/estimate", tags=["Exchange"])
+# DUPLICATE def estimate_exchange(
+    # DUPLICATE     payload: ExchangeEstimateRequest,
+    # DUPLICATE     current_user: Optional[User] = Depends(optional_auth),
+    # DUPLICATE     database_session: Session = Depends(get_db)
+# DUPLICATE ) -> Dict[str, Any]:
+    # DUPLICATE     from_currency = payload.from_currency.upper()
+    # DUPLICATE     to_currency = payload.to_currency.upper()
+    # DUPLICATE     amount = payload.amount
+    # DUPLICATE     if amount <= 0:
+        # DUPLICATE         raise HTTPException(status_code=400, detail="Amount must be positive")
+    # Fetch rate from DB for the given pair (default chain: ethereum)
+    # DUPLICATE     rate_row = database_session.query(ExchangeRate).filter(
+        # DUPLICATE         ExchangeRate.from_currency == from_currency,
+        # DUPLICATE         ExchangeRate.to_currency == to_currency
+    # DUPLICATE     ).first()
+    # DUPLICATE     if not rate_row:
+        # DUPLICATE         raise HTTPException(status_code=400, detail=f"Unsupported pair: {from_currency} -> {to_currency}")
+    # DUPLICATE     rate = float(rate_row.rate)
+    # DUPLICATE     return {"from": from_currency, "to": to_currency, "amount_in": amount, "amount_out": round(amount * rate, 6), "rate": rate}
+
+
 @app.get("/user/{wallet_address}/history", tags=["User"])
 def get_user_history(
     wallet_address: str,
+    current_user: Optional[User] = Depends(optional_auth),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Get user's transaction history including blocked transfers, successful transactions, and warnings.
     """
-    normalized_address = wallet_address.lower().strip()
+    normalized_address = _validate_ethereum_address(wallet_address)
 
     # Get blocked transfers where user was the sender
     blocked = database_session.query(BlockedTransfer).filter(
@@ -3170,6 +3502,162 @@ def get_user_history(
 
 
 # ============================================================================
+# ML / AI Pipeline API
+# ============================================================================
+
+class PromoteModelRequest(BaseModel):
+    model_name: str
+    version: str
+    artifact_uri: str = ""
+    framework: str = "pkl"
+
+@app.post("/admin/models/promote", tags=["Admin - AI/ML"])
+def promote_model(
+    payload: PromoteModelRequest,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Promote a model version to active (deactivates all other versions)."""
+    existing = db.query(ModelRegistry).filter(
+        ModelRegistry.model_name == payload.model_name,
+        ModelRegistry.version == payload.version
+    ).first()
+    if existing:
+        existing.is_active = True
+        existing.promoted_at = datetime.now(timezone.utc)
+        existing.promoted_by = admin.id
+    else:
+        artifact_uri = payload.artifact_uri or f"/models/{payload.model_name}/{payload.version}/"
+        entry = ModelRegistry(
+            model_name=payload.model_name, version=payload.version,
+            artifact_uri=artifact_uri, framework=payload.framework,
+            is_active=True, promoted_by=admin.id, promoted_at=datetime.now(timezone.utc)
+        )
+        db.add(entry)
+    db.query(ModelRegistry).filter(
+        ModelRegistry.model_name == payload.model_name,
+        ModelRegistry.version != payload.version
+    ).update({"is_active": False})
+    db.commit()
+    return {"success": True, "model_name": payload.model_name, "version": payload.version}
+
+@app.get("/admin/models", tags=["Admin - AI/ML"])
+def list_models(
+    admin: User = Depends(require_admin),
+    active_only: bool = Query(False, description="Only return active models"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """List all registered models."""
+    q = db.query(ModelRegistry).order_by(ModelRegistry.model_name, ModelRegistry.created_at.desc())
+    if active_only:
+        q = q.filter(ModelRegistry.is_active == True)
+    items = []
+    for m in q.all():
+        items.append({
+            "id": str(m.id), "model_name": m.model_name, "version": m.version,
+            "framework": m.framework, "is_active": m.is_active,
+            "artifact_uri": m.artifact_uri,
+            "promoted_at": m.promoted_at.isoformat() if m.promoted_at else None,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        })
+    return {"count": len(items), "items": items}
+
+@app.get("/admin/models/active", tags=["Admin - AI/ML"])
+def get_active_model(
+    admin: User = Depends(require_admin),
+    model_name: str = Query("risk_predictor"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Get the currently active model for a given name."""
+    model = db.query(ModelRegistry).filter(
+        ModelRegistry.model_name == model_name, ModelRegistry.is_active == True
+    ).first()
+    if not model:
+        return {"found": False, "model_name": model_name}
+    return {
+        "found": True, "id": str(model.id), "model_name": model.model_name,
+        "version": model.version, "framework": model.framework,
+        "artifact_uri": model.artifact_uri,
+        "promoted_at": model.promoted_at.isoformat() if model.promoted_at else None,
+    }
+
+@app.get("/admin/features", tags=["Admin - AI/ML"])
+def list_features(
+    admin: User = Depends(require_admin),
+    enabled_only: bool = Query(True),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """List feature store configs."""
+    q = db.query(FeatureStoreConfig).order_by(FeatureStoreConfig.feature_key)
+    if enabled_only:
+        q = q.filter(FeatureStoreConfig.enabled == True)
+    items = []
+    for f in q.all():
+        items.append({
+            "id": str(f.id), "feature_key": f.feature_key,
+            "enabled": f.enabled, "expression": f.expression,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        })
+    return {"count": len(items), "items": items}
+
+class RetrainTriggerRequest(BaseModel):
+    model_name: str = "risk_predictor"
+    feedback_threshold: int = 50
+
+@app.post("/admin/retrain", tags=["Admin - AI/ML"])
+def trigger_retrain(
+    payload: RetrainTriggerRequest,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Trigger model retraining using collected feedback data."""
+    unlabeled = db.query(FeedbackLabel).filter(FeedbackLabel.admin_label == "uncertain").count()
+    labeled = db.query(FeedbackLabel).filter(FeedbackLabel.admin_label.in_(["fraud", "safe"])).count()
+    total = unlabeled + labeled
+    if total < payload.feedback_threshold:
+        return {
+            "triggered": False,
+            "reason": f"Insufficient feedback: {total} samples (need {payload.feedback_threshold})",
+            "unlabeled": unlabeled, "labeled": labeled
+        }
+    try:
+        from retrain_from_feedback import retrain as run_retrain
+        run_retrain()
+    except Exception as e:
+        logger.exception(f"Retrain failed: {e}")
+        return {
+            "triggered": False, "error": str(e),
+            "unlabeled": unlabeled, "labeled": labeled
+        }
+    return {
+        "triggered": True, "model_name": payload.model_name,
+        "unlabeled": unlabeled, "labeled": labeled, "total": total
+    }
+
+@app.get("/admin/models/metrics", tags=["Admin - AI/ML"])
+def get_model_metrics(
+    admin: User = Depends(require_admin),
+    model_name: str = Query("risk_predictor"),
+    limit: int = Query(100, le=1000),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Get pipeline metrics for a given model."""
+    metrics = db.query(PipelineMetric).order_by(
+        PipelineMetric.inserted_at.desc()
+    ).limit(limit).all()
+    items = []
+    for m in reversed(metrics):
+        items.append({
+            "id": str(m.id), "chain": m.chain,
+            "block_number": m.block_number, "throughput_tps": m.throughput_tps,
+            "ingestion_latency_ms": m.ingestion_latency_ms,
+            "decode_latency_ms": m.decode_latency_ms,
+            "inserted_at": m.inserted_at.isoformat() if m.inserted_at else None,
+        })
+    return {"count": len(items), "items": items}
+
+
+# ============================================================================
 class OrganizationCreate(BaseModel):
     name: str
     slug: str
@@ -3177,60 +3665,20 @@ class OrganizationCreate(BaseModel):
     is_active: bool = True
 
 @app.get("/ops/system/organizations", tags=["System Admin"])
-def get_organizations(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get all organizations with default fallback seeding."""
+def get_organizations(admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get all organizations from database without hardcoded fallbacks."""
     try:
-        orgs = database_session.query(Organization).all()
-        if not orgs:
-            # Seed them
-            org1 = Organization(
-                name="Global Bank Vietnam",
-                slug="gbv",
-                contact_email="admin@gbv.com",
-                api_key="sk_live_gbv_a4f2",
-                is_active=True
-            )
-            org2 = Organization(
-                name="DNTU Exchange",
-                slug="dntu",
-                contact_email="security@dntu.edu.vn",
-                api_key="sk_live_dntu_9e11",
-                is_active=True
-            )
-            org3 = Organization(
-                name="SafeTrade Singapore",
-                slug="sts",
-                contact_email="compliance@safetrade.sg",
-                api_key="sk_live_sts_8c41",
-                is_active=False
-            )
-            database_session.add_all([org1, org2, org3])
-            database_session.commit()
-            orgs = [org1, org2, org3]
-            
+        orgs = database_session.query(Organization).order_by(Organization.name).all()
         items = []
         for org in orgs:
-            # Count actual users in DB
             user_count = database_session.query(User).filter(User.organization_id == org.id).count()
-            if org.slug == 'gbv' and user_count == 0:
-                user_count = 12
-            elif org.slug == 'dntu' and user_count == 0:
-                user_count = 5
-                
-            # Formatting API Calls
-            api_calls = "0"
-            if org.slug == 'gbv':
-                api_calls = "1.2M"
-            elif org.slug == 'dntu':
-                api_calls = "450K"
-                
             items.append({
                 "id": str(org.id),
                 "name": org.name,
                 "slug": org.slug,
                 "status": "Active" if org.is_active else "Suspended",
                 "users": user_count,
-                "api_calls": api_calls
+                "api_calls": "0"
             })
         return {"count": len(items), "items": items}
     except Exception as e:
@@ -3238,7 +3686,7 @@ def get_organizations(database_session: Session = Depends(get_db)) -> Dict[str, 
         return {"count": 0, "items": [], "error": str(e)}
 
 @app.post("/ops/system/organizations", tags=["System Admin"])
-def create_organization(payload: OrganizationCreate, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def create_organization(payload: OrganizationCreate, admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Create a new organization."""
     try:
         existing = database_session.query(Organization).filter(
@@ -3275,31 +3723,27 @@ def create_organization(payload: OrganizationCreate, database_session: Session =
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/ops/system/api-keys", tags=["System Admin"])
-def get_api_keys(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_api_keys(admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get active API keys from organizations."""
     try:
-        orgs = database_session.query(Organization).all()
-        if not orgs:
-            get_organizations(database_session)
-            orgs = database_session.query(Organization).all()
-            
-        items = []
-        for org in orgs:
-            if org.api_key:
-                items.append({
-                    "id": str(org.id),
-                    "name": f"{org.name} Gateway",
-                    "key": org.api_key,
-                    "created": org.created_at.strftime("%Y-%m-%d") if org.created_at else "2024-05-01",
-                    "usage": "High" if org.slug == "gbv" else "Low"
-                })
+        orgs = database_session.query(Organization).filter(Organization.api_key.is_not(None)).all()
+        items = [
+            {
+                "id": str(org.id),
+                "name": f"{org.name} Gateway",
+                "key": org.api_key,
+                "created": org.created_at.strftime("%Y-%m-%d") if org.created_at else datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                "usage": "0"
+            }
+            for org in orgs
+        ]
         return {"count": len(items), "items": items}
     except Exception as e:
         logger.exception(f"Failed to fetch API keys: {e}")
         return {"count": 0, "items": [], "error": str(e)}
 
 @app.post("/ops/system/api-keys", tags=["System Admin"])
-def generate_api_key(org_id: str = Query(...), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def generate_api_key(org_id: str = Query(...), admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Generate or regenerate API key for an organization."""
     try:
         org = database_session.query(Organization).filter(Organization.id == org_id).first()
@@ -3322,7 +3766,7 @@ def generate_api_key(org_id: str = Query(...), database_session: Session = Depen
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/ops/system/api-keys/{org_id}", tags=["System Admin"])
-def revoke_api_key(org_id: str, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+def revoke_api_key(org_id: str, admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
     """Revoke (clear) API key for an organization."""
     try:
         org = database_session.query(Organization).filter(Organization.id == org_id).first()
@@ -3335,516 +3779,3 @@ def revoke_api_key(org_id: str, database_session: Session = Depends(get_db)) -> 
         logger.exception(f"Failed to revoke API key: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# SYSTEM ADMIN ENDPOINTS
-# ============================================================================
-
-@app.get("/ops/system/node-endpoints", tags=["System Admin"])
-def get_node_endpoints(only_active: bool = True, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get blockchain node endpoints for system monitoring."""
-    try:
-        nodes = database_session.query(NodeEndpoint).all()
-        return {
-            "count": len(nodes),
-            "items": [
-                {
-                    "id": str(node.id),
-                    "provider_name": node.provider_name,
-                    "chain": node.chain,
-                    "endpoint_url": node.endpoint_url,
-                    "protocol": node.protocol or "HTTP",
-                    "priority": node.priority or 1,
-                    "is_active": node.is_active,
-                    "health_status": node.health_status or ("healthy" if node.is_active else "unknown"),
-                    "last_error": node.last_error,
-                    "last_checked_at": node.last_checked_at.isoformat() if node.last_checked_at else None
-                }
-                for node in (nodes if not only_active else [n for n in nodes if n.is_active])
-            ]
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch node endpoints: {e}")
-        return {"count": 0, "items": [], "error": str(e)}
-
-
-@app.get("/ops/system/pipeline-metrics", tags=["System Admin"])
-def get_pipeline_metrics(limit: int = 12, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get pipeline ingestion metrics."""
-    limit = max(1, min(int(limit or 12), 200))
-    try:
-        metrics = (
-            database_session.query(PipelineMetric)
-            .order_by(PipelineMetric.inserted_at.desc(), PipelineMetric.id.desc())
-            .limit(limit)
-            .all()
-        )
-
-        return {
-            "count": len(metrics),
-            "items": [
-                {
-                    "id": int(metric.id),
-                    "chain": metric.chain,
-                    "block_number": int(metric.block_number) if metric.block_number is not None else None,
-                    "throughput_tps": float(metric.throughput_tps) if metric.throughput_tps is not None else None,
-                    "ingestion_latency_ms": metric.ingestion_latency_ms,
-                    "decode_latency_ms": metric.decode_latency_ms,
-                    "inserted_at": metric.inserted_at.isoformat() if metric.inserted_at else None,
-                }
-                for metric in metrics
-            ]
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch pipeline metrics: {e}")
-        return {"count": 0, "items": [], "error": str(e)}
-
-
-@app.get("/ops/system/pipeline-metrics/summary", tags=["System Admin"])
-def get_pipeline_metrics_summary(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get pipeline metrics summary."""
-    try:
-        total_points = database_session.query(func.count(PipelineMetric.id)).scalar() or 0
-        avg_throughput_tps = database_session.query(func.avg(PipelineMetric.throughput_tps)).scalar()
-        avg_ingestion_latency_ms = database_session.query(func.avg(PipelineMetric.ingestion_latency_ms)).scalar()
-        avg_decode_latency_ms = database_session.query(func.avg(PipelineMetric.decode_latency_ms)).scalar()
-        last_block_number = database_session.query(func.max(PipelineMetric.block_number)).scalar()
-
-        return {
-            "total_points": int(total_points),
-            "avg_throughput_tps": float(avg_throughput_tps) if avg_throughput_tps is not None else None,
-            "avg_ingestion_latency_ms": float(avg_ingestion_latency_ms) if avg_ingestion_latency_ms is not None else None,
-            "avg_decode_latency_ms": float(avg_decode_latency_ms) if avg_decode_latency_ms is not None else None,
-            "last_block_number": int(last_block_number) if last_block_number is not None else None,
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch pipeline summary: {e}")
-        return {"total_points": 0, "avg_throughput_tps": None, "avg_ingestion_latency_ms": None, "avg_decode_latency_ms": None, "last_block_number": None}
-
-
-@app.get("/ops/system/slo-metrics", tags=["System Admin"])
-def get_slo_metrics(days: int = 14, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get SLO compliance metrics."""
-    days = max(1, min(int(days or 14), 90))
-    try:
-        from datetime import timedelta
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=days)
-
-        endpoints = database_session.query(NodeEndpoint).all()
-        total = len(endpoints)
-        active = len([n for n in endpoints if n.is_active])
-        healthy_active = len([n for n in endpoints if n.is_active and (n.health_status or "unknown").lower() == "healthy"])
-        availability_pct = (healthy_active / active * 100.0) if active > 0 else 0.0
-        error_budget_burn_pct = max(0.0, min(100.0, 100.0 - availability_pct))
-
-        metrics_window = database_session.query(PipelineMetric).filter(PipelineMetric.inserted_at >= start_date).all()
-        ingest_values = [m.ingestion_latency_ms for m in metrics_window if m.ingestion_latency_ms is not None]
-        decode_values = [m.decode_latency_ms for m in metrics_window if m.decode_latency_ms is not None]
-        ingest_target_ms = 500.0
-        decode_target_ms = 200.0
-
-        ingest_p95_ms = float(max(ingest_values)) if ingest_values else 0.0
-        decode_p95_ms = float(max(decode_values)) if decode_values else 0.0
-        ingest_breaches = len([v for v in ingest_values if v > ingest_target_ms])
-        decode_breaches = len([v for v in decode_values if v > decode_target_ms])
-
-        return {
-            "period_days": days,
-            "endpoint_health": {
-                "total": total,
-                "active": active,
-                "healthy_active": healthy_active,
-                "availability_pct": round(availability_pct, 2),
-                "error_budget_burn_pct": round(error_budget_burn_pct, 2),
-            },
-            "latency_slo": {
-                "ingest_target_ms": ingest_target_ms,
-                "decode_target_ms": decode_target_ms,
-                "ingest_p95_ms": round(ingest_p95_ms, 2),
-                "decode_p95_ms": round(decode_p95_ms, 2),
-                "ingest_breaches": ingest_breaches,
-                "decode_breaches": decode_breaches,
-                "sample_points": len(metrics_window),
-            }
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch SLO metrics: {e}")
-        return {
-            "period_days": days,
-            "endpoint_health": {"total": 0, "active": 0, "healthy_active": 0, "availability_pct": 0, "error_budget_burn_pct": 0},
-            "latency_slo": {"ingest_target_ms": 500, "decode_target_ms": 200, "ingest_p95_ms": 0, "decode_p95_ms": 0, "ingest_breaches": 0, "decode_breaches": 0, "sample_points": 0},
-            "error": str(e)
-        }
-
-
-# ============================================================================
-# AI DATA ENGINEER ENDPOINTS
-# ============================================================================
-
-@app.get("/ops/ai/feature-store", tags=["AI Engineer"])
-def get_feature_store(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get feature store configuration."""
-    try:
-        features = database_session.query(FeatureStoreConfig).all()
-        enabled = len([f for f in features if f.enabled])
-        return {
-            "count": len(features),
-            "items": [
-                {
-                    "id": str(f.id),
-                    "feature_key": f.feature_key,
-                    "enabled": f.enabled,
-                    "expression": f.expression,
-                    "owner_user_id": str(f.owner_user_id) if f.owner_user_id else None,
-                    "updated_at": f.updated_at.isoformat() if f.updated_at else None
-                }
-                for f in features
-            ]
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch feature store: {e}")
-        return {"count": 0, "items": [], "error": str(e)}
-
-
-@app.get("/ops/ai/model-registry", tags=["AI Engineer"])
-def get_model_registry(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get model registry."""
-    try:
-        models = database_session.query(ModelRegistry).all()
-        return {
-            "count": len(models),
-            "items": [
-                {
-                    "id": str(m.id),
-                    "model_name": m.model_name,
-                    "version": m.version,
-                    "artifact_uri": m.artifact_uri,
-                    "framework": m.framework,
-                    "is_active": m.is_active,
-                    "promoted_by": str(m.promoted_by) if m.promoted_by else None,
-                    "promoted_at": m.promoted_at.isoformat() if m.promoted_at else None,
-                    "created_at": m.created_at.isoformat() if m.created_at else None
-                }
-                for m in models
-            ]
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch model registry: {e}")
-        return {"count": 0, "items": [], "error": str(e)}
-
-
-@app.get("/ops/ai/model-registry/active", tags=["AI Engineer"])
-def get_active_models(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get active models only."""
-    try:
-        models = database_session.query(ModelRegistry).filter(ModelRegistry.is_active == True).all()
-        return {
-            "count": len(models),
-            "items": [
-                {
-                    "id": str(m.id),
-                    "model_name": m.model_name,
-                    "version": m.version,
-                    "artifact_uri": m.artifact_uri,
-                    "framework": m.framework,
-                    "is_active": m.is_active,
-                    "promoted_by": str(m.promoted_by) if m.promoted_by else None,
-                    "promoted_at": m.promoted_at.isoformat() if m.promoted_at else None,
-                    "created_at": m.created_at.isoformat() if m.created_at else None
-                }
-                for m in models
-            ]
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch active models: {e}")
-        return {"count": 0, "items": [], "error": str(e)}
-
-
-# ============================================================================
-# SECURITY ANALYST ENDPOINTS
-# ============================================================================
-
-@app.get("/ops/security/alerts-summary", tags=["Security Analyst"])
-def get_alerts_summary(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get alerts summary."""
-    try:
-        alerts = database_session.query(Alert).all()
-        today = datetime.utcnow().date()
-        return {
-            "today": len([a for a in alerts if a.detected_at and a.detected_at.date() == today]),
-            "critical": len([a for a in alerts if a.severity == "CRITICAL"]),
-            "high": len([a for a in alerts if a.severity == "HIGH"]),
-            "medium": len([a for a in alerts if a.severity == "MEDIUM"]),
-            "low": len([a for a in alerts if a.severity == "LOW"])
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch alerts summary: {e}")
-        return {"today": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
-
-
-@app.get("/ops/security/case-summary", tags=["Security Analyst"])
-def get_case_summary(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get cases summary."""
-    try:
-        cases = database_session.query(TransactionCase).all()
-        return {
-            "totals": {
-                "PENDING": len([c for c in cases if c.state == "PENDING"]),
-                "VERIFIED": len([c for c in cases if c.state == "VERIFIED"]),
-                "FRAUD": len([c for c in cases if c.state == "FRAUD"]),
-                "IGNORED": len([c for c in cases if c.state == "IGNORED"])
-            },
-            "unassigned": len([c for c in cases if not c.analyst_id]),
-            "high_risk_unassigned": len([c for c in cases if not c.analyst_id and c.state == "PENDING"])
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch case summary: {e}")
-        return {"totals": {}, "unassigned": 0, "high_risk_unassigned": 0}
-
-
-@app.get("/ops/security/notifications", tags=["Security Analyst"])
-def get_notifications(limit: int = 10, database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get recent notifications."""
-    try:
-        notifications = database_session.query(NotificationEvent).order_by(NotificationEvent.created_at.desc()).limit(limit).all()
-        return {
-            "count": len(notifications),
-            "items": [
-                {
-                    "id": str(n.id),
-                    "channel": n.channel,
-                    "recipient": n.recipient,
-                    "severity": n.severity,
-                    "message": n.message,
-                    "status": n.status,
-                    "delivery_status": n.status,
-                    "metadata": n.meta or None,
-                    "created_at": n.created_at.isoformat() if n.created_at else None,
-                    "sent_at": n.sent_at.isoformat() if n.sent_at else None,
-                }
-                for n in notifications
-            ]
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch notifications: {e}")
-        return {"count": 0, "items": [], "error": str(e)}
-
-@app.get("/ops/compliance/policy-rules", tags=["Compliance"])
-def get_policy_rules(database_session: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Get active policy rules for compliance dashboard."""
-    try:
-        rules = database_session.query(PolicyRule).all()
-        return {
-            "count": len(rules),
-            "items": [
-                {
-                    "id": str(rule.id),
-                    "rule_name": rule.rule_name,
-                    "description": rule.description,
-                    "min_risk_score": float(rule.min_risk_score or 0),
-                    "block_blacklisted": bool(rule.block_blacklisted),
-                    "block_suspended": bool(rule.block_suspended),
-                    "notify_on_block": bool(rule.notify_on_block),
-                    "priority": int(rule.priority or 0),
-                    "is_active": bool(rule.is_active),
-                    "enabled": bool(rule.is_active),
-                    "created_at": rule.created_at.isoformat() if rule.created_at else None,
-                    "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
-                }
-                for rule in rules
-            ]
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch policy rules: {e}")
-        return {"count": 0, "items": [], "error": str(e)}
-
-
-@app.get("/ops/compliance/reporting/summary", tags=["Compliance"])
-def get_reporting_summary(
-    days: int = 30,
-    database_session: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """Get compliance reporting summary for last N days."""
-    try:
-        from datetime import timedelta
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=max(1, min(days, 365)))
-
-        alerts = database_session.query(Alert).filter(Alert.detected_at >= start_date).all()
-        blocked = database_session.query(BlockedTransfer).filter(BlockedTransfer.blocked_at >= start_date).all()
-        cases = database_session.query(TransactionCase).filter(TransactionCase.created_at >= start_date).all()
-        rules = database_session.query(PolicyRule).all()
-        notifications = database_session.query(NotificationEvent).filter(NotificationEvent.created_at >= start_date).all()
-
-        critical_count = len([a for a in alerts if a.severity == "CRITICAL"])
-        blocked_value = sum(float(_eth_from_wei(int(b.amount or 0))) for b in blocked)
-
-        return {
-            "period": {
-                "days": days,
-                "start": start_date.isoformat(),
-                "end": end_date.isoformat()
-            },
-            "kpis": {
-                "alerts_total": len(alerts),
-                "critical_alerts": critical_count,
-                "blocked_total": len(blocked),
-                "blocked_value_eth": blocked_value,
-                "policy_rules_active": len([r for r in rules if r.is_active]),
-                "notifications_sent": len([n for n in notifications if n.status == "sent"]),
-                "notifications_failed": len([n for n in notifications if n.status == "failed"]),
-                "audit_events": len(cases)
-            },
-            "cases": {
-                "total": len(cases),
-                "fraud": len([c for c in cases if c.state == "FRAUD"]),
-                "pending": len([c for c in cases if c.state == "PENDING"]),
-                "verified": len([c for c in cases if c.state == "VERIFIED"])
-            }
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch reporting summary: {e}")
-        return {
-            "period": {"days": days, "start": "", "end": ""},
-            "kpis": {"alerts_total": 0, "critical_alerts": 0, "blocked_total": 0, "blocked_value_eth": 0, "policy_rules_active": 0, "notifications_sent": 0, "notifications_failed": 0, "audit_events": 0},
-            "cases": {"total": 0, "fraud": 0, "pending": 0, "verified": 0},
-            "error": str(e)
-        }
-
-
-@app.get("/ops/compliance/reporting/control-effectiveness", tags=["Compliance"])
-def get_control_effectiveness(
-    days: int = 30,
-    database_session: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """Get control effectiveness metrics."""
-    try:
-        from datetime import timedelta
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=max(1, min(days, 365)))
-
-        alerts = database_session.query(Alert).filter(Alert.detected_at >= start_date).all()
-        blocked = database_session.query(BlockedTransfer).filter(BlockedTransfer.blocked_at >= start_date).all()
-        cases = database_session.query(TransactionCase).filter(TransactionCase.created_at >= start_date).all()
-
-        actionable_alerts = len([a for a in alerts if a.acknowledged])
-        fraud_cases = len([c for c in cases if c.state == "FRAUD"])
-        ignored_cases = len([c for c in cases if c.state == "IGNORED"])
-
-        block_rate = (len(blocked) / max(1, len(alerts))) * 100 if alerts else 0
-        fraud_precision = (fraud_cases / max(1, len(cases))) * 100 if cases else 0
-        decision_coverage = (len(cases) / max(1, len(alerts))) * 100 if alerts else 0
-
-        return {
-            "period_days": days,
-            "inputs": {
-                "actionable_alerts": actionable_alerts,
-                "blocked_total": len(blocked),
-                "fraud_cases": fraud_cases,
-                "ignored_cases": ignored_cases
-            },
-            "metrics": {
-                "block_rate_pct": round(block_rate, 2),
-                "fraud_precision_proxy_pct": round(fraud_precision, 2),
-                "decision_coverage": round(decision_coverage, 2)
-            }
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch control effectiveness: {e}")
-        return {
-            "period_days": days,
-            "inputs": {"actionable_alerts": 0, "blocked_total": 0, "fraud_cases": 0, "ignored_cases": 0},
-            "metrics": {"block_rate_pct": 0, "fraud_precision_proxy_pct": 0, "decision_coverage": 0},
-            "error": str(e)
-        }
-
-
-@app.get("/ops/compliance/reporting/audit-completeness", tags=["Compliance"])
-def get_audit_completeness(
-    days: int = 30,
-    database_session: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """Get audit completeness metrics."""
-    try:
-        from datetime import timedelta
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=max(1, min(days, 365)))
-
-        # Build compliance checks from actual audit logs to match frontend contract.
-        audit_rows = database_session.query(AuditLog).filter(AuditLog.timestamp >= start_date).all()
-        required_action_types = ["CREATE", "UPDATE", "BLOCK", "REVIEW", "EXPORT"]
-        count_by_action: Dict[str, int] = {action: 0 for action in required_action_types}
-        for row in audit_rows:
-            action = (row.action_type or "").upper()
-            if action in count_by_action:
-                count_by_action[action] += 1
-
-        checks = [
-            {
-                "action_type": action,
-                "count": count,
-                "present": count > 0,
-            }
-            for action, count in count_by_action.items()
-        ]
-
-        required_actions = len(required_action_types)
-        present_actions = len([item for item in checks if item["present"]])
-        completeness = (present_actions / max(1, required_actions)) * 100
-
-        return {
-            "period_days": days,
-            "required_actions": required_actions,
-            "present_actions": present_actions,
-            "completeness_pct": round(completeness, 2),
-            "checks": checks,
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch audit completeness: {e}")
-        return {
-            "period_days": days,
-            "required_actions": 0,
-            "present_actions": 0,
-            "completeness_pct": 0,
-            "checks": [],
-            "error": str(e)
-        }
-
-
-@app.get("/ops/compliance/reporting/audit-gaps", tags=["Compliance"])
-def get_audit_gaps(
-    days: int = 30,
-    database_session: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """Get audit gaps and missing actions."""
-    try:
-        from datetime import timedelta
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=max(1, min(days, 365)))
-
-        audit_rows = database_session.query(AuditLog).filter(AuditLog.timestamp >= start_date).all()
-        required_action_types = ["CREATE", "UPDATE", "BLOCK", "REVIEW", "EXPORT"]
-        seen_actions = {(row.action_type or "").upper() for row in audit_rows}
-        missing_action_types = [action for action in required_action_types if action not in seen_actions]
-
-        return {
-            "period_days": days,
-            "missing_count": len(missing_action_types),
-            "missing_actions": [
-                {
-                    "action_type": action,
-                    "owner_role": "compliance_risk_manager",
-                    "reason": "No audit entries found for this action in the selected period",
-                    "recommended_next_step": "Trigger and record at least one audit event for this action type",
-                }
-                for action in missing_action_types
-            ]
-        }
-    except Exception as e:
-        logger.exception(f"Failed to fetch audit gaps: {e}")
-        return {
-            "period_days": days,
-            "missing_count": 0,
-            "missing_actions": [],
-            "error": str(e)
-        }

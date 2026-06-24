@@ -11,6 +11,10 @@ function createIntegrationDb() {
 
       if (q === 'select 1') return { rows: [{ ok: 1 }] };
 
+      if (q.includes('from wallets w')) return { rows: [] };
+
+      if (q.includes('from usage_logs l')) return { rows: [] };
+
       if (q.includes('from users where lower(username) = lower($1)')) {
         const user = users.find((u) => u.username.toLowerCase() === String(params[0]).toLowerCase());
         return { rows: user ? [user] : [] };
@@ -41,6 +45,18 @@ function createIntegrationDb() {
         users.push(row);
         const { password_hash: _, ...safeUser } = row;
         return { rows: [safeUser] };
+      }
+
+      if (q.startsWith('insert into wallets')) {
+        return { rows: [] };
+      }
+
+      if (q.startsWith('insert into transactions')) {
+        return { rows: [] };
+      }
+
+      if (q.startsWith('update wallets')) {
+        return { rows: [] };
       }
 
       throw new Error(`Unhandled query: ${sql}`);

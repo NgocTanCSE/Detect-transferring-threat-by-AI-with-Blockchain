@@ -7,8 +7,8 @@ services:
       - "5672:5672" # AMQP
       - "15672:15672" # Management UI
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin123
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -19,7 +19,7 @@ services:
     networks:
       - blockchain_network
 
-  # PostgreSQL - Main Database (auth, wallet, compliance, etc.)
+  # PostgreSQL - Main Database (auth, wallet, compliance, alerts, transfers, etc.)
   postgres_main:
     image: postgres:16-alpine
     container_name: blockchain_postgres_main
@@ -27,50 +27,12 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: blockchain
-      POSTGRES_PASSWORD: blockchain123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: blockchain_main
     volumes:
       - postgres_main_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U blockchain" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - blockchain_network
-
-  # PostgreSQL - Alert Database
-  postgres_alerts:
-    image: postgres:16-alpine
-    container_name: blockchain_postgres_alerts
-    ports:
-      - "5433:5432"
-    environment:
-      POSTGRES_USER: blockchain
-      POSTGRES_PASSWORD: blockchain123
-      POSTGRES_DB: blockchain_alerts
-    volumes:
-      - postgres_alerts_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U blockchain" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - blockchain_network
-
-  # PostgreSQL - Transfer Database
-  postgres_transfers:
-    image: postgres:16-alpine
-    container_name: blockchain_postgres_transfers
-    ports:
-      - "5434:5432"
-    environment:
-      POSTGRES_USER: blockchain
-      POSTGRES_PASSWORD: blockchain123
-      POSTGRES_DB: blockchain_transfers
-    volumes:
-      - postgres_transfers_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+      - ./database/migrate_sync_columns.sql:/docker-entrypoint-initdb.d/002_migrate_sync_columns.sql:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U blockchain" ]
       interval: 10s
@@ -99,7 +61,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 8001
-      JWT_SECRET: your_jwt_secret_key_here_change_in_production
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_ALGORITHM: HS256
       AUTH_SERVICE_URL: http://auth-service:3001
       ALERT_SERVICE_URL: http://alert-service:3003
@@ -131,8 +93,8 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
-      JWT_SECRET: your_jwt_secret_key_here_change_in_production
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_EXPIRY: 7d
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3001/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
@@ -151,15 +113,15 @@ services:
     ports:
       - "3003:3003"
     depends_on:
-      postgres_alerts:
+      postgres_main:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     environment:
       NODE_ENV: development
       PORT: 3003
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_alerts:5432/blockchain_alerts
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
+      RABBITMQ_URL: amqp://admin:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3003/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
@@ -185,7 +147,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3002
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3002/health" ]
       interval: 10s
@@ -203,15 +165,15 @@ services:
     ports:
       - "3004:3004"
     depends_on:
-      postgres_transfers:
+      postgres_main:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     environment:
       NODE_ENV: development
       PORT: 3004
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
+      RABBITMQ_URL: amqp://admin:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
       ANALYTICS_SERVICE_URL: http://analytics-service:3005
       ALERT_SERVICE_URL: http://alert-service:3003
     healthcheck:
@@ -236,7 +198,7 @@ services:
     environment:
       PYTHONUNBUFFERED: 1
       PORT: 3005
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
       ALCHEMY_API_KEY: ${ALCHEMY_API_KEY}
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3005/health" ]
@@ -262,8 +224,8 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3006
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
+      RABBITMQ_URL: amqp://admin:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3006/health" ]
       interval: 10s
@@ -286,7 +248,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3007
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+      RABBITMQ_URL: amqp://admin:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3007/health" ]
       interval: 10s
@@ -306,7 +268,7 @@ services:
     restart: always
     command: python scanner.py
     environment:
-      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      - DATABASE_URL=postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
       - ALERT_SERVICE_URL=http://alert-service:3003
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
     depends_on:
@@ -329,7 +291,7 @@ services:
     volumes:
       - ../database:/database
     environment:
-      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      - DATABASE_URL=postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
     depends_on:
       postgres_main:
@@ -344,8 +306,6 @@ services:
 
 volumes:
   postgres_main_data:
-  postgres_alerts_data:
-  postgres_transfers_data:
   rabbitmq_data:
 
 networks:

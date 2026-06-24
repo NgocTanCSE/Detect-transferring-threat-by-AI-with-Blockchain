@@ -1,0 +1,9 @@
+{
+  "name": "blockchain-shared",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "uuid": "^9.0.1",
+    "prom-client": "^15.0.0"
+  }
+}

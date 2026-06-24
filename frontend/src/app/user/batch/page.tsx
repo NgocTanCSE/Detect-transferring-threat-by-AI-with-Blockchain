@@ -4,8 +4,11 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, CheckCircle2, AlertCircle, Loader2, ArrowRight } from "lucide-react";
+import { authFetch } from "@/lib/api";
+import { useToast } from "@/lib/toast-context";
 
 export default function BatchUploadPage() {
+  const { notify } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
@@ -16,27 +19,24 @@ export default function BatchUploadPage() {
 
     try {
       // Simulate reading file and preparing data
+      const demoAddress = process.env.NEXT_PUBLIC_SENDER_ADDRESS || "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
       const sampleTransfers = Array.from({ length: 50 }, (_, i) => ({
-        sender: "0x742d35cc6634c0532925a3b844bc454e4438f44e",
-        receiver: i % 5 === 0 ? "0xdead000000000000000000000000000000000001" : "0x" + Math.random().toString(16).slice(2, 42).padStart(40, '0'),
+        sender: demoAddress,
+        receiver: "0x" + Math.random().toString(16).slice(2, 42).padStart(40, '0'),
         amount: (Math.random() * 5).toFixed(4)
       }));
 
       setProgress(40);
 
-      const response = await fetch("/api/transfers/batch", {
+      const response = await authFetch("/api/transfers/batch", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transfers: sampleTransfers })
       });
 
       if (!response.ok) throw new Error("Batch upload failed");
       
       const result = await response.json();
-      console.log("Batch upload result:", result);
 
       setProgress(100);
       setIsUploading(false);
@@ -44,7 +44,7 @@ export default function BatchUploadPage() {
     } catch (error) {
       console.error("Upload error:", error);
       setIsUploading(false);
-      alert("Failed to upload batch data. Please check connection.");
+      notify("Failed to upload batch data. Please check connection.", "error");
     }
   };
 

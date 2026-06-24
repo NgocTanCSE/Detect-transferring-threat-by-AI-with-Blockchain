@@ -1,11 +1,60 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
 
+const DEFAULT_TIMEOUT = 10000;
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 500;
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit & { timeout?: number } = {}
+): Promise<Response> {
+  const { timeout = DEFAULT_TIMEOUT, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit & { retry?: number; timeout?: number } = {}
+): Promise<Response> {
+  const { retry = MAX_RETRIES, ...fetchOptions } = options;
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= retry; attempt++) {
+    try {
+      const response = await fetchWithTimeout(url, fetchOptions);
+      if (response.ok || response.status >= 400 && response.status < 500) {
+        return response;
+      }
+      if (attempt < retry) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < retry) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError || new Error("Request failed after retries");
+}
+
 /**
  * Wrapper around fetch that automatically includes the auth token.
  * Required because Next.js rewrites proxy directly to the gateway
  * (bypassing the API route handler that would extract cookies).
  */
-function authFetch(url: string, options?: RequestInit): Promise<Response> {
+export function authFetch(url: string, options?: RequestInit & { timeout?: number; retry?: number }): Promise<Response> {
   const headers = new Headers(options?.headers);
   if (typeof window !== "undefined" && !headers.has("Authorization")) {
     const token = localStorage.getItem("auth_token");
@@ -13,7 +62,7 @@ function authFetch(url: string, options?: RequestInit): Promise<Response> {
       headers.set("Authorization", `Bearer ${token}`);
     }
   }
-  return fetch(url, { cache: "no-store", ...options, headers });
+  return fetchWithRetry(url, { ...options, headers });
 }
 
 export interface DashboardStats {
@@ -310,7 +359,11 @@ export interface WalletTransaction {
 }
 
 export async function fetchWalletStats(address: string): Promise<WalletStats> {
-  const res = await authFetch(`${API_BASE}/wallet/${address}/stats`);
+  const normalizedAddress = address.toLowerCase().trim();
+  if (!/^0x[a-f0-9]{40}$/.test(normalizedAddress)) {
+    throw new Error("Invalid wallet address format");
+  }
+  const res = await authFetch(`${API_BASE}/wallets/${normalizedAddress}/stats`);
   if (!res.ok) throw new Error("Failed to fetch wallet stats");
   const payload = await res.json();
   return unwrapApiResponse<WalletStats>(payload);
@@ -320,8 +373,15 @@ export async function fetchWalletTransactionHistory(
   address: string,
   limit = 50
 ): Promise<WalletTransaction[]> {
-  const res = await authFetch(`${API_BASE}/wallet/${address}/transactions?limit=${limit}`);
-  if (!res.ok) throw new Error("Failed to fetch wallet transactions");
+  const normalizedAddress = address.toLowerCase().trim();
+  if (!/^0x[a-f0-9]{40}$/.test(normalizedAddress)) {
+    throw new Error("Invalid wallet address format");
+  }
+  const res = await authFetch(`${API_BASE}/wallet/${normalizedAddress}/transactions?limit=${limit}`, {
+    timeout: 10000,
+    retry: 2,
+  });
+  if (!res.ok) throw new Error(`Failed to fetch wallet transactions: ${res.status}`);
   const payload = await res.json();
   const data = unwrapApiResponse<{ transactions: WalletTransaction[] }>(payload);
   return data.transactions || [];
@@ -364,11 +424,13 @@ export async function fetchRecentAlerts(
   try {
     const res = await authFetch(`${API_BASE}/alerts/recent?${params}`);
     if (!res.ok) {
+      console.warn(`fetchRecentAlerts returned ${res.status}`);
       return { alerts: [], statistics: {} };
     }
     const data = await res.json();
     return { alerts: data.alerts || [], statistics: data.statistics || {} };
-  } catch {
+  } catch (err) {
+    console.error("fetchRecentAlerts error:", err);
     return { alerts: [], statistics: {} };
   }
 }
@@ -395,11 +457,13 @@ export async function fetchBlockedTransfers(
 
     const res = await authFetch(`${API_BASE}/blocked-transfers?${params}`);
     if (!res.ok) {
+      console.warn(`fetchBlockedTransfers returned ${res.status}`);
       return { blocked_transfers: [], statistics: {} };
     }
     const data = await res.json();
     return { blocked_transfers: data.blocked_transfers || [], statistics: data.statistics || {} };
-  } catch {
+  } catch (err) {
+    console.error("fetchBlockedTransfers error:", err);
     return { blocked_transfers: [], statistics: {} };
   }
 }
@@ -422,7 +486,8 @@ export async function fetchFlowStats(chain = "ethereum"): Promise<FlowStats[]> {
       inflow: item.inflow_eth ?? item.inflow ?? 0,
       outflow: item.outflow_eth ?? item.outflow ?? 0,
     }));
-  } catch {
+  } catch (err) {
+    console.error("fetchFlowStats error:", err);
     return [];
   }
 }
@@ -431,6 +496,12 @@ export interface UserHistory {
   blocked_transfers: BlockedTransfer[];
   successful_transactions: Transaction[];
   warnings: UserWarning[];
+  summary?: {
+    total_transactions: number;
+    total_blocked: number;
+    total_warnings: number;
+    warning_count: number;
+  };
 }
 
 export interface UserWarning {
@@ -458,15 +529,7 @@ export async function fetchWalletBalance(address: string): Promise<WalletBalance
   return unwrapApiResponse<WalletBalance>(payload);
 }
 
-export async function fetchWalletTransactions(
-  address: string,
-  limit = 20
-): Promise<Transaction[]> {
-  const res = await authFetch(`${API_BASE}/wallet/${address}/transactions?limit=${limit}`);
-  if (!res.ok) throw new Error("Failed to fetch wallet transactions");
-  const data = await res.json();
-  return data.transactions || [];
-}
+
 
 export async function sendProtectedTransfer(
   fromAddress: string,
@@ -541,9 +604,72 @@ export async function analyzeAddress(address: string): Promise<{
   ai_insight: string;
   detection_count: number;
 }> {
-  const res = await authFetch(`${API_BASE}/analyze/${address}`);
+  const res = await authFetch(`${API_BASE}/analyze/${address}`, { timeout: 10000, retry: 2 });
   if (!res.ok) throw new Error("Failed to analyze address");
   const payload = await res.json();
   return unwrapApiResponse(payload);
+}
+
+export interface FeatureConfig {
+  id: string;
+  feature_key: string;
+  enabled: boolean;
+  expression?: string;
+  created_at?: string;
+}
+
+export async function fetchFeatureConfigs(enabledOnly: boolean = true): Promise<FeatureConfig[]> {
+  const params = enabledOnly ? "?enabled_only=true" : "";
+  const res = await authFetch(`${API_BASE}/admin/features${params}`, { timeout: 10000, retry: 1 });
+  if (!res.ok) throw new Error("Failed to fetch feature configs");
+  const data = await res.json();
+  return data.items || data.features || [];
+}
+
+export interface ModelRegistryItem {
+  id: string;
+  model_name: string;
+  version: string;
+  framework: string;
+  is_active: boolean;
+  artifact_uri: string;
+  promoted_at?: string;
+  created_at?: string;
+}
+
+export async function fetchModelRegistry(activeOnly: boolean = true): Promise<ModelRegistryItem[]> {
+  const params = activeOnly ? "?active_only=true" : "";
+  const res = await authFetch(`${API_BASE}/admin/models${params}`, { timeout: 10000, retry: 1 });
+  if (!res.ok) throw new Error("Failed to fetch model registry");
+  const data = await res.json();
+  return data.items || [];
+}
+
+export async function fetchPipelineMetrics(limit: number = 100): Promise<any[]> {
+  const res = await authFetch(`${API_BASE}/admin/models/metrics?limit=${limit}`, { timeout: 10000, retry: 1 });
+  if (!res.ok) throw new Error("Failed to fetch pipeline metrics");
+  const data = await res.json();
+  return data.items || [];
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  contact_email?: string;
+  api_key?: string;
+  is_active: boolean;
+  status?: string;
+  users?: number;
+  api_calls?: string;
+}
+
+export async function fetchOrganizations(): Promise<{ count: number; items: Organization[] }> {
+  const res = await authFetch(`${API_BASE}/organizations`);
+  if (!res.ok) {
+    return { count: 0, items: [] };
+  }
+  const data = await res.json();
+  return data;
 }
 

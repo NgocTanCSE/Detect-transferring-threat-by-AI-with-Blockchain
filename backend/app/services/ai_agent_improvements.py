@@ -9,7 +9,7 @@ Key improvements:
 4. Better prompt engineering with structured outputs
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -44,10 +44,10 @@ def _build_enhanced_dashboard_context(
     def _eth_from_wei(val):
         try:
             return float(val) / 10**18
-        except:
+        except (TypeError, ValueError):
             return 0.0
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     seven_days_ago = now - timedelta(days=7)
     one_day_ago = now - timedelta(days=1)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -65,16 +65,33 @@ def _build_enhanced_dashboard_context(
     }
 
     try:
-        # ===== OVERVIEW METRICS =====
+        # ===== OVERVIEW METRICS (combined queries) =====
         total_wallets = database_session.query(Wallet).count()
-        total_alerts = database_session.query(Alert).count()
-        critical_alerts = database_session.query(Alert).filter(Alert.severity == "CRITICAL").count()
-        high_alerts = database_session.query(Alert).filter(Alert.severity == "HIGH").count()
-        medium_alerts = database_session.query(Alert).filter(Alert.severity == "MEDIUM").count()
-        alerts_today = database_session.query(Alert).filter(Alert.detected_at >= today_start).count()
-        alerts_24h = database_session.query(Alert).filter(Alert.detected_at >= one_day_ago).count()
-        total_blocked = database_session.query(BlockedTransfer).count()
-        blocked_today = database_session.query(BlockedTransfer).filter(BlockedTransfer.blocked_at >= today_start).count()
+
+        alert_counts = database_session.query(
+            func.count(Alert.id).label("total_alerts"),
+            func.sum(case((Alert.severity == "CRITICAL", 1), else_=0)).label("critical_alerts"),
+            func.sum(case((Alert.severity == "HIGH", 1), else_=0)).label("high_alerts"),
+            func.sum(case((Alert.severity == "MEDIUM", 1), else_=0)).label("medium_alerts"),
+            func.sum(case((Alert.detected_at >= today_start, 1), else_=0)).label("alerts_today"),
+            func.sum(case((Alert.detected_at >= one_day_ago, 1), else_=0)).label("alerts_24h"),
+            func.sum(case((Alert.detected_at >= seven_days_ago, 1), else_=0)).label("alerts_7d_ago"),
+        ).one()
+
+        blocked_counts = database_session.query(
+            func.count(BlockedTransfer.id).label("total_blocked"),
+            func.sum(case((BlockedTransfer.blocked_at >= today_start, 1), else_=0)).label("blocked_today"),
+        ).one()
+
+        total_alerts = alert_counts.total_alerts or 0
+        critical_alerts = alert_counts.critical_alerts or 0
+        high_alerts = alert_counts.high_alerts or 0
+        medium_alerts = alert_counts.medium_alerts or 0
+        alerts_today = alert_counts.alerts_today or 0
+        alerts_24h = alert_counts.alerts_24h or 0
+        alerts_7d_ago = alert_counts.alerts_7d_ago or 0
+        total_blocked = blocked_counts.total_blocked or 0
+        blocked_today = blocked_counts.blocked_today or 0
 
         context["overview"] = {
             "total_wallets": total_wallets,
@@ -89,9 +106,6 @@ def _build_enhanced_dashboard_context(
         }
 
         # ===== ALERT TRENDS =====
-        alerts_7d_ago = database_session.query(Alert).filter(
-            Alert.detected_at >= seven_days_ago
-        ).count()
 
         alert_trend_pct = 0
         if alerts_7d_ago > 0:

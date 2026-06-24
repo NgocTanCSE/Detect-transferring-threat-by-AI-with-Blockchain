@@ -1,0 +1,14 @@
+{
+  "space_name": "blockchain-ai-sentinel",
+  "runtime": "docker",
+  "persistence": {
+    "enabled": true,
+    "paths": ["/data"]
+  },
+  "environment_variables": {
+    "DATABASE_URL": "postgresql://user:password@host:5432/blockchain_ai",
+    "JWT_SECRET": "{{HF_SECRET_JWT_KEY}}",
+    "ALCHEMY_API_KEY": "{{HF_SECRET_ALCHEMY_KEY}}",
+    "GEMINI_API_KEY": "{{HF_SECRET_GEMINI_KEY}}"
+  }
+}

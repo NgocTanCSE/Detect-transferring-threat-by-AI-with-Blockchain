@@ -1,5 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
+const helmet = require('helmet');
+const cors = require('cors');
 const queue = require('./services/queue');
 require('dotenv').config();
 const { client, requestMetrics } = require('../../shared/metrics');
@@ -14,6 +16,8 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+app.use(helmet());
+app.use(cors());
 app.use(express.json());
 
 // Force no-cache for all routes
@@ -328,6 +332,14 @@ app.post('/alerts', async (req, res) => {
     return res.status(400).json({ error: 'alert_type and message are required' });
   }
 
+  const normalizedWalletAddress = wallet_address ? String(wallet_address).toLowerCase().trim() : null;
+  if (!normalizedWalletAddress) {
+    return res.status(400).json({ error: 'wallet_address is required' });
+  }
+  if (!/^0x[a-f0-9]{40}$/.test(normalizedWalletAddress)) {
+    return res.status(400).json({ error: 'Invalid wallet_address' });
+  }
+
   try {
     const { rows } = await pool.query(
       `
@@ -338,7 +350,7 @@ app.post('/alerts', async (req, res) => {
         RETURNING id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, detected_at
       `,
       [
-        wallet_address,
+        normalizedWalletAddress,
         alert_type,
         severity || 'MEDIUM',
         message,
@@ -398,6 +410,12 @@ app.post('/alerts/:id/acknowledge', async (req, res) => {
   }
 });
 
+// Centralized error handler
+app.use((err, req, res, next) => {
+  console.error(`[${req.correlationId || 'no-id'}] Unhandled error:`, err.message);
+  res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
+});
+
 ensureSchema()
   .then(async () => {
     // Connect to RabbitMQ
@@ -407,6 +425,8 @@ ensureSchema()
 await queue.startWorker(async (content) => {
   // If this is a risk event (no alert_type but contains risk data), persist it as an alert
   if (!content.alert_type && content.wallet_address && content.risk_score !== undefined) {
+    const normalizedWalletAddress = String(content.wallet_address).toLowerCase().trim();
+    if (/^0x[a-f0-9]{40}$/.test(normalizedWalletAddress)) {
     try {
       const { rows } = await pool.query(
         `INSERT INTO alerts (

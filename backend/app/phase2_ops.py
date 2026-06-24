@@ -28,6 +28,7 @@ from app.models.models import (
 )
 from app.utils.api_response import api_success
 from app.utils.auth_utils import get_org_id
+from app.auth import optional_auth, require_admin
 
 router = APIRouter(prefix="/ops", tags=["Phase 2 Operations"])
 
@@ -118,6 +119,7 @@ def list_node_endpoints(
     chain: Optional[str] = Query(default=None),
     only_active: bool = Query(default=False),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     query = db.query(NodeEndpoint)
 
@@ -150,10 +152,18 @@ def list_node_endpoints(
 
 
 @router.post("/system/node-endpoints")
-def create_node_endpoint(payload: NodeEndpointCreate, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def create_node_endpoint(payload: NodeEndpointCreate, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     protocol = payload.protocol.lower().strip()
-    if protocol not in {"http", "websocket"}:
-        raise HTTPException(status_code=400, detail="protocol must be http or websocket")
+    protocol_map = {
+        "http": "http",
+        "https": "https",
+        "ws": "ws",
+        "wss": "wss",
+        "websocket": "ws",
+    }
+    if protocol not in protocol_map:
+        raise HTTPException(status_code=400, detail="protocol must be http, https, ws, or wss")
+    protocol = protocol_map[protocol]
 
     endpoint = NodeEndpoint(
         provider_name=payload.provider_name,
@@ -188,7 +198,7 @@ def create_node_endpoint(payload: NodeEndpointCreate, db: Session = Depends(get_
 
 
 @router.put("/system/node-endpoints/{endpoint_id}/health")
-def update_node_endpoint_health(endpoint_id: str, payload: NodeEndpointHealthUpdate, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def update_node_endpoint_health(endpoint_id: str, payload: NodeEndpointHealthUpdate, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     endpoint_uuid = _parse_uuid(endpoint_id, "endpoint_id")
     endpoint = db.query(NodeEndpoint).filter(NodeEndpoint.id == endpoint_uuid).first()
     if not endpoint:
@@ -200,7 +210,7 @@ def update_node_endpoint_health(endpoint_id: str, payload: NodeEndpointHealthUpd
 
     endpoint.health_status = status_norm
     endpoint.last_error = payload.last_error
-    endpoint.last_checked_at = datetime.utcnow()
+    endpoint.last_checked_at = datetime.now(timezone.utc)
 
     _audit(
         db,
@@ -227,6 +237,7 @@ def list_pipeline_metrics(
     chain: Optional[str] = Query(default=None),
     limit: int = Query(default=50, ge=1, le=500),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     query = db.query(PipelineMetric)
 
@@ -254,7 +265,7 @@ def list_pipeline_metrics(
 
 
 @router.post("/system/pipeline-metrics")
-def create_pipeline_metric(payload: PipelineMetricCreate, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def create_pipeline_metric(payload: PipelineMetricCreate, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     metric = PipelineMetric(
         chain=payload.chain,
         block_number=payload.block_number,
@@ -284,7 +295,7 @@ def create_pipeline_metric(payload: PipelineMetricCreate, db: Session = Depends(
 
 
 @router.get("/system/pipeline-metrics/summary")
-def get_pipeline_metrics_summary(chain: Optional[str] = Query(default=None), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_pipeline_metrics_summary(chain: Optional[str] = Query(default=None), db: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
     base_query = db.query(PipelineMetric)
     if chain:
         base_query = base_query.filter(PipelineMetric.chain == chain)
@@ -310,7 +321,8 @@ def get_pipeline_metrics_summary(chain: Optional[str] = Query(default=None), db:
 def list_feature_configs(
     only_enabled: bool = Query(default=False), 
     db: Session = Depends(get_db),
-    org_id: str | None = Depends(get_org_id)
+    org_id: str | None = Depends(get_org_id),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     query = db.query(FeatureStoreConfig)
     if org_id:
@@ -337,7 +349,7 @@ def list_feature_configs(
 
 
 @router.post("/ai/feature-store")
-def create_feature_config(payload: FeatureConfigCreate, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def create_feature_config(payload: FeatureConfigCreate, db: Session = Depends(get_db), org_id: str | None = Depends(get_org_id), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     existing = db.query(FeatureStoreConfig).filter(FeatureStoreConfig.feature_key == payload.feature_key).first()
     if existing:
         raise HTTPException(status_code=409, detail="feature_key already exists")
@@ -371,7 +383,7 @@ def create_feature_config(payload: FeatureConfigCreate, db: Session = Depends(ge
 
 
 @router.put("/ai/feature-store/{feature_id}")
-def update_feature_config(feature_id: str, payload: FeatureConfigUpdate, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def update_feature_config(feature_id: str, payload: FeatureConfigUpdate, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     feature_uuid = _parse_uuid(feature_id, "feature_id")
     item = db.query(FeatureStoreConfig).filter(FeatureStoreConfig.id == feature_uuid).first()
     if not item:
@@ -398,7 +410,7 @@ def update_feature_config(feature_id: str, payload: FeatureConfigUpdate, db: Ses
 
 
 @router.get("/ai/model-registry")
-def list_model_registry(model_name: Optional[str] = Query(default=None), db: Session = Depends(get_db)) -> Dict[str, Any]:
+def list_model_registry(model_name: Optional[str] = Query(default=None), db: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
     query = db.query(ModelRegistry)
     if model_name:
         query = query.filter(ModelRegistry.model_name == model_name)
@@ -426,7 +438,7 @@ def list_model_registry(model_name: Optional[str] = Query(default=None), db: Ses
 
 
 @router.post("/ai/model-registry")
-def create_model_registry(payload: ModelRegistryCreate, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def create_model_registry(payload: ModelRegistryCreate, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     framework = payload.framework.lower().strip()
     if framework not in {"pkl", "onnx", "pt"}:
         raise HTTPException(status_code=400, detail="framework must be pkl, onnx, or pt")
@@ -446,7 +458,7 @@ def create_model_registry(payload: ModelRegistryCreate, db: Session = Depends(ge
         framework=framework,
         is_active=payload.is_active,
         promoted_by=promoter_uuid,
-        promoted_at=datetime.utcnow() if payload.is_active else None,
+        promoted_at=datetime.now(timezone.utc) if payload.is_active else None,
     )
     db.add(record)
 
@@ -470,7 +482,7 @@ def create_model_registry(payload: ModelRegistryCreate, db: Session = Depends(ge
 
 
 @router.put("/ai/model-registry/{model_id}/activate")
-def activate_model(model_id: str, payload: ModelActivateRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def activate_model(model_id: str, payload: ModelActivateRequest, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     model_uuid = _parse_uuid(model_id, "model_id")
     model = db.query(ModelRegistry).filter(ModelRegistry.id == model_uuid).first()
     if not model:
@@ -485,7 +497,7 @@ def activate_model(model_id: str, payload: ModelActivateRequest, db: Session = D
 
     model.is_active = True
     model.promoted_by = promoter_uuid
-    model.promoted_at = datetime.utcnow()
+    model.promoted_at = datetime.now(timezone.utc)
 
     _audit(
         db,
@@ -510,7 +522,7 @@ def activate_model(model_id: str, payload: ModelActivateRequest, db: Session = D
 
 
 @router.get("/ai/model-registry/active")
-def get_active_models(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_active_models(db: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
     records = db.query(ModelRegistry).filter(ModelRegistry.is_active.is_(True)).order_by(ModelRegistry.model_name.asc()).all()
 
     response = {
@@ -594,7 +606,7 @@ def _build_data_integrity_report(db: Session) -> Dict[str, Any]:
 
 
 @router.get("/system/data-integrity")
-def get_system_data_integrity(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_system_data_integrity(db: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
     """Report DB-backed readiness and missing controls/models for all role panels."""
     response = _build_data_integrity_report(db)
     return api_success(data=response, message="Data integrity report generated", meta={"missing_count": len(response.get("missing_controls", []))}, legacy=response)
@@ -604,6 +616,7 @@ def get_system_data_integrity(db: Session = Depends(get_db)) -> Dict[str, Any]:
 def export_system_data_integrity(
     format: str = Query(default="csv", pattern="^(csv|json)$"),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     report = _build_data_integrity_report(db)
     now = datetime.now(timezone.utc)
@@ -646,218 +659,32 @@ def export_system_data_integrity(
 
 
 @router.post("/system/data-integrity/auto-fix")
-def auto_fix_system_data_integrity(payload: DataIntegrityAutoFixRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Create minimum DB records for missing controls so role panels have required baseline data."""
+def auto_fix_system_data_integrity(payload: DataIntegrityAutoFixRequest, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
+    """Return missing-control guidance without generating mock database records."""
     report = _build_data_integrity_report(db)
-    target_keys = set(payload.keys or [item["key"] for item in report.get("missing_controls", [])])
+    requested_keys = set(payload.keys or [item["key"] for item in report.get("missing_controls", [])])
+    actions = [
+        {
+            "key": item["key"],
+            "created": False,
+            "details": {
+                "action": "no_mock_data_created",
+                "owner_role": item["owner_role"],
+                "recommended_next_step": item["recommended_next_step"],
+            },
+        }
+        for item in report.get("missing_controls", [])
+        if item["key"] in requested_keys
+    ]
 
-    actions: List[Dict[str, Any]] = []
-
-    def record(action_key: str, created: bool, details: Dict[str, Any]) -> None:
-        actions.append({"key": action_key, "created": created, "details": details})
-
-    if "system.node_endpoints" in target_keys:
-        exists = db.query(NodeEndpoint.id).first() is not None
-        if not exists:
-            db.add(
-                NodeEndpoint(
-                    provider_name="AutoSeed Node",
-                    chain="ethereum",
-                    endpoint_url="https://example-node.local/rpc",
-                    protocol="http",
-                    priority=100,
-                    is_active=True,
-                    health_status="unknown",
-                )
-            )
-        record("system.node_endpoints", not exists, {"already_present": exists})
-
-    if "system.pipeline_metrics" in target_keys:
-        exists = db.query(PipelineMetric.id).first() is not None
-        if not exists:
-            db.add(
-                PipelineMetric(
-                    chain="ethereum",
-                    block_number=0,
-                    throughput_tps=Decimal("0.00"),
-                    ingestion_latency_ms=0,
-                    decode_latency_ms=0,
-                )
-            )
-        record("system.pipeline_metrics", not exists, {"already_present": exists})
-
-    if "system.diagnostic_events" in target_keys:
-        exists = db.query(DiagnosticEvent.id).first() is not None
-        if not exists:
-            db.add(
-                DiagnosticEvent(
-                    log_type="info",
-                    message="Auto-seed diagnostics baseline",
-                    details={"source": "auto_fix"},
-                    status_code=200,
-                    endpoint="/ops/system/data-integrity/auto-fix",
-                    source="backend",
-                )
-            )
-        record("system.diagnostic_events", not exists, {"already_present": exists})
-
-    if "ai.feature_configs" in target_keys:
-        exists = db.query(FeatureStoreConfig.id).first() is not None
-        if not exists:
-            db.add(
-                FeatureStoreConfig(
-                    feature_key="tx_velocity_24h",
-                    enabled=True,
-                    expression="tx_count_24h",
-                )
-            )
-        record("ai.feature_configs", not exists, {"already_present": exists})
-
-    if "ai.model_registry" in target_keys:
-        exists = db.query(ModelRegistry.id).first() is not None
-        if not exists:
-            db.add(
-                ModelRegistry(
-                    model_name="risk-scorer",
-                    version="v1-autoseed",
-                    artifact_uri="local://models/risk-scorer-v1",
-                    framework="pkl",
-                    is_active=False,
-                )
-            )
-        record("ai.model_registry", not exists, {"already_present": exists})
-
-    if "ai.active_models" in target_keys:
-        active_model = db.query(ModelRegistry).filter(ModelRegistry.is_active.is_(True)).first()
-        created = False
-        if not active_model:
-            first_model = db.query(ModelRegistry).order_by(ModelRegistry.created_at.asc()).first()
-            if first_model:
-                first_model.is_active = True
-                first_model.promoted_at = datetime.utcnow()
-            else:
-                db.add(
-                    ModelRegistry(
-                        model_name="risk-scorer",
-                        version="v1-autoseed-active",
-                        artifact_uri="local://models/risk-scorer-v1-active",
-                        framework="pkl",
-                        is_active=True,
-                        promoted_at=datetime.utcnow(),
-                    )
-                )
-                created = True
-        record("ai.active_models", created or active_model is None, {"already_present": active_model is not None})
-
-    if "security.alerts" in target_keys:
-        exists = db.query(Alert.id).first() is not None
-        if not exists:
-            db.add(
-                Alert(
-                    wallet_address="0x0000000000000000000000000000000000000001",
-                    alert_type="AUTO_SEED_ALERT",
-                    severity="HIGH",
-                    message="Auto-seed alert for integrity baseline",
-                    risk_score=75.0,
-                )
-            )
-        record("security.alerts", not exists, {"already_present": exists})
-
-    if "security.transactions" in target_keys:
-        exists = db.query(Transaction.id).first() is not None
-        if not exists:
-            tx_hash = "0x" + uuid.uuid4().hex + uuid.uuid4().hex
-            db.add(
-                Transaction(
-                    tx_hash=tx_hash,
-                    from_address="0x0000000000000000000000000000000000000001",
-                    to_address="0x0000000000000000000000000000000000000002",
-                    value=Decimal("1000000000000000000"),
-                    block_number=1,
-                    status=1,
-                    case_status="PENDING",
-                )
-            )
-        record("security.transactions", not exists, {"already_present": exists})
-
-    if "security.blocked_transfers" in target_keys:
-        exists = db.query(BlockedTransfer.id).first() is not None
-        if not exists:
-            db.add(
-                BlockedTransfer(
-                    sender_address="0x0000000000000000000000000000000000000001",
-                    receiver_address="0x0000000000000000000000000000000000000002",
-                    amount=Decimal("1000000000000000000"),
-                    risk_score=82.0,
-                    block_reason="AUTO_SEED_BLOCK",
-                    user_warning_count=1,
-                )
-            )
-        record("security.blocked_transfers", not exists, {"already_present": exists})
-
-    if "compliance.policy_rules" in target_keys:
-        exists = db.query(PolicyRule.id).first() is not None
-        if not exists:
-            db.add(
-                PolicyRule(
-                    rule_name="AutoSeed High Risk Block",
-                    description="Auto-seed policy baseline",
-                    min_risk_score=80.0,
-                    block_blacklisted=True,
-                    block_suspended=True,
-                    notify_on_block=True,
-                    priority=100,
-                    is_active=True,
-                )
-            )
-        record("compliance.policy_rules", not exists, {"already_present": exists})
-
-    if "compliance.active_policy_rules" in target_keys:
-        active_rule = db.query(PolicyRule).filter(PolicyRule.is_active.is_(True)).first()
-        created = False
-        if not active_rule:
-            first_rule = db.query(PolicyRule).order_by(PolicyRule.created_at.asc()).first()
-            if first_rule:
-                first_rule.is_active = True
-            else:
-                db.add(
-                    PolicyRule(
-                        rule_name="AutoSeed Active Policy",
-                        description="Auto-seed active policy baseline",
-                        min_risk_score=75.0,
-                        block_blacklisted=True,
-                        block_suspended=True,
-                        notify_on_block=True,
-                        priority=90,
-                        is_active=True,
-                    )
-                )
-                created = True
-        record("compliance.active_policy_rules", created or active_rule is None, {"already_present": active_rule is not None})
-
-    if "compliance.audit_logs" in target_keys:
-        exists = db.query(AuditLog.id).first() is not None
-        if not exists:
-            db.add(
-                AuditLog(
-                    action_type="AUTO_SEED_AUDIT",
-                    entity_type="system",
-                    user_identifier="auto_fix",
-                    details={"source": "data_integrity_auto_fix"},
-                )
-            )
-        record("compliance.audit_logs", not exists, {"already_present": exists})
-
-    if payload.dry_run:
-        db.rollback()
-    else:
-        db.commit()
-
-    updated_report = _build_data_integrity_report(db)
-    response = {
-        "dry_run": payload.dry_run,
-        "requested_keys": sorted(list(target_keys)),
-        "actions": actions,
-        "after": updated_report,
-    }
-    return api_success(data=response, message="Data integrity auto-fix completed", meta={"actions": len(actions)}, legacy=response)
+    return api_success(
+        data={
+            "dry_run": payload.dry_run,
+            "requested_keys": sorted(list(requested_keys)),
+            "actions": actions,
+            "after": report,
+        },
+        message="Data integrity auto-fix report generated without mock data",
+        meta={"actions": len(actions)},
+        legacy={"dry_run": payload.dry_run, "requested_keys": sorted(list(requested_keys)), "actions": actions, "after": report},
+    )

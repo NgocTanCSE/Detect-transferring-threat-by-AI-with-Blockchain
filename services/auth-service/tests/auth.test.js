@@ -14,6 +14,14 @@ function createMockDb() {
         return { rows: [{ '?column?': 1 }] };
       }
 
+      if (normalized.includes('from wallets w')) {
+        return { rows: [] };
+      }
+
+      if (normalized.includes('from usage_logs l')) {
+        return { rows: [] };
+      }
+
       if (normalized.includes('from users where lower(username) = lower($1)')) {
         const username = String(params[0] || '').toLowerCase();
         const user = users.find((u) => u.username.toLowerCase() === username);

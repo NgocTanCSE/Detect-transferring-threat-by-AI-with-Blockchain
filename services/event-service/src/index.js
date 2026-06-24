@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const helmet = require('helmet');
 const cors = require('cors');
 const queue = require('./services/queue');
 require('dotenv').config();
@@ -11,13 +12,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*', // In production, restrict to frontend URL
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     methods: ['GET', 'POST']
   }
 });
 
 const PORT = process.env.PORT || 3007;
 
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
@@ -40,9 +42,21 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     service: 'event-service', 
-    clients: io.engine.clientsCount,
-    dlq_metrics: { main: 0, dead: 0 }
+    clients: io.engine.clientsCount
   });
+});
+
+// Ready check
+app.get('/ready', async (req, res) => {
+  try {
+    const mqReady = await queue.isConnected();
+    if (!mqReady) {
+      return res.status(503).json({ status: 'not ready', reason: 'RabbitMQ not connected' });
+    }
+    res.json({ status: 'ready', service: 'event-service' });
+  } catch (error) {
+    res.status(503).json({ status: 'not ready', error: error.message });
+  }
 });
 app.get('/metrics', async (req, res) => {
   res.set('Content-Type', client.register.contentType);
@@ -89,6 +103,12 @@ const handleMQEvent = (routingKey, data) => {
   
   console.log(`📢 Broadcasted event ${routingKey} to ${io.engine.clientsCount} clients`);
 };
+
+// Centralized error handler
+app.use((err, req, res, next) => {
+  console.error(`[${req.correlationId || 'no-id'}] Unhandled error:`, err.message);
+  res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
+});
 
 // Initialize
 const start = async () => {

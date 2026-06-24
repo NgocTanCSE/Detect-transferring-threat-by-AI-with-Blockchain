@@ -69,4 +69,8 @@ const startConsuming = async (onEvent) => {
   }
 };
 
-module.exports = { startConsuming };
+const isConnected = () => {
+  return !!(connection && channel && connection.connection);
+};
+
+module.exports = { startConsuming, isConnected };

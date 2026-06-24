@@ -5,7 +5,7 @@ Provides logging, audit trails, and system health checks for admin dashboard.
 
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from enum import Enum
@@ -47,7 +47,7 @@ class DiagnosticLog:
     ):
         """Add a diagnostic log entry."""
         entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "log_type": log_type.value,
             "type": log_type.value,
             "message": message,
@@ -199,7 +199,7 @@ def get_system_status(database_session) -> Dict[str, Any]:
     gemini_configured = bool(GEMINI_API_KEY)
 
     return {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "database": {
             "url": DATABASE_URL.split("@")[0] if "@" in DATABASE_URL else DATABASE_URL[:50],  # Hide credentials
             "health": db_health,

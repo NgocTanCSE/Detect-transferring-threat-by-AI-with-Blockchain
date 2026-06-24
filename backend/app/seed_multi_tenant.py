@@ -1,15 +1,18 @@
 import uuid
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from passlib.context import CryptContext
 
 from app.core.database import Base, DATABASE_URL
 from app.models.models import (
     Organization, User, Wallet, Transaction, 
     Alert, PolicyRule, AuditLog, NodeEndpoint
 )
+
+_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Setup database session
 engine = create_engine(DATABASE_URL)
@@ -42,7 +45,7 @@ def seed_data():
     sys_admin = User(
         username="sysadmin",
         email="admin@sentinel.ai",
-        password_hash="admin123", # For dev purposes
+        password_hash=_pwd_ctx.hash("Admin@123"),
         role="system_admin",
         is_active=True
     )
@@ -50,7 +53,7 @@ def seed_data():
     gbv_analyst = User(
         username="gbv_analyst",
         email="analyst@gbv.com",
-        password_hash="gbv123",
+        password_hash=_pwd_ctx.hash("GbV@12345"),
         role="security_analyst",
         organization_id=org_gbv.id,
         is_active=True
@@ -59,7 +62,7 @@ def seed_data():
     dntu_compliance = User(
         username="dntu_risk",
         email="risk@dntu.edu.vn",
-        password_hash="dntu123",
+        password_hash=_pwd_ctx.hash("Risk@789"),
         role="compliance_risk_manager",
         organization_id=org_dntu.id,
         is_active=True
@@ -106,7 +109,7 @@ def seed_data():
                 value=Decimal(str(random.uniform(0.1, 5.0) * 10**18)),
                 organization_id=org.id,
                 case_status="PENDING",
-                timestamp=datetime.utcnow() - timedelta(hours=random.randint(1, 48))
+                timestamp=datetime.now(timezone.utc) - timedelta(hours=random.randint(1, 48))
             )
             db.add(tx)
 

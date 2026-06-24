@@ -5,15 +5,30 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE EXTENSION IF NOT EXISTS "btree_gin";
 -- For composite indexes
 
+CREATE TABLE IF NOT EXISTS organizations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL UNIQUE,
+    slug VARCHAR(100) NOT NULL UNIQUE,
+    contact_email VARCHAR(255),
+    api_key VARCHAR(255) UNIQUE,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_organizations_slug ON organizations (slug);
+CREATE INDEX IF NOT EXISTS idx_organizations_api_key ON organizations (api_key);
+
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
     username VARCHAR(100) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (
-        role IN ('admin', 'analyst', 'user')
+        role IN ('admin', 'analyst', 'user', 'system_admin', 'security_analyst', 'compliance_risk_manager', 'ai_data_engineer', 'operator', 'api_client')
     ),
     wallet_address VARCHAR(255) UNIQUE,
+    organization_id UUID REFERENCES organizations(id),
     is_active BOOLEAN DEFAULT true,
     warning_count INTEGER DEFAULT 0,
     last_login_at TIMESTAMP
@@ -45,6 +60,7 @@ CREATE TABLE IF NOT EXISTS wallets (
     address VARCHAR(255) NOT NULL UNIQUE,
     label VARCHAR(255),
     entity_type VARCHAR(50) DEFAULT 'Unknown',
+    organization_id UUID REFERENCES organizations(id),
     account_status VARCHAR(20) DEFAULT 'active' CHECK (
         account_status IN (
             'active',
@@ -121,6 +137,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     flag_reason VARCHAR(100),
     chain_id VARCHAR(50) DEFAULT 'ethereum',
     contract_address VARCHAR(255),
+    organization_id UUID REFERENCES organizations(id),
     timestamp TIMESTAMP
     WITH
         TIME ZONE NOT NULL,
@@ -192,6 +209,7 @@ CREATE TABLE IF NOT EXISTS token_transfers (
     value NUMERIC(78, 0) NOT NULL,
     value_decimal NUMERIC(38, 18),
     transfer_type VARCHAR(20) DEFAULT 'ERC20',
+    organization_id UUID REFERENCES organizations(id),
     timestamp TIMESTAMP
     WITH
         TIME ZONE NOT NULL,
@@ -225,8 +243,11 @@ CREATE TABLE IF NOT EXISTS blocked_transfers (
     sender_address VARCHAR(255) NOT NULL,
     receiver_address VARCHAR(255) NOT NULL,
     amount NUMERIC(78, 0) NOT NULL,
+    amount_eth NUMERIC(12, 6),
     risk_score NUMERIC(5, 2),
     block_reason VARCHAR(100) NOT NULL,
+    chain_id VARCHAR(50) DEFAULT 'ethereum',
+    organization_id UUID REFERENCES organizations(id),
     user_warning_count INTEGER DEFAULT 0,
     sender_user_id UUID REFERENCES users (id),
     blocked_at TIMESTAMP
@@ -237,6 +258,8 @@ CREATE TABLE IF NOT EXISTS blocked_transfers (
 CREATE INDEX IF NOT EXISTS idx_blocked_sender ON blocked_transfers (sender_address);
 
 CREATE INDEX IF NOT EXISTS idx_blocked_receiver ON blocked_transfers (receiver_address);
+
+CREATE INDEX IF NOT EXISTS idx_blocked_chain ON blocked_transfers (chain_id);
 
 CREATE INDEX IF NOT EXISTS idx_blocked_time ON blocked_transfers (blocked_at DESC);
 
@@ -364,16 +387,20 @@ CREATE TABLE IF NOT EXISTS alerts (
     message TEXT NOT NULL,
     risk_score NUMERIC(5, 2),
     metadata JSONB,
+    meta JSONB,
+    chain_id VARCHAR(50) DEFAULT 'ethereum',
     detected_at TIMESTAMP
     WITH
         TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        acknowledged BOOLEAN DEFAULT false,
-        acknowledged_at TIMESTAMP
+    acknowledged BOOLEAN DEFAULT false,
+    acknowledged_at TIMESTAMP
     WITH
         TIME ZONE,
-        acknowledged_by VARCHAR(255)
+    acknowledged_by VARCHAR(255),
+    organization_id UUID REFERENCES organizations(id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_alerts_chain_id ON alerts (chain_id);
 CREATE INDEX IF NOT EXISTS idx_alerts_wallet ON alerts (wallet_address);
 
 CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts (alert_type);
@@ -499,18 +526,18 @@ CREATE OR REPLACE FUNCTION suspend_user_on_warnings()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.warning_count >= 3 THEN
-        -- Update associated wallet to suspended
+        -- Update associated wallet to suspended (with organization_id propagation)
         UPDATE wallets
         SET account_status = 'suspended',
             flagged_at = CURRENT_TIMESTAMP,
             flagged_by = 'SYSTEM_AUTO_SUSPEND'
         WHERE address = NEW.wallet_address;
 
-        -- Create alert for admin
-        INSERT INTO alerts (wallet_address, alert_type, severity, message, risk_score)
+        -- Create alert for admin with organization_id
+        INSERT INTO alerts (wallet_address, alert_type, severity, message, risk_score, organization_id)
         VALUES (NEW.wallet_address, 'USER_SUSPENDED', 'HIGH',
                 'User account suspended after 3 ignored risk warnings',
-                80.00);
+                80.00, NEW.organization_id);
     END IF;
     RETURN NEW;
 END;
@@ -651,3 +678,266 @@ VALUES (
 -- VACUUM ANALYZE user_warnings;
 -- 
 -- VACUUM ANALYZE audit_logs;
+
+-- ============================================================================
+-- DIAGNOSTIC EVENTS FOR SYSTEM OBSERVABILITY
+-- ============================================================================
+
+-- Diagnostic Events for system observability
+CREATE TABLE IF NOT EXISTS diagnostic_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    log_type VARCHAR(30) NOT NULL,
+    message TEXT NOT NULL,
+    details JSONB,
+    status_code INTEGER,
+    endpoint VARCHAR(255),
+    source VARCHAR(50) NOT NULL DEFAULT 'backend',
+    is_archived BOOLEAN NOT NULL DEFAULT false,
+    archived_at TIMESTAMPTZ,
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_diag_type_time ON diagnostic_events (log_type, timestamp);
+
+-- Compliance KPIs for reporting
+CREATE TABLE IF NOT EXISTS compliance_kpis (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    metric_key VARCHAR(100) NOT NULL,
+    metric_value NUMERIC NOT NULL,
+    category VARCHAR(50),
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_compliance_kpis_key ON compliance_kpis (metric_key);
+
+-- System Health Snapshots for admin dashboard
+CREATE TABLE IF NOT EXISTS system_health_snapshots (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    availability_pct NUMERIC(5,2) DEFAULT 100.0,
+    latency_p95_ms NUMERIC DEFAULT 0.0,
+    error_budget_burn NUMERIC DEFAULT 0.0,
+    sample_points INTEGER DEFAULT 0,
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- AI Threat Logs for persistent threat history
+CREATE TABLE IF NOT EXISTS ai_threat_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    wallet_address VARCHAR(255) NOT NULL,
+    threat_type VARCHAR(50) NOT NULL,
+    risk_score NUMERIC NOT NULL,
+    details JSONB,
+    detected_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_threat_wallet ON ai_threat_logs (wallet_address);
+CREATE INDEX IF NOT EXISTS idx_ai_threat_type ON ai_threat_logs (threat_type);
+
+-- Usage Logs for API call tracking
+CREATE TABLE IF NOT EXISTS usage_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID REFERENCES organizations(id),
+    user_id UUID,
+    endpoint VARCHAR(255) NOT NULL,
+    method VARCHAR(10) NOT NULL,
+    status_code INTEGER,
+    response_time_ms INTEGER,
+    ip_address INET,
+    user_agent TEXT,
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ix_usage_org_time ON usage_logs (organization_id, timestamp);
+
+-- Auth Sessions for token management
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id),
+    token_hash VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions (expires_at);
+
+-- User Profiles for extended user data
+CREATE TABLE IF NOT EXISTS user_profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL UNIQUE REFERENCES users(id),
+    full_name VARCHAR(255),
+    phone VARCHAR(50),
+    address VARCHAR(500),
+    preferences JSONB DEFAULT '{"email": true, "push": false, "sms": false}',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Notification Events for alert broadcasting
+CREATE TABLE IF NOT EXISTS notification_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    channel VARCHAR(30) NOT NULL,
+    recipient VARCHAR(255) NOT NULL,
+    severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
+    message TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'queued',
+    meta JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_notif_channel ON notification_events (channel);
+CREATE INDEX IF NOT EXISTS idx_notif_status ON notification_events (status);
+
+-- Node Endpoints for blockchain node health monitoring
+CREATE TABLE IF NOT EXISTS node_endpoints (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    provider_name VARCHAR(100) NOT NULL,
+    chain VARCHAR(50) NOT NULL,
+    endpoint_url VARCHAR(1024) NOT NULL,
+    protocol VARCHAR(20) NOT NULL DEFAULT 'http',
+    priority INTEGER NOT NULL DEFAULT 100,
+    is_active BOOLEAN DEFAULT true,
+    health_status VARCHAR(20) NOT NULL DEFAULT 'unknown',
+    last_error TEXT,
+    last_checked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_provider ON node_endpoints (provider_name);
+CREATE INDEX IF NOT EXISTS idx_node_chain ON node_endpoints (chain);
+
+-- Pipeline Metrics for ingestion performance
+CREATE SEQUENCE IF NOT EXISTS pipeline_metrics_seq START 1;
+CREATE TABLE IF NOT EXISTS pipeline_metrics (
+    id BIGINT PRIMARY KEY DEFAULT nextval('pipeline_metrics_seq'),
+    chain VARCHAR(50) NOT NULL,
+    block_number BIGINT,
+    throughput_tps NUMERIC(10,2),
+    ingestion_latency_ms INTEGER,
+    decode_latency_ms INTEGER,
+    inserted_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Feature Store Configs for ML features toggle
+CREATE TABLE IF NOT EXISTS feature_store_configs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    feature_key VARCHAR(100) NOT NULL UNIQUE,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    expression TEXT,
+    owner_user_id UUID REFERENCES users(id),
+    organization_id UUID REFERENCES organizations(id),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Model Registry for ML model version tracking
+CREATE TABLE IF NOT EXISTS model_registry (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    model_name VARCHAR(100) NOT NULL,
+    version VARCHAR(50) NOT NULL,
+    artifact_uri VARCHAR(1024) NOT NULL,
+    framework VARCHAR(20) NOT NULL DEFAULT 'pkl',
+    is_active BOOLEAN DEFAULT false,
+    promoted_by UUID REFERENCES users(id),
+    promoted_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Policy Rules for transfer governance
+CREATE TABLE IF NOT EXISTS policy_rules (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    rule_name VARCHAR(120) NOT NULL UNIQUE,
+    description TEXT,
+    min_risk_score NUMERIC NOT NULL DEFAULT 80.0,
+    block_blacklisted BOOLEAN DEFAULT true,
+    block_suspended BOOLEAN DEFAULT true,
+    notify_on_block BOOLEAN DEFAULT true,
+    priority INTEGER NOT NULL DEFAULT 100,
+    is_active BOOLEAN DEFAULT true,
+    created_by UUID REFERENCES users(id),
+    organization_id UUID REFERENCES organizations(id),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Transaction Cases for case management
+CREATE TABLE IF NOT EXISTS transaction_cases (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tx_hash VARCHAR(66) NOT NULL,
+    analyst_id UUID REFERENCES users(id),
+    action VARCHAR(20) NOT NULL,
+    state VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Exchange Rates for real-time currency conversion
+CREATE TABLE IF NOT EXISTS exchange_rates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    chain VARCHAR(50) NOT NULL,
+    from_currency VARCHAR(10) NOT NULL DEFAULT 'ETH',
+    to_currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+    rate NUMERIC(18, 8) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(chain, from_currency, to_currency)
+);
+
+INSERT INTO exchange_rates (chain, from_currency, to_currency, rate)
+VALUES 
+    ('ethereum', 'ETH', 'USD', 3500.0),
+    ('ethereum', 'ETH', 'BTC', 0.035),
+    ('bsc', 'BNB', 'USD', 580.0),
+    ('bsc', 'BNB', 'BTC', 0.0058),
+    ('ethereum', 'USDT', 'USD', 1.0),
+    ('bsc', 'USDT', 'USD', 1.0)
+ON CONFLICT (chain, from_currency, to_currency) DO NOTHING;
+
+CREATE INDEX IF NOT EXISTS idx_exchange_rates_chain ON exchange_rates (chain);
+CREATE TABLE IF NOT EXISTS money_flow_snapshots (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    inflow_eth NUMERIC DEFAULT 0.0,
+    outflow_eth NUMERIC DEFAULT 0.0,
+    chain_id VARCHAR(50) DEFAULT 'ethereum',
+    wallet_address VARCHAR(255)
+);
+
+
+CREATE TABLE IF NOT EXISTS feedback_labels (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    wallet_address VARCHAR(255) NOT NULL,
+    ai_score NUMERIC(5, 2) NOT NULL,
+    ai_risk_level VARCHAR(20) NOT NULL,
+    ai_model_version VARCHAR(50),
+    admin_label VARCHAR(20) NOT NULL,
+    admin_category VARCHAR(50),
+    admin_notes TEXT,
+    admin_username VARCHAR(100) NOT NULL,
+    used_for_training BOOLEAN DEFAULT false,
+    training_batch_id VARCHAR(50),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_wallet ON feedback_labels (wallet_address);
+CREATE INDEX IF NOT EXISTS idx_feedback_admin_username ON feedback_labels (admin_username);
+CREATE INDEX IF NOT EXISTS idx_feedback_training ON feedback_labels (used_for_training);
+
+-- ============================================================================
+-- SECURITY CHECKS AND CONSTRAINTS
+-- ============================================================================
+ALTER TABLE alerts DROP CONSTRAINT IF EXISTS ck_alert_severity;
+ALTER TABLE alerts ADD CONSTRAINT ck_alert_severity CHECK (severity IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'));
+
+-- ============================================================================
+-- INSERT DEFAULT ORGANIZATION AND UPDATE USERS
+-- ============================================================================
+INSERT INTO organizations (id, name, slug, contact_email, api_key, is_active)
+VALUES ('11111111-1111-1111-1111-111111111100', 'Blockchain Sentinel', 'blockchain-sentinel', 'admin@blockchain-sentinel.io', 'demo-api-key-12345', true)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Update existing users with organization_id
+UPDATE users SET organization_id = '11111111-1111-1111-1111-111111111100' WHERE organization_id IS NULL;

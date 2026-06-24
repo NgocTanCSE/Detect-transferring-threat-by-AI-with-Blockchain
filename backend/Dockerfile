@@ -22,8 +22,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy code vào container
 COPY . .
 
+# Copy database scripts
+COPY database/ ./database/
+
 # port 8000
 EXPOSE 8000
 
-#Ví dụ dùng FastAPI với Uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# For Hugging Face Spaces - bootstrap database then run
+CMD ["sh", "-c", "python bootstrap_supabase.py --once 2>/dev/null || true; uvicorn app.main:app --host 0.0.0.0 --port 8000"]

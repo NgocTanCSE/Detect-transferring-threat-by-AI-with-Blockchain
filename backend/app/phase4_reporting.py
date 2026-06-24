@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from io import StringIO
 import csv
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
@@ -19,11 +19,13 @@ from app.models.models import (
     PipelineMetric,
     PolicyRule,
     Transaction,
+    User,
     ComplianceKPI,
     SystemHealthSnapshot
 )
 from app.utils.api_response import api_success
 from app.utils.auth_utils import get_org_id
+from app.auth import optional_auth, require_admin
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,7 @@ def _percentile(values: list[float], percentile: float) -> float:
 def system_slo_metrics(
     days: int = Query(default=7, ge=1, le=90),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     # Attempt to fetch from persistent snapshots first
     snapshot = (
@@ -61,14 +64,17 @@ def system_slo_metrics(
         .first()
     )
     
+    endpoints = db.query(NodeEndpoint).all()
+    active_endpoints = [item for item in endpoints if item.is_active]
+    healthy_active = [item for item in active_endpoints if item.health_status == "healthy"]
     if snapshot:
         return api_success(
             data={
                 "period_days": days,
                 "endpoint_health": {
-                    "total": 12, 
-                    "active": 10,
-                    "healthy_active": 10,
+                    "total": len(endpoints),
+                    "active": len(active_endpoints),
+                    "healthy_active": len(healthy_active),
                     "availability_pct": snapshot.availability_pct,
                     "error_budget_burn_pct": snapshot.error_budget_burn,
                 },
@@ -76,7 +82,7 @@ def system_slo_metrics(
                     "ingest_target_ms": 500.0,
                     "decode_target_ms": 200.0,
                     "ingest_p95_ms": snapshot.latency_p95_ms,
-                    "decode_p95_ms": round(snapshot.latency_p95_ms * 0.4, 2), 
+                    "decode_p95_ms": round(snapshot.latency_p95_ms * 0.4, 2),
                     "ingest_breaches": 0,
                     "decode_breaches": 0,
                     "sample_points": snapshot.sample_points,
@@ -86,6 +92,9 @@ def system_slo_metrics(
             legacy={
                 "period_days": days,
                 "endpoint_health": {
+                    "total": len(endpoints),
+                    "active": len(active_endpoints),
+                    "healthy_active": len(healthy_active),
                     "availability_pct": snapshot.availability_pct,
                     "error_budget_burn_pct": snapshot.error_budget_burn,
                 }
@@ -145,7 +154,8 @@ def system_slo_metrics(
 def compliance_reporting_summary(
     days: int = Query(default=30, ge=1, le=365),
     db: Session = Depends(get_db),
-    org_id: str | None = Depends(get_org_id)
+    org_id: str | None = Depends(get_org_id),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     now_utc = datetime.now(timezone.utc)
     
@@ -229,24 +239,6 @@ def compliance_reporting_summary(
         db.query(func.count(AuditLog.id)).filter(AuditLog.timestamp >= period_start).scalar() or 0
     )
 
-    # Mock data fallback for demonstration if DB appears empty
-    if alerts_total == 0 and blocked_total == 0 and policy_rules_active == 0:
-        logger.info("Compliance reporting queries returned 0 results. Injecting high-quality mock data for dashboard visualization.")
-        alerts_total = 1240 + (int(now_utc.timestamp()) % 100)
-        critical_alerts = 42 + (int(now_utc.timestamp()) % 10)
-        blocked_total = 186 + (int(now_utc.timestamp()) % 20)
-        blocked_value_wei = 45500000000000000000 # ~45.5 ETH
-        policy_rules_active = 24
-        notifications_sent = 890 + (int(now_utc.timestamp()) % 50)
-        notifications_failed = 12
-        audit_event_count = 3450 + (int(now_utc.timestamp()) % 200)
-        cases_by_state = {
-            "PENDING": 12,
-            "VERIFIED": 85,
-            "FRAUD": 24,
-            "IGNORED": 156
-        }
-
     response = {
         "period": {
             "days": days,
@@ -277,6 +269,7 @@ def compliance_reporting_summary(
 def compliance_control_effectiveness(
     days: int = Query(default=30, ge=1, le=365),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     period_start = _window_start(days)
 
@@ -332,6 +325,7 @@ def compliance_control_effectiveness(
 def compliance_audit_completeness(
     days: int = Query(default=30, ge=1, le=365),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     period_start = _window_start(days)
 
@@ -367,20 +361,6 @@ def compliance_audit_completeness(
             }
         )
 
-    # Mock fallback for demonstration
-    if present_count == 0:
-        logger.info("Audit completeness returned 0 results. Injecting mock data for dashboard visualization.")
-        checks = [
-            {"action_type": "CASE_ASSIGN", "count": 142, "present": True},
-            {"action_type": "CASE_ESCALATE", "count": 28, "present": True},
-            {"action_type": "CASE_CONFIRM_FRAUD", "count": 15, "present": True},
-            {"action_type": "CASE_DISMISS", "count": 112, "present": True},
-            {"action_type": "POLICY_RULE_CREATE", "count": 4, "present": True},
-            {"action_type": "POLICY_RULE_UPDATE", "count": 0, "present": False},
-            {"action_type": "NOTIFICATION_TEST_SEND", "count": 0, "present": False},
-        ]
-        present_count = sum(1 for c in checks if c["present"])
-
     completeness_pct = (present_count / len(required_actions) * 100.0) if required_actions else 0.0
 
     response = {
@@ -397,8 +377,9 @@ def compliance_audit_completeness(
 def compliance_audit_gaps(
     days: int = Query(default=30, ge=1, le=365),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
-    completeness = compliance_audit_completeness(days=days, db=db)
+    completeness = compliance_audit_completeness(days=days, db=db, current_user=current_user)
 
     guidance_map = {
         "CASE_ASSIGN": ("security_analyst", "No assignment trail recorded in selected period"),
@@ -437,10 +418,11 @@ def compliance_audit_gaps(
 def compliance_export(
     days: int = Query(default=30, ge=1, le=365),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
-    summary = compliance_reporting_summary(days=days, db=db)
-    effectiveness = compliance_control_effectiveness(days=days, db=db)
-    audit = compliance_audit_completeness(days=days, db=db)
+    summary = compliance_reporting_summary(days=days, db=db, current_user=current_user)
+    effectiveness = compliance_control_effectiveness(days=days, db=db, current_user=current_user)
+    audit = compliance_audit_completeness(days=days, db=db, current_user=current_user)
 
     rows = [
         {"metric": "period_days", "value": str(days)},

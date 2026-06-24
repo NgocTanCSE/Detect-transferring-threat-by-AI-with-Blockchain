@@ -23,7 +23,11 @@ const pool = new Pool({
 
 const app = express();
 const PORT = process.env.PORT || 8001;
-const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'your_jwt_secret_key_here_change_in_production';
+const JWT_SECRET = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET_KEY environment variable is required');
+    process.exit(1);
+}
 const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
 
 // Middleware
@@ -66,7 +70,7 @@ app.use(requestMetrics);
 // Rate limiting tiers
 const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 1000, // Increased for demo
+  max: 50, // Reasonable limit for demo
   message: { error: 'Too many authentication attempts, please try again in an hour.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -74,7 +78,7 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 2000, // Increased for demo
+  max: 200, // Reasonable limit for demo
   message: { error: 'API rate limit exceeded, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -82,7 +86,7 @@ const apiLimiter = rateLimit({
 
 const dashboardLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 5000, // Increased for demo
+  max: 100, // Reasonable for dashboard polling
   message: { error: 'Dashboard polling too frequent.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -112,7 +116,6 @@ const SERVICES = {
   wallet: process.env.WALLET_SERVICE_URL || 'http://wallet-service:3002',
   alert: process.env.ALERT_SERVICE_URL || 'http://alert-service:3003',
   transfer: process.env.TRANSFER_SERVICE_URL || 'http://transfer-service:3004',
-  analytics: process.env.ANALYTICS_SERVICE_URL || 'http://analytics-service:3005',
   compliance: process.env.COMPLIANCE_SERVICE_URL || 'http://compliance-service:3006',
   event: process.env.EVENT_SERVICE_URL || 'http://event-service:3007',
   ai: process.env.AI_SERVICE_URL || 'http://ai-service:8000',
@@ -168,8 +171,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'api-gateway',
-    timestamp: new Date().toISOString(),
-    dlq_metrics: { main: 0, dead: 0 }
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -204,7 +206,7 @@ const verifyAuth = async (req, res, next) => {
     return next();
   }
 
-  // Public routes (no auth required)
+// Public routes (no auth required)
   const publicRoutes = [
     '/health', '/ready',
     '/auth/register', '/auth/login', '/auth/validate',
@@ -216,7 +218,8 @@ const verifyAuth = async (req, res, next) => {
     '/diagnostics',
     '/ops/', '/admin/diagnostics',
     '/cases',
-    '/assistant',
+    '/assistant', '/assistant/chat',
+    '/insights', '/insights/wallet', '/insights/case', '/insights/policy',
   ];
   if (publicRoutes.some(route => req.path.startsWith(route))) {
     return next();
@@ -280,18 +283,10 @@ const ROUTE_MAP = {
   '/transfers': 'transfer',
   '/transfer': 'transfer',
   '/protected-transfer': 'transfer',
-
-  // Analytics Service (3005)
-  '/statistics': 'analytics',
-  '/dashboard': 'analytics',
-  '/analytics': 'analytics',
-  '/ops/system/node-endpoints': 'analytics',
-  '/ops/system/pipeline-metrics': 'analytics',
+  '/blocked-transfers': 'transfer',
 
   // Compliance Service (3006)
-  '/ops/compliance': 'compliance',
   '/compliance': 'compliance',
-  '/cases': 'compliance',
   '/aml': 'compliance',
   '/policy-rules': 'compliance',
 
@@ -304,20 +299,25 @@ const ROUTE_MAP = {
   // Admin diagnostics endpoints (FastAPI backend)
   '/admin': 'ai',
 
+  // Statistics / Dashboard (FastAPI backend on port 8000)
+  '/statistics': 'ai',
+  '/organizations': 'ai',
+
   // AI Service (FastAPI backend on port 8000) - Assistant, Ops, Case Management
   '/assistant': 'ai',
   '/ops/system': 'ai',
   '/ops/ai': 'ai',
   '/ops/security': 'ai',
-  '/analyze': 'ai', 
-  '/blocked-transfers': 'ai',
+  '/ops/compliance': 'compliance',
+  '/cases': 'ai',
+  '/analyze': 'ai',
   '/socket.io': 'event',
 };
 
 // Prefixes to strip when forwarding to specific services
 const STRIP_PREFIXES = {
   'auth': ['/auth'],
-  'compliance': ['/ops/compliance'],
+  'compliance': ['/ops/compliance', '/compliance'],
   'transfer': ['/transfer', '/transfers'],
 };
 
@@ -391,6 +391,12 @@ const server = app.listen(PORT, () => {
   Object.entries(SERVICES).forEach(([name, url]) => {
     console.log(`  ${name}: ${url}`);
   });
+});
+
+// Centralized error handler
+app.use((err, req, res, next) => {
+  console.error(`API Gateway Error:`, err.message);
+  res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
 // Handle WebSocket upgrades

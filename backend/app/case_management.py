@@ -1,6 +1,6 @@
 """Case management APIs for analyst workflow (assign, confirm fraud, dismiss, escalate)."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import uuid
 
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.models import AuditLog, Transaction, TransactionCase, User
+from app.auth import optional_auth, require_admin
 
 router = APIRouter(prefix="/cases", tags=["Case Management"])
 
@@ -100,6 +101,7 @@ def list_cases(
     assigned_to: Optional[str] = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
 ) -> Dict[str, Any]:
     assigned_uuid = _parse_uuid(assigned_to, "assigned_to") if assigned_to else None
 
@@ -154,7 +156,7 @@ def list_cases(
 
 
 @router.post("/{tx_hash}/assign", summary="Assign transaction case to analyst")
-def assign_case(tx_hash: str, payload: AssignCaseRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def assign_case(tx_hash: str, payload: AssignCaseRequest, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     tx = db.query(Transaction).filter(Transaction.tx_hash == tx_hash).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -168,7 +170,7 @@ def assign_case(tx_hash: str, payload: AssignCaseRequest, db: Session = Depends(
     tx.assigned_to = assigned_uuid
     if not tx.case_status:
         tx.case_status = "PENDING"
-    tx.updated_at = datetime.utcnow()
+    tx.updated_at = datetime.now(timezone.utc)
 
     db.add(
         TransactionCase(
@@ -202,7 +204,7 @@ def assign_case(tx_hash: str, payload: AssignCaseRequest, db: Session = Depends(
 
 
 @router.post("/bulk-assign", summary="Bulk assign cases")
-def bulk_assign_cases(payload: BulkAssignRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def bulk_assign_cases(payload: BulkAssignRequest, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     if not payload.tx_hashes:
         raise HTTPException(status_code=400, detail="tx_hashes cannot be empty")
 
@@ -221,7 +223,7 @@ def bulk_assign_cases(payload: BulkAssignRequest, db: Session = Depends(get_db))
         tx.assigned_to = assigned_uuid
         if not tx.case_status:
             tx.case_status = "PENDING"
-        tx.updated_at = datetime.utcnow()
+        tx.updated_at = datetime.now(timezone.utc)
 
         db.add(
             TransactionCase(
@@ -257,7 +259,7 @@ def bulk_assign_cases(payload: BulkAssignRequest, db: Session = Depends(get_db))
 
 
 @router.post("/{tx_hash}/action", summary="Apply case action")
-def apply_case_action(tx_hash: str, payload: CaseActionRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def apply_case_action(tx_hash: str, payload: CaseActionRequest, db: Session = Depends(get_db), admin: User = Depends(require_admin)) -> Dict[str, Any]:
     tx = db.query(Transaction).filter(Transaction.tx_hash == tx_hash).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -282,7 +284,7 @@ def apply_case_action(tx_hash: str, payload: CaseActionRequest, db: Session = De
     _validate_transition(current_status, target_status)
 
     tx.case_status = target_status
-    tx.updated_at = datetime.utcnow()
+    tx.updated_at = datetime.now(timezone.utc)
     if analyst_uuid:
         tx.assigned_to = analyst_uuid
 
@@ -321,7 +323,7 @@ def apply_case_action(tx_hash: str, payload: CaseActionRequest, db: Session = De
 
 
 @router.get("/{tx_hash}/history", summary="Get case history")
-def get_case_history(tx_hash: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_case_history(tx_hash: str, db: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
     tx = db.query(Transaction).filter(Transaction.tx_hash == tx_hash).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")

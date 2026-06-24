@@ -48,8 +48,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'wallet-service',
-    timestamp: new Date(),
-    dlq_metrics: { main: 0, dead: 0 }
+    timestamp: new Date()
   });
 });
 
@@ -198,14 +197,16 @@ app.get('/wallet/:address/stats', async (req, res) => {
 
     const wallet = walletResult.rows[0];
 
+    const chain = (req.query.chain || 'ethereum').toLowerCase();
+
     const txStats = await pool.query(
       `SELECT 
-        COUNT(*) FILTER (WHERE LOWER(from_address) = $1) as sent_count,
-        COUNT(*) FILTER (WHERE LOWER(to_address) = $1) as received_count,
-        COALESCE(SUM(value) FILTER (WHERE LOWER(from_address) = $1), 0) as eth_sent,
-        COALESCE(SUM(value) FILTER (WHERE LOWER(to_address) = $1), 0) as eth_received
-       FROM transactions WHERE LOWER(from_address) = $1 OR LOWER(to_address) = $1`,
-      [address]
+        COUNT(*) FILTER (WHERE LOWER(from_address) = $1 AND chain_id = $3) as sent_count,
+        COUNT(*) FILTER (WHERE LOWER(to_address) = $1 AND chain_id = $3) as received_count,
+        COALESCE(SUM(value) FILTER (WHERE LOWER(from_address) = $1 AND chain_id = $3), 0) as eth_sent,
+        COALESCE(SUM(value) FILTER (WHERE LOWER(to_address) = $1 AND chain_id = $3), 0) as eth_received
+       FROM transactions WHERE (LOWER(from_address) = $1 OR LOWER(to_address) = $1) AND chain_id = $3`,
+      [address, null, chain]
     );
 
     const alertStats = await pool.query(
@@ -295,6 +296,9 @@ app.get('/wallet/:address/balance', async (req, res) => {
   try {
     // Get wallet basic info
     const walletResult = await pool.query('SELECT * FROM wallets WHERE LOWER(address) = $1', [address]);
+    if (walletResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Wallet not found' });
+    }
     
     // Calculate balance from transactions table for the specific chain
     const balanceResult = await pool.query(`
@@ -331,10 +335,12 @@ app.get('/wallet/:address/transactions', async (req, res) => {
   const address = req.params.address.toLowerCase().trim();
   const limit = parseInt(req.query.limit || 10);
 
+  const chain = (req.query.chain || 'ethereum').toLowerCase();
+
   try {
     const result = await pool.query(
-      'SELECT * FROM transactions WHERE LOWER(from_address) = $1 OR LOWER(to_address) = $1 ORDER BY timestamp DESC LIMIT $2',
-      [address, limit]
+      'SELECT * FROM transactions WHERE (LOWER(from_address) = $1 OR LOWER(to_address) = $1) AND chain_id = $2 ORDER BY timestamp DESC LIMIT $3',
+      [address, chain, limit]
     );
 
     res.json({
@@ -348,6 +354,12 @@ app.get('/wallet/:address/transactions', async (req, res) => {
     console.error('Error fetching transactions:', error);
     res.status(500).json({ error: 'Failed to fetch transactions' });
   }
+});
+
+// Centralized error handler
+app.use((err, req, res, next) => {
+  console.error(`[${req.correlationId || 'no-id'}] Unhandled error:`, err.message);
+  res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
 // Start server

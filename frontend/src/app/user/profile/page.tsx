@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   User,
   Mail,
@@ -18,16 +18,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
+import { authFetch } from "@/lib/auth-fetch";
 import { formatAddress } from "@/lib/utils";
+import { useToast } from "@/lib/toast-context";
+
+interface ProfileData {
+  details?: { full_name?: string; phone?: string; address?: string };
+  preferences?: { email?: boolean; push?: boolean; sms?: boolean };
+}
 
 export default function UserProfile() {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [notifications, setNotifications] = useState({
     email: true,
     push: false,
     sms: false,
   });
+  const { notify } = useToast();
 
   const copyAddress = () => {
     if (user?.wallet_address) {
@@ -36,6 +48,71 @@ export default function UserProfile() {
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  // Load full profile (details & preferences) on mount
+  useEffect(() => {
+    authFetch('/auth/profile/full')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load profile');
+        return res.json();
+      })
+      .then(data => {
+          setProfile(data);
+          setFullName(data.details?.full_name ?? '');
+          setPhone(data.details?.phone ?? '');
+          setAddress(data.details?.address ?? '');
+        if (data.preferences) {
+          setNotifications({
+            email: data.preferences.notif_email ?? true,
+            push: data.preferences.notif_push ?? false,
+            sms: data.preferences.notif_sms ?? false,
+          });
+        }
+      })
+      .catch(err => {
+        console.error(err);
+      });
+   }, []);
+
+   // Save profile details
+   const saveDetails = async () => {
+     try {
+        const res = await authFetch('/auth/profile/details', {
+         method: 'PATCH',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ full_name: fullName, phone, address })
+       });
+       if (!res.ok) throw new Error('Failed to save details');
+        const updated = await res.json();
+         setProfile((prev) => ({ ...prev, details: updated }));
+        notify('Details saved', 'success');
+      } catch (err) {
+        console.error(err);
+        notify('Error saving details', 'error');
+     }
+   };
+
+   // Save preferences
+   const savePreferences = async () => {
+     try {
+        const res = await authFetch('/auth/profile/preferences', {
+         method: 'PATCH',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           notif_email: notifications.email,
+           notif_push: notifications.push,
+           notif_sms: notifications.sms
+         })
+       });
+       if (!res.ok) throw new Error('Failed to save preferences');
+        const updated = await res.json();
+         setProfile((prev) => ({ ...prev, preferences: updated }));
+        notify('Preferences saved', 'success');
+      } catch (err) {
+        console.error(err);
+        notify('Error saving preferences', 'error');
+     }
+   };
 
   return (
     <div className="space-y-6">
@@ -171,10 +248,11 @@ export default function UserProfile() {
                     notifications[item.key] ? "translate-x-6" : "translate-x-1"
                   }`}
                 />
-              </button>
-            </div>
-          ))}
-        </CardContent>
+                </button>
+              </div>
+            ))}
+          <Button onClick={savePreferences} className="mt-2">Lưu Cài Đặt</Button>
+          </CardContent>
       </Card>
 
       {/* Security */}

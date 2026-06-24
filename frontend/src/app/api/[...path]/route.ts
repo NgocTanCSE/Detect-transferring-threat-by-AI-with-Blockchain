@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://api-gateway:8001";
+const GATEWAY_URL = process.env.BACKEND_URL || "http://api-gateway:8001";
+const BACKEND_FALLBACK_URL = process.env.BACKEND_FALLBACK_URL || "http://localhost:8000";
 
 function buildBackendUrl(request: NextRequest, params: { path: string[] }): string {
   const path = params.path.join("/");
   const searchParams = request.nextUrl.searchParams.toString();
-  return `${BACKEND_URL}/${path}${searchParams ? `?${searchParams}` : ""}`;
+  return `${GATEWAY_URL}/${path}${searchParams ? `?${searchParams}` : ""}`;
 }
 
 function forwardHeaders(request: NextRequest): Headers {
@@ -68,20 +69,36 @@ async function toClientResponse(response: Response): Promise<NextResponse> {
 }
 
 async function proxy(request: NextRequest, params: { path: string[] }, method: string): Promise<NextResponse> {
-  const url = buildBackendUrl(request, params);
+  const searchParams = request.nextUrl.searchParams.toString();
+  const path = params.path.join("/");
+  const query = searchParams ? `?${searchParams}` : "";
 
-  try {
-    const body = method === "GET" || method === "DELETE" ? undefined : await request.text();
-    const response = await fetch(url, {
-      method,
-      headers: forwardHeaders(request),
-      body,
-    });
-    return toClientResponse(response);
-  } catch (error) {
-    console.error("API proxy error:", error);
-    return NextResponse.json({ error: "Failed to fetch from backend" }, { status: 500 });
+  async function tryUrl(baseUrl: string): Promise<Response | null> {
+    const url = `${baseUrl}/${path}${query}`;
+    try {
+      const body = method === "GET" || method === "DELETE" ? undefined : await request.text();
+      const response = await fetch(url, {
+        method,
+        headers: forwardHeaders(request),
+        body,
+      });
+      return response;
+    } catch {
+      return null;
+    }
   }
+
+  let response = await tryUrl(GATEWAY_URL);
+  if (!response || response.status >= 500) {
+    const fallbackResponse = await tryUrl(BACKEND_FALLBACK_URL);
+    if (fallbackResponse) {
+      response = fallbackResponse;
+    }
+  }
+  if (!response) {
+    return NextResponse.json({ error: "Failed to fetch from backend" }, { status: 502 });
+  }
+  return toClientResponse(response);
 }
 
 export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {

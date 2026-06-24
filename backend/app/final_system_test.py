@@ -19,7 +19,7 @@ class MultiTenantSystemTest(unittest.TestCase):
         try:
             resp = requests.get(f"{BASE_URL}/api/ops/system/node-endpoints?only_active=true") # Check connectivity
             print(f"Connectivity check: {resp.status_code}")
-        except:
+        except requests.RequestException:
             print("Backend not reachable at BASE_URL. Tests will likely fail.")
 
     def test_kpi_isolation(self):

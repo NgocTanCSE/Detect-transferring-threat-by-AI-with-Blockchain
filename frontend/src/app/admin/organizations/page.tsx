@@ -1,33 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Search, Plus, Filter, MoreVertical, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Search, Plus, Filter, MoreVertical, Building2, ShieldCheck, ShieldAlert } from "lucide-react";
+import { fetchOrganizations, type Organization } from "@/lib/api";
 
 export default function OrganizationsPage() {
   const [search, setSearch] = useState("");
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const orgs = [
-    { id: 1, name: "Vietcombank", slug: "vietcombank", status: "active", users: 12, api_calls: "1.2M", health: "Good" },
-    { id: 2, name: "Binance Vietnam", slug: "binance-vn", status: "active", users: 45, api_calls: "8.5M", health: "Good" },
-    { id: 3, name: "Techcombank", slug: "techcombank", status: "warning", users: 8, api_calls: "450K", health: "Suspicious Activity" },
-    { id: 4, name: "Momo e-Wallet", slug: "momo", status: "active", users: 120, api_calls: "25M", health: "Good" },
-  ];
+  useEffect(() => {
+    fetchOrganizations().then(data => {
+      setOrganizations(data.items);
+    }).catch(() => {
+      setOrganizations([]);
+    }).finally(() => {
+      setLoading(false);
+    });
+  }, []);
+
+  const filteredOrgs = organizations.filter(org => 
+    org.name.toLowerCase().includes(search.toLowerCase()) || 
+    org.slug.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const orgs = loading ? [] : filteredOrgs;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Organization Management</h1>
-          <p className="text-slate-400 mt-1">Manage multi-tenant banking and exchange partners.</p>
+      {loading && (
+        <div className="text-center py-12">
+          <p className="text-slate-400">Loading organizations...</p>
         </div>
-        <Button className="bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold">
-          <Plus className="mr-2 h-4 w-4" /> Add New Tenant
-        </Button>
-      </div>
+      )}
+      {!loading && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white tracking-tight">Organization Management</h1>
+            <p className="text-slate-400 mt-1">Manage multi-tenant banking and exchange partners.</p>
+          </div>
+          <Button className="bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold">
+            <Plus className="mr-2 h-4 w-4" /> Add New Tenant
+          </Button>
+        </div>
+      )}
 
       <div className="flex gap-4 mb-6">
         <div className="relative flex-1">
@@ -65,26 +85,13 @@ export default function OrganizationsPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-400">Status</span>
-                  <Badge className={org.status === 'active' ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}>
-                    {org.status.toUpperCase()}
+                  <Badge className={org.is_active ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}>
+                    {org.is_active ? 'ACTIVE' : 'INACTIVE'}
                   </Badge>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">Security Health</span>
-                  <div className="flex items-center gap-1">
-                    {org.health === 'Good' ? <ShieldCheck className="h-4 w-4 text-teal-500" /> : <ShieldAlert className="h-4 w-4 text-amber-500" />}
-                    <span className={org.health === 'Good' ? 'text-teal-500' : 'text-amber-500'}>{org.health}</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800">
-                  <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wider">Users</p>
-                    <p className="text-lg font-semibold text-white">{org.users}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wider">API Usage</p>
-                    <p className="text-lg font-semibold text-white">{org.api_calls}</p>
-                  </div>
+                  <span className="text-slate-400">Contact</span>
+                  <span className="text-slate-300 text-xs">{org.contact_email || 'No email'}</span>
                 </div>
                 <Button variant="secondary" className="w-full mt-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border-none">
                   View Analytics
@@ -93,6 +100,12 @@ export default function OrganizationsPage() {
             </CardContent>
           </Card>
         ))}
+        {!loading && orgs.length === 0 && (
+          <div className="col-span-3 text-center py-12 text-slate-500">
+            No organizations found. Add one to get started.
+          </div>
+        )}
+      </div>
       </div>
     </div>
   );

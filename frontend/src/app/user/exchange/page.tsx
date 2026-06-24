@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/lib/toast-context";
 import {
   Dialog,
   DialogContent,
@@ -31,11 +32,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  authFetch,
   fetchWalletBalance,
-  fetchWalletTransactions,
+  fetchWalletTransactionHistory,
   sendProtectedTransfer,
   type WalletBalance,
-  type Transaction,
+  type WalletTransaction,
   type TransferResponse,
 } from "@/lib/api";
 import { formatAddress, formatEth, formatDate } from "@/lib/utils";
@@ -44,6 +46,7 @@ import { useAuth } from "@/lib/auth-context";
 export default function UserExchange() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const { notify } = useToast();
   const [fromWalletId, setFromWalletId] = useState("");
   const [toAddress, setToAddress] = useState("");
   const [amount, setAmount] = useState("");
@@ -52,7 +55,7 @@ export default function UserExchange() {
 
   // State
   const [senderBalance, setSenderBalance] = useState<WalletBalance | null>(null);
-  const [senderTransactions, setSenderTransactions] = useState<Transaction[]>([]);
+  const [senderTransactions, setSenderTransactions] = useState<WalletTransaction[]>([]);
   const [receiverRisk, setReceiverRisk] = useState<{ risk_score: number; risk_level: string } | null>(null);
   const [loading, setLoading] = useState({ balance: false, tx: false, risk: false, transfer: false });
   const [dialogs, setDialogs] = useState({ warning: false, blocked: false, success: false });
@@ -70,7 +73,7 @@ export default function UserExchange() {
     try {
       const [bal, txs] = await Promise.all([
         fetchWalletBalance(fromWalletId),
-        fetchWalletTransactions(fromWalletId, 10)
+        fetchWalletTransactionHistory(fromWalletId, 10)
       ]);
       setSenderBalance(bal);
       setSenderTransactions(txs);
@@ -88,7 +91,7 @@ export default function UserExchange() {
         setLoading(prev => ({ ...prev, risk: true }));
         try {
           // Use common API for risk check
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/analyze/${toAddress}`);
+          const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/analyze/${toAddress}`);
           const data = await res.json();
           setReceiverRisk(data.payload || data);
         } catch {
@@ -121,8 +124,8 @@ export default function UserExchange() {
         setDialogs(d => ({ ...d, success: true }));
         refreshData();
       }
-    } catch (err: any) {
-      alert(err.message || "Transfer failed");
+    } catch (err: unknown) {
+      notify(err instanceof Error ? err.message : "Transfer failed", "error");
     } finally {
       setLoading(prev => ({ ...prev, transfer: false }));
     }
@@ -209,21 +212,21 @@ export default function UserExchange() {
             <CardHeader className="bg-slate-950/40 border-b border-slate-800/60 p-6">
               <CardTitle className="text-lg font-bold flex items-center gap-2"><Clock className="h-5 w-5 text-slate-500" /> Activity</CardTitle>
             </CardHeader>
-            <CardContent className="p-0 max-h-[400px] overflow-y-auto">
-              {senderTransactions.map(tx => (
-                <div key={tx.tx_hash} className="p-4 border-b border-slate-800/40 hover:bg-slate-800/20 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? <ArrowUpRight className="text-slate-500 h-5 w-5" /> : <ArrowDownLeft className="text-teal-500 h-5 w-5" />}
-                    <div>
-                      <p className="text-xs font-mono text-slate-300">{formatAddress(tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? tx.to_address : tx.from_address)}</p>
-                      <p className="text-[10px] text-slate-500">{formatDate(tx.timestamp)}</p>
-                    </div>
-                  </div>
-                  <span className={`font-bold ${tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? "text-slate-100" : "text-teal-400"}`}>
-                    {tx.from_address.toLowerCase() === fromWalletId.toLowerCase() ? "-" : "+"}{formatEth(Number(tx.value_wei) / 1e18 || 0)}
-                  </span>
-                </div>
-              ))}
+<CardContent className="p-0 max-h-[400px] overflow-y-auto">
+               {senderTransactions?.map(tx => (
+                 <div key={tx.tx_hash} className="p-4 border-b border-slate-800/40 hover:bg-slate-800/20 flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                     {tx.direction === "sent" ? <ArrowUpRight className="text-slate-500 h-5 w-5" /> : <ArrowDownLeft className="text-teal-500 h-5 w-5" />}
+                     <div>
+                       <p className="text-xs font-mono text-slate-300">{formatAddress(tx.counterparty)}</p>
+                       <p className="text-[10px] text-slate-500">{formatDate(tx.timestamp || new Date().toISOString())}</p>
+                     </div>
+                   </div>
+                   <span className={`font-bold ${tx.direction === "sent" ? "text-slate-100" : "text-teal-400"}`}>
+                     {tx.direction === "sent" ? "-" : "+"}{formatEth(tx.value_eth || 0)}
+                   </span>
+                 </div>
+               ))}
             </CardContent>
           </Card>
         </div>

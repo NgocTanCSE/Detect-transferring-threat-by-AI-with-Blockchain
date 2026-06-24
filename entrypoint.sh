@@ -40,9 +40,11 @@ if [ -n "$SPACE_ID" ]; then
         fi
 
         # Run migration to move old data to /data if it exists elsewhere
-        echo "Running persistent storage migration..."
-        cd /app/backend
-        python migrate_persistent_storage.py || echo "Migration completed (no old data found)"
+        if [ -f "/app/backend/migrate_persistent_storage.py" ]; then
+            echo "Running persistent storage migration..."
+            cd /app/backend
+            python migrate_persistent_storage.py || echo "Migration completed (no old data found)"
+        fi
     fi
 else
     echo "Not on HF Spaces, using default database configuration"
@@ -55,8 +57,10 @@ if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres://* || "$DATABASE_UR
     python bootstrap_supabase.py || echo "Bootstrap failed (DB might not be ready yet), continuing..."
     echo "Running Alembic migrations..."
     alembic -c /app/backend/alembic.ini upgrade head || echo "Alembic migration failed (DB might not be ready yet), continuing..."
-    echo "Attempting legacy Python migrations (if any)..."
-    python migrate.py || echo "Migration script failed (DB might not be ready yet), continuing..."
+    if [ -f "/app/backend/migrate.py" ]; then
+        echo "Attempting legacy Python migrations (if any)..."
+        python migrate.py || echo "Migration script failed, continuing..."
+    fi
 else
     echo "Using local SQLite database at /data/blockchain_local.db. Attempting seed..."
     cd /app/backend

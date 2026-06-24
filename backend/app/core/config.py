@@ -69,16 +69,12 @@ MODEL_DIRECTORY: str = "app/services"
 RISK_MODEL_FILENAME: str = "risk_model.pkl"
 SCALER_FILENAME: str = "scaler.pkl"
 FEATURES_FILENAME: str = "model_features.pkl"
+DECISION_THRESHOLD_FILENAME: str = "decision_threshold.pkl"
 
 # Dataset Configuration
 DATASET_PATH: str = "transaction_dataset.csv"
 TEST_SPLIT_RATIO: float = 0.2
 RANDOM_SEED: int = 42
-
-# Risk Thresholds
-RISK_THRESHOLD_LOW: int = 20
-RISK_THRESHOLD_MEDIUM: int = 50
-RISK_THRESHOLD_HIGH: int = 80
 
 # Gemini AI Studio (Generative Language API)
 # Prefer GEMINI_API_KEY for explicitness; allow GOOGLE_API_KEY as compatibility alias.

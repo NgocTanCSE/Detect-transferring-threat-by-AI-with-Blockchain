@@ -5,8 +5,9 @@ and field constraints where appropriate.
 
 from datetime import datetime
 from typing import List, Optional, Dict, Any
+import re
 
-from pydantic import BaseModel, Field, EmailStr, validator
+from pydantic import BaseModel, Field, EmailStr, field_validator
 
 # ---------------------------------------------------------------------------
 # Auth / User
@@ -19,9 +20,15 @@ class RegisterRequest(BaseModel):
     organization_name: Optional[str] = None
     organization_id: Optional[str] = None
 
-    @validator("wallet_address")
+    @field_validator("wallet_address")
+    @classmethod
     def normalize_wallet(cls, v: Optional[str]) -> Optional[str]:
-        return v.lower().strip() if v else v
+        if not v:
+            return v
+        normalized = v.lower().strip()
+        if not re.match(r"^0x[a-f0-9]{40}$", normalized):
+            raise ValueError("wallet_address must be 0x + 40 hexadecimal characters")
+        return normalized
 
 class RegisterResponse(BaseModel):
     id: str
@@ -39,6 +46,31 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: Optional[int] = None
     user: Dict[str, Any]
+
+# ---------------------------------------------------------------------------
+# Assistant Chat
+# ---------------------------------------------------------------------------
+class AssistantChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+    role: str = Field("operator", max_length=50)
+    wallet_address: Optional[str] = Field(None, max_length=255)
+    screen_scope: str = Field("dashboard", max_length=50)
+    conversation_history: List[Dict[str, Any]] = Field(default_factory=list)
+    context: Optional[Dict[str, Any]] = None
+
+    @field_validator("message")
+    @classmethod
+    def message_not_blank(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("message must not be blank")
+        return stripped
+
+    @field_validator("role")
+    @classmethod
+    def normalize_role(cls, v: str) -> str:
+        return v.strip() or "operator"
+
 
 # ---------------------------------------------------------------------------
 # Wallet / Transaction Overview (used by the assistant/dashboard)
@@ -67,6 +99,13 @@ class DashboardContext(BaseModel):
     top_risky_wallets: List[WalletBrief] = []
     wallet_focus: Optional[WalletBrief] = None
 
+    @field_validator("overview", mode="before")
+    @classmethod
+    def ensure_overview(cls, v):
+        if isinstance(v, dict):
+            return OverviewMetrics(**v)
+        return v
+
 # ---------------------------------------------------------------------------
 # Generic API response wrapper (mirrors utils.api_response)
 # ---------------------------------------------------------------------------
@@ -83,14 +122,4 @@ class ApiError(BaseModel):
     code: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
     legacy: Optional[Any] = None
-
-# ---------------------------------------------------------------------------
-# Helper validators (example of edge‑case handling)
-# ---------------------------------------------------------------------------
-@validator("overview", pre=True, always=True)
-def ensure_overview(cls, v):
-    # Accept dict or already‑parsed OverviewMetrics
-    if isinstance(v, dict):
-        return OverviewMetrics(**v)
-    return v
 

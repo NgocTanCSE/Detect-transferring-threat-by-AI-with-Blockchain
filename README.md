@@ -13,7 +13,7 @@ A state-of-the-art, fully decoupled microservices platform for real-time blockch
 
 ## 🏗️ Architecture Overview
 
-The system has been migrated from a monolithic architecture to a robust, 14-container microservices stack.
+The system uses a 14-container microservices stack with a single PostgreSQL database.
 
 ```mermaid
 graph TB
@@ -38,9 +38,8 @@ graph TB
   end
 
   subgraph "Infrastructure Layer"
-    PGMain["Postgres Main :5432"]
-    PGAlerts["Postgres Alerts :5433"]
-    PGTrans["Postgres Transfers :5434"]
+    PG["PostgreSQL :5432"]
+    Redis["Redis :6379"]
     RMQ["RabbitMQ :5672"]
   end
 
@@ -54,8 +53,7 @@ graph TB
   GW --> Event
   GW --> AI
   
-  Auth & Wallet & Compliance & Analytics & Transfer & AI --> PGMain
-  Alert --> PGAlerts
+  Auth & Wallet & Compliance & Analytics & Transfer & AI & Alert --> PG
   Alert & Event & Transfer & Compliance --> RMQ
   Scanner --> AI & Alert
 ```
@@ -85,18 +83,13 @@ docker-compose up -d --build
 - **Frontend**: http://localhost:3000
 - **API Gateway**: http://localhost:8001
 - **RabbitMQ Dashboard**: http://localhost:15672 (admin/admin123)
+- **Grafana**: http://localhost:3002 (admin/admin)
 
 ## 📁 Project Structure
 
 - `/services`: Core microservices (Auth, Wallet, Transfer, etc.)
 - `/frontend`: Next.js web application
-- `/backend`: Legacy code (Archived)
-- `docker-compose.yml`: Root orchestration file
-
-## 🛡️ Security & Observability
-
-- **Security**: Helmet, CORS, and JWT protection on all private routes.
-- **Observability**: Every request is assigned a `x-correlation-id` at the Gateway, which is forwarded to all downstream services for end-to-end tracing in logs.
-
----
-© 2026 Blockchain AI Sentinel Team. Managed by Sentinel Prime AI.
+- `/backend`: AI Service (Python FastAPI) + training scripts
+- `/database`: SQL init scripts and migrations
+- `/monitoring`: Prometheus, Grafana, Filebeat configs
+- `/database`: SQL migration scripts

@@ -25,6 +25,7 @@ if _IS_SQLITE:
 else:
     _engine_kwargs["pool_size"] = 10
     _engine_kwargs["max_overflow"] = 20
+    _engine_kwargs["pool_recycle"] = 3600
 
 engine = create_engine(
     DATABASE_URL,
@@ -65,7 +66,10 @@ def ensure_schema() -> None:
     from app.models import models # noqa: F401
 
     # Create tables if they don't exist (works for both SQLite and Postgres)
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as error:
+        logger.warning("Database metadata create_all skipped or failed: %s", error)
 
     if _IS_SQLITE:
         logger.info("SQLite backend detected; skipping Postgres-specific ALTER TABLE migrations")
@@ -162,7 +166,6 @@ def ensure_schema() -> None:
                         name VARCHAR(255) NOT NULL,
                         slug VARCHAR(100) NOT NULL UNIQUE,
                         api_key VARCHAR(255) UNIQUE,
-                        webhook_url VARCHAR(1024),
                         is_active BOOLEAN DEFAULT true,
                         created_at TIMESTAMPTZ DEFAULT NOW(),
                         updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -197,7 +200,8 @@ def ensure_schema() -> None:
                     """
                     CREATE TABLE IF NOT EXISTS node_endpoints (
                         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                        provider_name VARCHAR(100) NOT NULL,                        chain VARCHAR(50) NOT NULL,
+                        provider_name VARCHAR(100) NOT NULL,
+                        chain VARCHAR(50) NOT NULL,
                         endpoint_url VARCHAR(1024) NOT NULL,
                         protocol VARCHAR(20) NOT NULL DEFAULT 'http',
                         priority INTEGER NOT NULL DEFAULT 100,
@@ -239,6 +243,7 @@ def ensure_schema() -> None:
                         feature_key VARCHAR(100) NOT NULL UNIQUE,
                         enabled BOOLEAN DEFAULT true,
                         expression TEXT,
+                        organization_id UUID REFERENCES organizations(id),
                         owner_user_id UUID,
                         created_at TIMESTAMPTZ DEFAULT NOW(),
                         updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -293,6 +298,7 @@ def ensure_schema() -> None:
                     CREATE TABLE IF NOT EXISTS policy_rules (
                         id UUID PRIMARY KEY,
                         rule_name VARCHAR(120) NOT NULL UNIQUE,
+                        organization_id UUID REFERENCES organizations(id),
                         description TEXT,
                         min_risk_score DOUBLE PRECISION NOT NULL DEFAULT 80.0,
                         block_blacklisted BOOLEAN DEFAULT true,
@@ -318,7 +324,7 @@ def ensure_schema() -> None:
                         severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
                         message TEXT NOT NULL,
                         status VARCHAR(20) NOT NULL DEFAULT 'queued',
-                        metadata JSONB,
+                        meta JSONB,
                         created_at TIMESTAMPTZ DEFAULT NOW(),
                         sent_at TIMESTAMPTZ
                     )
@@ -784,6 +790,69 @@ def ensure_schema() -> None:
                 connection.execute(
                     text("ALTER TABLE notification_events ALTER COLUMN recipient SET NOT NULL")
                 )
+            # Composite indexes from ORM __table_args__
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_tx_chain_time ON transactions (chain_id, timestamp DESC)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_tx_from_time ON transactions (from_address, timestamp DESC)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_tx_to_time ON transactions (to_address, timestamp DESC)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_wallet_risk_status ON wallets (risk_score, account_status)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_alert_wallet_severity ON alerts (wallet_address, severity)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_blocked_chain_time ON blocked_transfers (chain_id, blocked_at DESC)"))
+
+            # risk_assessments.feature_count
+            ra_fc_exists = connection.execute(
+                text("SELECT 1 FROM information_schema.columns WHERE table_name = 'risk_assessments' AND column_name = 'feature_count' LIMIT 1")
+            ).scalar()
+            if not ra_fc_exists:
+                logger.warning("Applying schema fix: adding risk_assessments.feature_count")
+                connection.execute(text("ALTER TABLE risk_assessments ADD COLUMN feature_count INTEGER"))
+
+            # risk_assessments.confidence_score
+            ra_cs_exists = connection.execute(
+                text("SELECT 1 FROM information_schema.columns WHERE table_name = 'risk_assessments' AND column_name = 'confidence_score' LIMIT 1")
+            ).scalar()
+            if not ra_cs_exists:
+                logger.warning("Applying schema fix: adding risk_assessments.confidence_score")
+                connection.execute(text("ALTER TABLE risk_assessments ADD COLUMN confidence_score NUMERIC(5,2)"))
+
+            # wallets.is_blacklisted (for auth-service compatibility)
+            w_bl_exists = connection.execute(
+                text("SELECT 1 FROM information_schema.columns WHERE table_name = 'wallets' AND column_name = 'is_blacklisted' LIMIT 1")
+            ).scalar()
+            if not w_bl_exists:
+                logger.warning("Applying schema fix: adding wallets.is_blacklisted")
+                connection.execute(text("ALTER TABLE wallets ADD COLUMN is_blacklisted BOOLEAN DEFAULT false"))
+
+            # wallets.last_scanned_at (for auth-service compatibility)
+            w_ls_exists = connection.execute(
+                text("SELECT 1 FROM information_schema.columns WHERE table_name = 'wallets' AND column_name = 'last_scanned_at' LIMIT 1")
+            ).scalar()
+            if not w_ls_exists:
+                logger.warning("Applying schema fix: adding wallets.last_scanned_at")
+                connection.execute(text("ALTER TABLE wallets ADD COLUMN last_scanned_at TIMESTAMPTZ"))
+
+            # notification_events: ensure 'meta' column exists (ORM maps to this)
+            notif_meta_exists = connection.execute(
+                text("SELECT 1 FROM information_schema.columns WHERE table_name = 'notification_events' AND column_name = 'meta' LIMIT 1")
+            ).scalar()
+            if not notif_meta_exists:
+                notif_metadata_exists = connection.execute(
+                    text("SELECT 1 FROM information_schema.columns WHERE table_name = 'notification_events' AND column_name = 'metadata' LIMIT 1")
+                ).scalar()
+                if notif_metadata_exists:
+                    logger.warning("Applying schema fix: renaming notification_events.metadata -> meta")
+                    connection.execute(text("ALTER TABLE notification_events RENAME COLUMN metadata TO meta"))
+                else:
+                    logger.warning("Applying schema fix: adding notification_events.meta")
+                    connection.execute(text("ALTER TABLE notification_events ADD COLUMN meta JSONB"))
+
+            # blocked_transfers.amount_eth
+            bt_eth_exists = connection.execute(
+                text("SELECT 1 FROM information_schema.columns WHERE table_name = 'blocked_transfers' AND column_name = 'amount_eth' LIMIT 1")
+            ).scalar()
+            if not bt_eth_exists:
+                logger.warning("Applying schema fix: adding blocked_transfers.amount_eth")
+                connection.execute(text("ALTER TABLE blocked_transfers ADD COLUMN amount_eth NUMERIC(12,6)"))
+
     except Exception as schema_error:
         # Don't hard-fail startup on best-effort migration.
         logger.error(f"Schema ensure failed: {schema_error}")

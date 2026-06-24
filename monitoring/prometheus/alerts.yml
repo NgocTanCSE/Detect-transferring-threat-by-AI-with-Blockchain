@@ -1,0 +1,57 @@
+groups:
+  - name: blockchain_ai_alerts
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate ({{ $value | humanizePercentage }})"
+          description: "Error rate exceeds 5% for the last 5 minutes"
+
+      - alert: HighLatency
+        expr: http_request_duration_seconds{p99="true"} > 2.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p99 latency ({{ $value }}s)"
+          description: "p99 request latency exceeds 2 seconds"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.instance }} is down"
+          description: "{{ $labels.instance }} has been unreachable for 1 minute"
+
+      - alert: HighRiskScore
+        expr: avg(risk_score) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High average risk score ({{ $value }})"
+          description: "Average risk score exceeds 85 for 10 minutes"
+
+      - alert: LowFraudRecall
+        expr: ml_model_recall < 0.30
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low fraud recall ({{ $value }})"
+          description: "ML model fraud recall below 0.30 for 1 hour"
+
+      - alert: HighAlertRate
+        expr: rate(alerts_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High alert rate ({{ $value }}/s)"
+          description: "More than 10 alerts per second for 2 minutes"

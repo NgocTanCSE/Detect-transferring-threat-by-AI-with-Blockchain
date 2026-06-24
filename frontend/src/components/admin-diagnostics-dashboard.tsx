@@ -7,7 +7,7 @@
 
 import { authFetch } from "@/lib/auth-fetch";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +56,7 @@ export default function AdminDiagnosticsDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedLogType, setSelectedLogType] = useState<string | null>(null);
 
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
       const response = await authFetch("/api/admin/diagnostics/status");
@@ -67,9 +67,9 @@ export default function AdminDiagnosticsDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       const url = selectedLogType
         ? `/api/admin/diagnostics/logs?limit=100&log_type=${selectedLogType}`
@@ -80,7 +80,7 @@ export default function AdminDiagnosticsDashboard() {
     } catch (error) {
       console.error("Failed to fetch logs:", error);
     }
-  };
+  }, [selectedLogType]);
 
   const clearLogs = async () => {
     if (!confirm("Are you sure you want to clear all diagnostic logs?")) return;
@@ -100,7 +100,7 @@ export default function AdminDiagnosticsDashboard() {
       fetchLogs();
     }, 5000);
     return () => clearInterval(interval);
-  }, [selectedLogType]);
+  }, [fetchStatus, fetchLogs]);
 
   if (!systemStatus) {
     return (

@@ -25,4 +25,6 @@ from app.models.models import (
     PolicyRule,
     UsageLog,
     AuthSession,
+    UserProfile,
+    UserWarning,
 )

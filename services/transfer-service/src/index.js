@@ -90,8 +90,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'transfer-service',
-    timestamp: new Date(),
-    dlq_metrics: { main: 0, dead: 0 }
+    timestamp: new Date()
   });
 });
 app.get('/ready', async (req, res) => {
@@ -353,7 +352,8 @@ app.post(['/protected-transfer', '/transfer/protected', '/protected'], requireRo
  * Process a batch of transfers (CSV/JSON)
  */
 app.post('/transfers/batch', async (req, res) => {
-  const { transfers } = req.body; // Expects array of {sender, receiver, amount}
+  const { transfers, chain = 'ethereum' } = req.body; // Expects array of {sender, receiver, amount}
+  const normalizedChain = String(chain).toLowerCase();
 
   if (!transfers || !Array.isArray(transfers)) {
     return res.status(400).json({ error: 'transfers array is required' });
@@ -386,8 +386,8 @@ app.post('/transfers/batch', async (req, res) => {
       // Create transaction
       const txHash = `batch_${Math.random().toString(36).substring(2, 15)}`;
       await pool.query(
-        'INSERT INTO transactions (id, tx_hash, from_address, to_address, value, block_number, timestamp, status) VALUES ($1, $2, $3, $4, $5, 0, NOW(), 1)',
-        [uuidv4(), txHash, normalizedSender, normalizedReceiver, amountWei]
+      'INSERT INTO transactions (id, tx_hash, from_address, to_address, value, block_number, timestamp, status, chain_id) VALUES ($1, $2, $3, $4, $5, 0, NOW(), 1, $6)',
+      [uuidv4(), txHash, normalizedSender, normalizedReceiver, amountWei, normalizedChain]
       );
 
       results.processed++;
@@ -401,6 +401,59 @@ app.post('/transfers/batch', async (req, res) => {
   }
 
   res.json(results);
+});
+
+/**
+ * GET /blocked-transfers
+ * Get history of blocked transfer attempts
+ */
+app.get('/blocked-transfers', async (req, res) => {
+  const limit = parseInt(req.query.limit) || 100;
+  const search = req.query.search || '';
+  const minRisk = parseFloat(req.query.min_risk) || 0;
+
+  try {
+    let query = 'SELECT * FROM blocked_transfers WHERE 1=1';
+    const params = [];
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      query += ` AND (LOWER(sender_address) LIKE $${params.length} OR LOWER(receiver_address) LIKE $${params.length})`;
+    }
+
+    if (minRisk > 0) {
+      params.push(minRisk);
+      query += ` AND risk_score >= $${params.length}`;
+    }
+
+    query += ' ORDER BY blocked_at DESC LIMIT $' + (params.length + 1);
+    params.push(limit);
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      blocked_transfers: result.rows.map(t => ({
+        id: t.id,
+        sender_address: t.sender_address,
+        receiver_address: t.receiver_address,
+        amount_eth: parseFloat(t.amount || 0) / 1e18,
+        risk_score: parseFloat(t.risk_score || 0),
+        block_reason: t.block_reason,
+        user_warning_count: t.user_warning_count,
+        blocked_at: t.blocked_at
+      })),
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('Error fetching blocked transfers:', error);
+    res.status(500).json({ error: 'Failed to fetch blocked transfers' });
+  }
+});
+
+// Centralized error handler
+app.use((err, req, res, next) => {
+  console.error(`[${req.correlationId || 'no-id'}] Unhandled error:`, err.message);
+  res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
 // Start server

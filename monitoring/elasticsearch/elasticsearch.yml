@@ -1,0 +1,10 @@
+cluster.name: blockchain-logs
+node.name: es-node-1
+network.host: 0.0.0.0
+http.port: 9200
+discovery.type: single-node
+xpack.security.enabled: true
+xpack.monitoring.enabled: true
+path.data: /usr/share/elasticsearch/data
+path.logs: /usr/share/elasticsearch/logs
+indices.lifecycle.poll_interval: 10s

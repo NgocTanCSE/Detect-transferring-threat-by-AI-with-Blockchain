@@ -18,10 +18,10 @@ import { Button } from "@/components/ui/button";
 import {
   fetchWalletBalance,
   fetchWalletStats,
-  fetchWalletTransactions,
+  fetchWalletTransactionHistory,
   type WalletBalance,
   type WalletStats,
-  type Transaction,
+  type WalletTransaction,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { formatAddress, formatEth, formatDate } from "@/lib/utils";
@@ -43,9 +43,9 @@ export default function UserWallet() {
     enabled: !!walletAddress,
   });
 
-  const { data: transactions, isLoading: txLoading } = useQuery<Transaction[]>({
+  const { data: transactions, isLoading: txLoading } = useQuery<WalletTransaction[]>({
     queryKey: ["walletTransactions", walletAddress],
-    queryFn: () => fetchWalletTransactions(walletAddress, 5),
+    queryFn: () => fetchWalletTransactionHistory(walletAddress, 5),
     enabled: !!walletAddress,
   });
 
@@ -213,32 +213,27 @@ export default function UserWallet() {
                   key={tx.tx_hash}
                   className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-800/20 transition-colors"
                 >
-                  {tx.from_address.toLowerCase() === walletAddress.toLowerCase() ? (
+                  {tx.direction === "sent" ? (
                     <ArrowUpRight className="h-4 w-4 text-slate-500" />
                   ) : (
                     <ArrowDownLeft className="h-4 w-4 text-teal-500" />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-mono text-slate-300 truncate">
-                      {formatAddress(
-                        tx.from_address.toLowerCase() === walletAddress.toLowerCase()
-                          ? tx.to_address
-                          : tx.from_address
-                      )}
+                      {formatAddress(tx.counterparty)}
                     </p>
-                    <p className="text-[10px] text-slate-600">{formatDate(tx.timestamp)}</p>
+                    <p className="text-[10px] text-slate-600">{formatDate(tx.timestamp || new Date().toISOString())}</p>
                   </div>
                   <span
                     className={`text-sm font-bold ${
-                      tx.from_address.toLowerCase() === walletAddress.toLowerCase()
+                      tx.direction === "sent"
                         ? "text-slate-300"
                         : "text-teal-400"
                     }`}
                   >
-                    {tx.from_address.toLowerCase() === walletAddress.toLowerCase()
+                    {tx.direction === "sent"
                       ? "-"
-                      : "+"}
-                    {formatEth(Number(tx.value_wei) / 1e18 || 0)}
+                      : "+"}{formatEth(tx.value_eth || 0)}
                   </span>
                 </div>
               ))}

@@ -48,8 +48,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'compliance-service',
-    timestamp: new Date(),
-    dlq_metrics: { main: 0, dead: 0 }
+    timestamp: new Date()
   });
 });
 
@@ -468,45 +467,98 @@ app.get('/reporting/summary', async (req, res) => {
 });
 
 app.get('/reporting/control-effectiveness', async (req, res) => {
-  res.json({
-    period_days: 30,
-    inputs: {
-      actionable_alerts: 450,
-      blocked_total: 347,
-      fraud_cases: 24,
-      ignored_cases: 15
-    },
-    metrics: {
-      block_rate_pct: 77.1,
-      fraud_precision_proxy_pct: 88.5,
-      decision_coverage: 92.0
-    }
-  });
+  try {
+    const days = parseInt(req.query.days) || 30;
+    const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const actionableAlerts = (await pool.query('SELECT COUNT(*) as c FROM alerts WHERE detected_at >= $1', [start])).rows[0].c;
+    const blockedTotal = (await pool.query('SELECT COUNT(*) as c FROM blocked_transfers WHERE blocked_at >= $1', [start])).rows[0].c;
+    const fraudCases = (await pool.query("SELECT COUNT(*) as c FROM transactions WHERE case_status = 'CONFIRMED_FRAUD' AND updated_at >= $1", [start])).rows[0].c;
+    const ignoredCases = (await pool.query("SELECT COUNT(*) as c FROM transactions WHERE case_status = 'DISMISSED' AND updated_at >= $1", [start])).rows[0].c;
+
+    const total = parseInt(actionableAlerts) || 1;
+    const blocked = parseInt(blockedTotal);
+    const fraud = parseInt(fraudCases);
+    const ignored = parseInt(ignoredCases);
+
+    res.json({
+      period_days: days,
+      inputs: {
+        actionable_alerts: parseInt(actionableAlerts),
+        blocked_total: blocked,
+        fraud_cases: fraud,
+        ignored_cases: ignored
+      },
+      metrics: {
+        block_rate_pct: Math.round((blocked / total) * 1000) / 10,
+        fraud_precision_proxy_pct: fraud + ignored > 0 ? Math.round((fraud / (fraud + ignored)) * 1000) / 10 : 0,
+        decision_coverage: total > 0 ? Math.round(((fraud + ignored) / total) * 1000) / 10 : 0
+      }
+    });
+  } catch (error) {
+    console.error('Control effectiveness error:', error);
+    res.status(500).json({ error: 'Failed to generate report' });
+  }
 });
 
 app.get('/reporting/audit-completeness', async (req, res) => {
-  res.json({
-    period_days: 30,
-    required_actions: 500,
-    present_actions: 485,
-    completeness_pct: 97.0,
-    checks: [
-      { action_type: 'CASE_REVIEW', count: 120, present: true },
-      { action_type: 'POLICY_UPDATE', count: 15, present: true },
-      { action_type: 'SAR_EXPORT', count: 8, present: true }
-    ]
-  });
+  try {
+    const days = parseInt(req.query.days) || 30;
+    const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const logs = (await pool.query('SELECT action, COUNT(*) as c FROM audit_logs WHERE created_at >= $1 GROUP BY action ORDER BY c DESC', [start])).rows;
+    const totalLogs = logs.reduce((sum, r) => sum + parseInt(r.c), 0);
+
+    res.json({
+      period_days: days,
+      required_actions: 500,
+      present_actions: totalLogs,
+      completeness_pct: Math.min(100, Math.round((totalLogs / 500) * 1000) / 10),
+      checks: [
+        { action_type: 'CASE_REVIEW', count: parseInt(logs.find(l => l.action === 'CASE_REVIEW')?.c || 0), present: logs.some(l => l.action === 'CASE_REVIEW') },
+        { action_type: 'POLICY_UPDATE', count: parseInt(logs.find(l => l.action === 'POLICY_UPDATE')?.c || 0), present: logs.some(l => l.action === 'POLICY_UPDATE') },
+        { action_type: 'SAR_EXPORT', count: parseInt(logs.find(l => l.action === 'SAR_EXPORT')?.c || 0), present: logs.some(l => l.action === 'SAR_EXPORT') }
+      ]
+    });
+  } catch (error) {
+    console.error('Audit completeness error:', error);
+    res.status(500).json({ error: 'Failed to generate report' });
+  }
 });
 
 app.get('/reporting/audit-gaps', async (req, res) => {
-  res.json({
-    period_days: 30,
-    missing_count: 2,
-    missing_actions: [
-      { action_type: 'Manual Review', owner_role: 'analyst', reason: 'High risk mismatch', recommended_next_step: 'Verify wallet 0x...' },
-      { action_type: 'Policy Tuning', owner_role: 'manager', reason: 'False positive spike', recommended_next_step: 'Adjust threshold' }
-    ]
-  });
+  try {
+    const days = parseInt(req.query.days) || 30;
+    const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const expectedActions = ['CASE_REVIEW', 'POLICY_UPDATE', 'SAR_EXPORT', 'CASE_ASSIGN', 'CASE_ACTION'];
+    const presentActions = (await pool.query('SELECT DISTINCT action FROM audit_logs WHERE created_at >= $1', [start])).rows.map(r => r.action);
+
+    const missingActions = expectedActions
+      .filter(a => !presentActions.includes(a))
+      .map(a => ({
+        action_type: a.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        owner_role: a.startsWith('CASE') ? 'analyst' : 'manager',
+        reason: 'No audit logs found in period',
+        recommended_next_step: 'Review logging configuration'
+      }));
+
+    // Also check for transactions with suspicious ratio but no case yet
+    const highRiskNoCase = (await pool.query(`
+      SELECT COUNT(*) as c FROM transactions t
+      LEFT JOIN transaction_cases tc ON t.tx_hash = tc.tx_hash
+      WHERE tc.id IS NULL AND t.risk_score > 0.7 AND t.created_at >= $1
+    `, [start])).rows[0].c;
+
+    res.json({
+      period_days: days,
+      missing_count: missingActions.length + (parseInt(highRiskNoCase) > 0 ? 1 : 0),
+      missing_actions: missingActions
+    });
+  } catch (error) {
+    console.error('Audit gaps error:', error);
+    res.status(500).json({ error: 'Failed to generate report' });
+  }
 });
 
 /**
@@ -705,6 +757,12 @@ app.get('/audit/logs/export', requireRole(COMPLIANCE_ROLES), async (req, res) =>
     console.error('Error exporting logs:', error);
     res.status(500).json({ error: 'Failed to export logs' });
   }
+});
+
+// Centralized error handler
+app.use((err, req, res, next) => {
+  logger.error(`[${req.correlationId || 'no-id'}] Unhandled error: ${err.message}`);
+  res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
 // Export the Express app for testing

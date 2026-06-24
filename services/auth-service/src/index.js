@@ -22,36 +22,74 @@ const traceMiddleware = require('../../shared/trace');
 require('dotenv').config();
 const { client, requestMetrics } = require('../../shared/metrics');
 
-const logger = require('./utils/logger');
+const profileService = require('./profile');
+const winston = require('winston');
+
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [new winston.transports.Console()]
+});
+
+const PORT = process.env.PORT || 3001;
 
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-const authApp = express();
-authApp.use(helmet());
-authApp.use(cors());
-authApp.use(express.json());
-
-// Correlation ID Middleware
-authApp.use(traceMiddleware);
-authApp.use(requestMetrics);
-
-// Logging middleware (Morgan)
-authApp.use(morgan(':method :url :status :res[content-length] - :response-time ms', {
-  stream: {
-    write: (message) => logger.info(message.trim())
-  }
-}));
-
 // ==========================================
 // CONSTANTS
 // ==========================================
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET_KEY environment variable is required');
+    process.exit(1);
+}
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
 const JWT_ALGORITHM = process.env.JWT_ALGORITHM || 'HS256';
+
+// In-memory rate limiter for login
+const loginAttempts = new Map();
+const LOGIN_RATE_LIMIT = 5; // attempts
+const LOGIN_RATE_WINDOW = 15 * 60 * 1000; // 15 minutes
+
+function checkLoginRateLimit(username) {
+  const key = username.toLowerCase();
+  const now = Date.now();
+  const entry = loginAttempts.get(key) || [];
+  const recent = entry.filter(t => now - t < LOGIN_RATE_WINDOW);
+  if (recent.length >= LOGIN_RATE_LIMIT) {
+    const retryAfter = Math.ceil((recent[0] + LOGIN_RATE_WINDOW - now) / 1000);
+    const err = new Error('Too many login attempts. Account temporarily locked.');
+    err.statusCode = 429;
+    err.retryAfter = retryAfter;
+    throw err;
+  }
+  recent.push(now);
+  loginAttempts.set(key, recent);
+}
+
+// Password reset rate limiting
+const resetAttempts = new Map();
+
+function checkResetRateLimit(email) {
+  const key = `reset:${email.toLowerCase()}`;
+  const now = Date.now();
+  const entry = resetAttempts.get(key) || [];
+  const recent = entry.filter(t => now - t < 3600000);
+  if (recent.length >= 3) {
+    const err = new Error('Too many password reset attempts. Try again later.');
+    err.statusCode = 429;
+    throw err;
+  }
+  recent.push(now);
+  resetAttempts.set(key, recent);
+}
 
 // Spam detection - disposable email domains
 const DISPOSABLE_EMAIL_DOMAINS = new Set([
@@ -164,6 +202,24 @@ function generateToken(userId, username, email, role, orgId) {
   return token;
 }
 
+function normalizeWalletAddress(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return null;
+  if (!/^0x[a-f0-9]{40}$/.test(normalized)) {
+    throw new Error('Invalid Ethereum wallet address');
+  }
+  return normalized;
+}
+
+function normalizeOrganizationSlug(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'organization';
+}
+
 function verifyToken(token) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
@@ -214,11 +270,21 @@ function extractToken(req) {
 
 const redis = require('redis');
 
-// Redis client for Token Blacklist
+// Redis client for Token Blacklist (lazy connect)
 const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379/0';
 const redisClient = redis.createClient({ url: REDIS_URL });
+let redisConnected = false;
 redisClient.on('error', (err) => console.error('[AUTH] Redis Error:', err));
-redisClient.connect().then(() => console.log('✓ Auth Service connected to Redis (Blacklist)')).catch(e => console.warn('[AUTH] Redis connection failed, blacklist disabled'));
+
+async function ensureRedisConnection() {
+  if (redisConnected || redisClient.isOpen) return;
+  try {
+    await redisClient.connect();
+    redisConnected = true;
+  } catch (error) {
+    console.error('[AUTH] Redis connection failed:', error.message);
+  }
+}
 
 async function requireAuth(req, res, next) {
   const token = extractToken(req);
@@ -229,6 +295,7 @@ async function requireAuth(req, res, next) {
 
   // 1. Check if token is blacklisted in Redis
   try {
+    await ensureRedisConnection();
     const isBlacklisted = await redisClient.get(`blacklist:${token}`);
     if (isBlacklisted) {
       return res.status(401).json({ error: 'Token has been revoked (logged out)' });
@@ -249,6 +316,8 @@ async function requireAuth(req, res, next) {
 
 function createApp(dbPool = pool) {
   const authApp = express();
+  authApp.use(helmet());
+  authApp.use(cors());
   authApp.use(express.json());
   authApp.use(express.urlencoded({ extended: true }));
 
@@ -277,8 +346,7 @@ function createApp(dbPool = pool) {
   authApp.get('/health', (req, res) => {
     res.json({
       status: 'ok',
-      service: 'auth-service',
-      dlq_metrics: { main: 0, dead: 0 }
+      service: 'auth-service'
     });
   });
 
@@ -298,6 +366,7 @@ authApp.get('/metrics', async (req, res) => {
 });
 
   // Register endpoint
+// Profile Service Endpoints (full profile, details, preferences)
   authApp.post('/register', async (req, res) => {
     try {
       const { username, email, password, wallet_address } = req.body;
@@ -318,9 +387,19 @@ authApp.get('/metrics', async (req, res) => {
         return res.status(400).json({ error: emailCheck.reason });
       }
 
+      let normalizedWalletAddress = null;
+      try {
+        normalizedWalletAddress = normalizeWalletAddress(req.body.wallet_address);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
+
       // Check username uniqueness
-      const existingUsername = await getUserByIdentifier(dbPool, username);
-      if (existingUsername) {
+      const existingUsername = await dbPool.query(
+        'SELECT id FROM users WHERE LOWER(username) = LOWER($1)',
+        [username]
+      );
+      if (existingUsername.rowCount > 0) {
         return res.status(409).json({ error: 'Username already exists' });
       }
 
@@ -334,13 +413,13 @@ authApp.get('/metrics', async (req, res) => {
       const clientIp = req.headers['x-forwarded-for'] || req.ip || 'unknown';
       
       // 1. Check if wallet is blacklisted or suspended
-      if (wallet_address) {
+      if (normalizedWalletAddress) {
         const walletCheck = await dbPool.query(
           `SELECT w.account_status, b.is_active as blacklisted 
            FROM wallets w 
            LEFT JOIN blacklist b ON LOWER(w.address) = LOWER(b.address)
            WHERE LOWER(w.address) = LOWER($1)`,
-          [wallet_address]
+          [normalizedWalletAddress]
         );
         
         if (walletCheck.rows.length > 0) {
@@ -371,7 +450,7 @@ authApp.get('/metrics', async (req, res) => {
             await dbPool.query(
               `INSERT INTO alerts (wallet_address, alert_type, severity, message, risk_score)
                VALUES ($1, 'EVASION_ATTEMPT', 'HIGH', 'Suspended user attempting to register new account from same IP', 85.0)`,
-              [wallet_address || 'NO_WALLET']
+              [normalizedWalletAddress || 'NO_WALLET']
             );
           } catch (e) {
             console.error('[AUTH] Failed to log evasion alert:', e.message);
@@ -393,11 +472,11 @@ authApp.get('/metrics', async (req, res) => {
 
       if (!orgId && organizationName) {
         // Create new organization if name provided
-        const orgSlug = organizationName.toLowerCase().replace(/\s+/g, '-');
+        const orgSlug = normalizeOrganizationSlug(organizationName);
         const orgResult = await dbPool.query(
           `INSERT INTO organizations (name, slug, created_at)
            VALUES ($1, $2, NOW())
-           ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+           ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
            RETURNING id`,
           [organizationName, orgSlug]
         );
@@ -409,14 +488,14 @@ authApp.get('/metrics', async (req, res) => {
         `INSERT INTO users (username, email, password_hash, wallet_address, role, organization_id, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())
        RETURNING id, username, email, wallet_address, role, organization_id, created_at`,
-        [username, email, passwordHash, wallet_address || null, 'user', orgId]
+         [username, email, passwordHash, normalizedWalletAddress, 'user', orgId]
       );
 
       const user = result.rows[0];
 
       // Also create a wallet entry for the user if wallet_address is provided
-      if (user.wallet_address) {
-        const walletAddress = user.wallet_address.toLowerCase();
+      if (normalizedWalletAddress) {
+        const walletAddress = normalizedWalletAddress;
         await dbPool.query(
           `INSERT INTO wallets (address, account_status, risk_score, created_at)
            VALUES ($1, 'active', 0, NOW())
@@ -424,32 +503,7 @@ authApp.get('/metrics', async (req, res) => {
           [walletAddress]
         );
 
-        // Add welcome balance for new users (10 ETH)
-        try {
-          const txHash = '0x' + uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
-          const welcomeAmount = (10n * BigInt(10) ** 18n).toString(); // 10 ETH in wei
-          
-          await dbPool.query(
-            `INSERT INTO transactions (id, tx_hash, from_address, to_address, value, block_number, timestamp, status, chain_id)
-             VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8)`,
-            [uuidv4(), txHash, '0x0000000000000000000000000000000000000000', walletAddress, welcomeAmount, 1000000, 1, 'ethereum']
-          );
-
-          // Also update wallet profile
-          await dbPool.query(
-            `UPDATE wallets 
-             SET total_transactions = COALESCE(total_transactions, 0) + 1,
-                 total_value_received = COALESCE(total_value_received, 0) + $1,
-                 last_activity_at = NOW()
-             WHERE address = $2`,
-            [welcomeAmount, walletAddress]
-          );
-          
-          console.log(`[AUTH] Welcome bonus of 10 ETH added to ${walletAddress}`);
-        } catch (bonusError) {
-          console.error('[AUTH] Failed to add welcome bonus:', bonusError.message);
-          // Don't fail registration if bonus fails
-        }
+        console.log(`[AUTH] Wallet profile ensured for ${walletAddress}`);
       }
 
       const response = new UserResponse(
@@ -474,6 +528,16 @@ authApp.get('/metrics', async (req, res) => {
 
       if (!username || !password) {
         return res.status(400).json({ error: 'Username and password are required' });
+      }
+
+      // Rate limit check
+      try {
+        checkLoginRateLimit(username);
+      } catch (rateErr) {
+        return res.status(rateErr.statusCode || 429).json({
+          error: rateErr.message,
+          retry_after: rateErr.retryAfter || 900,
+        });
       }
 
       // Get user by username or email
@@ -542,20 +606,125 @@ authApp.get('/metrics', async (req, res) => {
   authApp.get('/profile', requireAuth, profileHandler);
   authApp.get('/me', requireAuth, profileHandler);
 
-  // Refresh token
+  // Extended profile endpoints (details & preferences)
+  authApp.get('/profile/full', requireAuth, async (req, res) => {
+    try {
+      const data = await profileService.getFullProfile(req.user.sub);
+      res.json(data);
+    } catch (err) {
+      const status = err.status || 500;
+      logger.error(`GET /profile/full error: ${err.message}`);
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  authApp.patch('/profile/details', requireAuth, async (req, res) => {
+    try {
+      const updated = await profileService.upsertUserDetails(req.user.sub, req.body);
+      res.json(updated);
+    } catch (err) {
+      const status = err.status || 500;
+      logger.error(`PATCH /profile/details error: ${err.message}`);
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  authApp.get('/profile/preferences', requireAuth, async (req, res) => {
+    try {
+      const prefs = await profileService.getUserPreferences(req.user.sub);
+      res.json(prefs);
+    } catch (err) {
+      const status = err.status || 500;
+      logger.error(`GET /profile/preferences error: ${err.message}`);
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  authApp.patch('/profile/preferences', requireAuth, async (req, res) => {
+    try {
+      const updated = await profileService.upsertUserPreferences(req.user.sub, req.body);
+      res.json(updated);
+    } catch (err) {
+      const status = err.status || 500;
+      logger.error(`PATCH /profile/preferences error: ${err.message}`);
+      res.status(status).json({ error: err.message });
+    }
+  });
   authApp.post('/refresh', requireAuth, async (req, res) => {
     try {
-      const result = await dbPool.query('SELECT id, username, email, role FROM users WHERE id = $1', [req.user.sub]);
+      const result = await dbPool.query('SELECT id, username, email, role, organization_id FROM users WHERE id = $1', [req.user.sub]);
       const user = result.rows[0];
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      const token = generateToken(user.id, user.username, user.email, user.role);
+      const token = generateToken(user.id, user.username, user.email, user.role, user.organization_id);
       res.json(new TokenResponse(token, 'bearer'));
     } catch (error) {
       console.error('Refresh error:', error);
       res.status(500).json({ error: 'Token refresh failed', detail: error.message });
+    }
+  });
+
+  // Forgot password – generate reset code and store in Redis
+  authApp.post('/forgot-password', async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
+
+      const user = await getUserByEmail(dbPool, email);
+      if (!user) {
+        return res.json({ message: 'If the email is registered, a password reset code has been sent.' });
+      }
+
+      try {
+        checkResetRateLimit(email);
+      } catch (rateErr) {
+        return res.status(rateErr.statusCode || 429).json({ error: rateErr.message });
+      }
+
+      await ensureRedisConnection();
+      const resetCode = require('crypto').randomBytes(4).toString('hex').toUpperCase();
+      const resetKey = `reset:${email.toLowerCase()}`;
+      await redisClient.setex(resetKey, 15 * 60, resetCode);
+
+      res.json({ message: 'If the email is registered, a password reset code has been sent.' });
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      res.status(500).json({ error: 'Failed to process request', detail: error.message });
+    }
+  });
+
+  // Reset password – verify code and update
+  authApp.post('/reset-password', async (req, res) => {
+    try {
+      const { email, code, new_password } = req.body;
+      if (!email || !code || !new_password) {
+        return res.status(400).json({ error: 'Email, code, and new_password are required' });
+      }
+
+      const resetKey = `reset:${email.toLowerCase()}`;
+      await ensureRedisConnection();
+      const storedCode = await redisClient.get(resetKey);
+      if (!storedCode || storedCode !== code) {
+        return res.status(401).json({ error: 'Invalid or expired reset code' });
+      }
+
+      if (new_password.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters' });
+      }
+
+      const passwordHash = await hashPassword(new_password);
+      await dbPool.query('UPDATE users SET password_hash = $1 WHERE LOWER(email) = LOWER($2)', [passwordHash, email]);
+
+      await ensureRedisConnection();
+      await redisClient.del(resetKey);
+      res.json({ message: 'Password has been reset successfully' });
+    } catch (error) {
+      console.error('Reset password error:', error);
+      res.status(500).json({ error: 'Failed to reset password', detail: error.message });
     }
   });
 
@@ -583,6 +752,7 @@ authApp.get('/metrics', async (req, res) => {
   authApp.post('/logout', requireAuth, async (req, res) => {
     const token = extractToken(req);
     if (token) {
+      await ensureRedisConnection();
       try {
         // Blacklist for 7 days (matching max expiry)
         await redisClient.setex(`blacklist:${token}`, 7 * 24 * 60 * 60, '1');
@@ -609,6 +779,7 @@ const runtimeApp = createApp(pool);
 
 // Start server
 if (require.main === module) {
+  redisClient.connect().then(() => console.log('✓ Auth Service connected to Redis (Blacklist)')).catch(e => console.warn('[AUTH] Redis connection failed, blacklist disabled'));
   runtimeApp.listen(PORT, () => {
     console.log(`Auth Service running on port ${PORT}`);
     console.log(`  JWT Algorithm: ${JWT_ALGORITHM}`);

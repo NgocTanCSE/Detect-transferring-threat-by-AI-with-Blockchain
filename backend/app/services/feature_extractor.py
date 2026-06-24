@@ -1,7 +1,7 @@
 """Extract behavioral features from blockchain transaction history for ML models."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 import pandas as pd
@@ -105,8 +105,10 @@ def _normalize_value(value: Any) -> float:
     """
     Normalize transaction value from various formats to float.
 
-    Handles: int, float, hex strings, and already normalized values.
+    Handles: int, float, hex strings, None, and already normalized values.
     """
+    if value is None:
+        return 0.0
     if isinstance(value, (int, float)):
         return float(value)
     elif isinstance(value, str) and value.startswith('0x'):
@@ -123,8 +125,8 @@ def _categorize_transactions(
     received = []
 
     for tx in transactions:
-        from_addr = tx.get('from_address', '').lower()
-        to_addr = tx.get('to_address', '').lower()
+        from_addr = (tx.get('from_address') or '').lower()
+        to_addr = (tx.get('to_address') or '').lower()
 
         # Normalize value to ETH (handle both Wei and already converted values)
         value_raw = _normalize_value(tx.get('value', 0))
@@ -191,11 +193,11 @@ def _parse_timestamp(timestamp: Any) -> datetime:
     elif isinstance(timestamp, str):
         try:
             return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-        except:
-            return datetime.utcnow()
+        except (ValueError, TypeError):
+            return datetime.now(timezone.utc)
     elif isinstance(timestamp, (int, float)):
         return datetime.fromtimestamp(timestamp)
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
 
 
 def _calculate_average_time_gap(transactions: List[Dict[str, Any]]) -> float:
@@ -251,8 +253,8 @@ def _calculate_unique_address_features(
     received_from_addresses = set()
 
     for tx in transactions:
-        from_addr = tx.get('from_address', '').lower()
-        to_addr = tx.get('to_address', '').lower()
+        from_addr = (tx.get('from_address') or '').lower()
+        to_addr = (tx.get('to_address') or '').lower()
 
         if from_addr == target_address and to_addr:
             sent_to_addresses.add(to_addr)

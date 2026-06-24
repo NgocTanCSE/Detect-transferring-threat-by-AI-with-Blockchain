@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Message Queue
   rabbitmq:
@@ -9,8 +7,8 @@ services:
       - "5672:5672" # AMQP
       - "15672:15672" # Management UI
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin123
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -29,10 +27,12 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: blockchain
-      POSTGRES_PASSWORD: blockchain123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: blockchain_main
     volumes:
       - postgres_main_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+      - ./database/migrate_sync_columns.sql:/docker-entrypoint-initdb.d/002_migrate_sync_columns.sql:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U blockchain -d blockchain_main" ]
       interval: 10s
@@ -75,8 +75,8 @@ services:
     environment:
       NODE_ENV: development
       PORT: 8001
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
-      JWT_SECRET: ${JWT_SECRET:-change_this_to_a_strong_random_secret}
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_ALGORITHM: HS256
       AUTH_SERVICE_URL: http://auth-service:3001
       ALERT_SERVICE_URL: http://alert-service:3003
@@ -113,9 +113,9 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
       REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:-change_this_to_a_strong_random_secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_EXPIRY: 7d
     volumes: []
     healthcheck:
@@ -142,8 +142,8 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3003
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
+      RABBITMQ_URL: amqp://admin:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3003/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
@@ -166,7 +166,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3002
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3002/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
@@ -191,8 +191,8 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3004
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
+      RABBITMQ_URL: amqp://admin:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
       ANALYTICS_SERVICE_URL: http://analytics-service:3005
       ALERT_SERVICE_URL: http://alert-service:3003
     healthcheck:
@@ -218,7 +218,7 @@ services:
       NODE_ENV: development
       PYTHONUNBUFFERED: 1
       PORT: 3005
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
       REDIS_URL: redis://redis:6379/0
       ALCHEMY_API_KEY: ${ALCHEMY_API_KEY}
     healthcheck:
@@ -245,8 +245,8 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3006
-      DATABASE_URL: postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+      DATABASE_URL: postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
+      RABBITMQ_URL: amqp://admin:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3006/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
@@ -269,7 +269,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3007
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
+      RABBITMQ_URL: amqp://admin:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3007/health',(r)=>{if(r.statusCode!==200)process.exit(1)}).on('error',()=>process.exit(1))" ]
       interval: 10s
@@ -286,7 +286,7 @@ services:
     container_name: blockchain_traffic_generator
     command: python /demo-scripts/sim_generate_traffic.py
     environment:
-      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      - DATABASE_URL=postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
     volumes:
       - ./demo-scripts:/demo-scripts
     depends_on:
@@ -355,7 +355,7 @@ services:
     command: python /demo-scripts/sim_ip_wallet_blacklist_evasion.py
     environment:
       - API_URL=http://api-gateway:8001
-      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      - DATABASE_URL=postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
     volumes:
       - ./demo-scripts:/demo-scripts
     depends_on:
@@ -376,7 +376,7 @@ services:
     command: python /app/scanner.py
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      - DATABASE_URL=postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
       - ALERT_SERVICE_URL=http://alert-service:3003
       - ANALYTICS_SERVICE_URL=http://analytics-service:3005
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
@@ -408,7 +408,7 @@ services:
       - ./database:/database
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://blockchain:blockchain123@postgres_main:5432/blockchain_main
+      - DATABASE_URL=postgresql://blockchain:${POSTGRES_PASSWORD}@postgres_main:5432/blockchain_main
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GOOGLE_API_KEY=${GEMINI_API_KEY}
@@ -422,6 +422,64 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - blockchain_network
+
+  # Elasticsearch - Log Storage
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: blockchain_elasticsearch
+    ports:
+      - "127.0.0.1:9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.monitoring.enabled=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - ./monitoring/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-u", "elastic:${ELASTIC_PASSWORD}", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # Kibana - Log Visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: blockchain_kibana
+    ports:
+      - "5601:5601"
+    volumes:
+      - ./monitoring/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - blockchain_network
+
+  # Filebeat - Log Shipper
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.11.0
+    container_name: blockchain_filebeat
+    user: root
+    volumes:
+      - ./monitoring/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    command: ["--strict.perms=false"]
     networks:
       - blockchain_network
 
@@ -442,9 +500,50 @@ services:
     networks:
       - blockchain_network
 
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: blockchain_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    restart: unless-stopped
+    networks:
+      - blockchain_network
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: blockchain_grafana
+    ports:
+      - "3002:3000"
+    volumes:
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning/datasources
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - blockchain_network
+
 volumes:
   postgres_main_data:
   rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+  es_data:
 
 networks:
   blockchain_network:
