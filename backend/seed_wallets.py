@@ -287,7 +287,7 @@ def _seed_blacklist(session: Session):
             is_active=True,
             reported_at=_random_past_date(90),
             verified_at=_random_past_date(30),
-            expires_at=None if random.random() < 0.8 else _random_past_date(-30),
+            expires_at=None if random.random() < 0.8 else datetime.now(timezone.utc) + timedelta(days=random.randint(1, 30)),
         )
         session.add(bl)
     session.flush()
