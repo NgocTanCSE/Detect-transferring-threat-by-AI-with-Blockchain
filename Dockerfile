@@ -55,7 +55,7 @@ EXPOSE 7860
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD curl -f http://127.0.0.1:8000/health || exit 1
+  CMD curl -f http://127.0.0.1:8000/ || exit 1
 
 # We use a custom entrypoint script to handle potential migrations or seeding
 COPY entrypoint.sh /app/entrypoint.sh

@@ -71,7 +71,7 @@ def assistant_chat(request: Request, payload: Dict[str, Any], database_session: 
 @router.get("/diagnostics/alchemy/{wallet_address}")
 def diagnose_alchemy_wallet(wallet_address: str, chain: str = Query("ethereum"), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
     from app.core.config import ALCHEMY_API_KEY, ALCHEMY_ETH_RPC_URL, ALCHEMY_BSC_RPC_URL
-    from app.services.etherscan_service import fetch_wallet_history
+    from blockchain_client import fetch_wallet_history
     if not ALCHEMY_API_KEY:
         return {"configured": False, "wallet_address": wallet_address, "data_available": False, "transfer_count": 0, "note": "ALCHEMY_API_KEY is missing"}
     try:
@@ -83,7 +83,7 @@ def diagnose_alchemy_wallet(wallet_address: str, chain: str = Query("ethereum"),
 
 @router.get("/analyze/{wallet_address}")
 def analyze_wallet_risk(wallet_address: str, chain: str = Query("ethereum"), database_session: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
-    from app.services.etherscan_service import fetch_wallet_history
+    from blockchain_client import fetch_wallet_history
     from app.services.ai_engine import MultiAgentDetectionEngine
     from app.services.persistence import persist_transactions
     normalized = wallet_address.lower().strip()
@@ -104,34 +104,34 @@ def analyze_wallet_risk(wallet_address: str, chain: str = Query("ethereum"), dat
             if la and la.risk_score is not None:
                 cs = max(cs, float(la.risk_score))
             return {"address": normalized, "risk_score": cs, "risk_level": _rl(cs), "details": {"money_laundering": {"detected": False, "confidence": 0.0, "reasons": []}, "wash_trading": {"detected": False, "confidence": 0.0, "reasons": []}, "scam": {"detected": False, "confidence": 0.0, "reasons": []}}, "detection_count": 0, "model": "Cached-DB", "cached": True, "blacklisted": False, "first_seen_at": wr.first_seen_at.isoformat() if wr and wr.first_seen_at else None, "last_activity_at": wr.last_activity_at.isoformat() if wr and wr.last_activity_at else None, "transaction_count": 0, "recent_transactions": []}
-        persist_transactions(database_session, tx_history, normalized)
-        ai = MultiAgentDetectionEngine(database_session=database_session)
-        ra = ai.analyze_wallet(wallet_address=normalized, transactions=tx_history)
-        wr = database_session.query(Wallet).filter(Wallet.address == normalized).first()
-        if not wr:
-            wr = Wallet(address=normalized, risk_score=ra["total_score"], total_transactions=len(tx_history), first_seen_at=tx_history[-1].get("timestamp") if tx_history else None, last_activity_at=tx_history[0].get("timestamp") if tx_history else None)
-            database_session.add(wr)
-            database_session.commit()
-            database_session.refresh(wr)
         else:
-            wr.risk_score = ra["total_score"]
-            wr.total_transactions = len(tx_history)
-            wr.last_activity_at = tx_history[0].get("timestamp") if tx_history else None
-            wr.updated_at = datetime.now(timezone.utc)
+            persist_transactions(database_session, tx_history, normalized)
+            ai = MultiAgentDetectionEngine(database_session=database_session)
+            ra = ai.analyze_wallet(wallet_address=normalized, transactions=tx_history)
+            wr = database_session.query(Wallet).filter(Wallet.address == normalized).first()
+            if not wr:
+                wr = Wallet(address=normalized, risk_score=ra["total_score"], total_transactions=len(tx_history), first_seen_at=tx_history[-1].get("timestamp") if tx_history else None, last_activity_at=tx_history[0].get("timestamp") if tx_history else None)
+                database_session.add(wr)
+                database_session.commit()
+                database_session.refresh(wr)
+            else:
+                wr.risk_score = ra["total_score"]
+                wr.total_transactions = len(tx_history)
+                wr.last_activity_at = tx_history[0].get("timestamp") if tx_history else None
+                wr.updated_at = datetime.now(timezone.utc)
+                database_session.commit()
+            ar = RiskAssessment(wallet_id=wr.id, score=ra["total_score"], risk_level=ra["risk_level"], details={**ra["breakdown"], "ai_insight": ra.get("ai_insight")}, model_version=ra.get("model", "Multi-Agent-v1.0"))
+            database_session.add(ar)
             database_session.commit()
-        ar = RiskAssessment(wallet_id=wr.id, score=ra["total_score"], risk_level=ra["risk_level"], details={**ra["breakdown"], "ai_insight": ra.get("ai_insight")}, model_version=ra.get("model", "Multi-Agent-v1.0"))
-        database_session.add(ar)
-        database_session.commit()
-        return {"address": normalized, "risk_score": ra["total_score"], "risk_level": ra["risk_level"], "details": ra["breakdown"], "ai_insight": ra.get("ai_insight", ""), "suggested_actions": ra.get("suggested_actions", []), "detection_count": ra["detection_count"], "model": ra["model"], "cached": False, "first_seen_at": wr.first_seen_at.isoformat() if wr.first_seen_at else None, "last_activity_at": wr.last_activity_at.isoformat() if wr.last_activity_at else None, "transaction_count": len(tx_history), "recent_transactions": [{**tx, "timestamp": tx["timestamp"].isoformat() if isinstance(tx.get("timestamp"), datetime) else str(tx.get("timestamp"))} for tx in tx_history[:10]]}
+            return {"address": normalized, "risk_score": ra["total_score"], "risk_level": ra["risk_level"], "details": ra["breakdown"], "ai_insight": ra.get("ai_insight", ""), "suggested_actions": ra.get("suggested_actions", []), "detection_count": ra["detection_count"], "model": ra["model"], "cached": False, "first_seen_at": wr.first_seen_at.isoformat() if wr.first_seen_at else None, "last_activity_at": wr.last_activity_at.isoformat() if wr.last_activity_at else None, "transaction_count": len(tx_history), "recent_transactions": [{**tx, "timestamp": tx["timestamp"].isoformat() if isinstance(tx.get("timestamp"), datetime) else str(tx.get("timestamp"))} for tx in tx_history[:10]]}
     except Exception as ae:
         logger.error(f"Analysis failed for {normalized}: {ae}")
         raise HTTPException(status_code=500, detail=f"Risk analysis failed: {str(ae)}")
 
-from app.models.models import Alert
 
 @router.get("/predict/{wallet_address}")
 def predict_wallet_risk(wallet_address: str, chain: str = Query("ethereum"), database_session: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
-    from app.services.etherscan_service import fetch_wallet_history
+    from blockchain_client import fetch_wallet_history
     from app.services.persistence import persist_transactions
     from app.services.ai_engine import MLRiskPredictor
     normalized = wallet_address.lower().strip()

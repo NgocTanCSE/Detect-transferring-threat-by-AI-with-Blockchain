@@ -88,7 +88,8 @@ def _seed_users(session: Session):
     if existing_count >= 5:
         return
 
-    password_hash = hashlib.sha256("demo123".encode()).hexdigest()
+    from app.auth import get_password_hash
+    password_hash = get_password_hash("demo123")
     users_data = [
         {"username": "admin", "email": "admin@sentinel.io", "role": "admin", "name": "Admin User"},
         {"username": "analyst1", "email": "analyst1@sentinel.io", "role": "analyst", "name": "Alice Analyst"},
