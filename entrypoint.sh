@@ -1,77 +1,95 @@
 #!/bin/bash
-set -e
+set -x
 
-echo "=== Blockchain AI Sentinel Startup ==="
+echo "=============================="
+echo "STEP 1: Environment"
+echo "=============================="
+echo "PWD=$(pwd)"
+echo "DATABASE_URL=$DATABASE_URL"
+echo "SPACE_ID=$SPACE_ID"
+echo "PATH=$PATH"
+echo "node=$(which node 2>&1 || echo 'NOT FOUND')"
+echo "python=$(which python 2>&1)"
+echo "pip=$(pip list 2>/dev/null | head -5)"
 
+echo "=============================="
+echo "STEP 2: Database seed"
+echo "=============================="
 export PYTHONPATH="/app/backend"
 export PYTHONUNBUFFERED="1"
 
-mkdir -p /data /database /var/log/supervisor
-
-# Database setup
-if [ -n "$SPACE_ID" ]; then
-    echo "HF Spaces mode detected"
-    if [ -z "$DATABASE_URL" ]; then
-        export DATABASE_URL="sqlite:////data/blockchain_local.db"
-    fi
-    if [ "$RESET_DB" = "1" ]; then
-        rm -f /data/blockchain_local.db*
-    fi
-    if [ -f "/app/backend/migrate_persistent_storage.py" ]; then
-        cd /app/backend && python migrate_persistent_storage.py 2>/dev/null || true
-    fi
-fi
-
 cd /app/backend
 
-if [[ "$DATABASE_URL" == postgresql://* ]] || [[ "$DATABASE_URL" == postgres://* ]]; then
-    echo "PostgreSQL mode"
-    python bootstrap_supabase.py --once 2>/dev/null || echo "Bootstrap skipped"
-    python -c "from app.core.database import ensure_schema; ensure_schema()" 2>/dev/null || echo "Schema check skipped"
-else
-    echo "SQLite mode: $DATABASE_URL"
-    python seed_wallets.py 2>/dev/null || echo "Seed skipped"
+if [ -z "$DATABASE_URL" ]; then
+    export DATABASE_URL="sqlite:////data/blockchain_local.db"
 fi
+echo "DATABASE_URL=$DATABASE_URL"
 
-echo "=== Starting services ==="
+python seed_wallets.py 2>&1 || echo "SEED FAILED (continuing anyway)"
 
-# Start backend
-cd /app/backend
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info &
-BACKEND_PID=$!
-echo "Backend started (PID: $BACKEND_PID)"
+echo "=============================="
+echo "STEP 3: Test backend import"
+echo "=============================="
+python -c "
+import traceback
+try:
+    from app.main import app
+    print('IMPORT SUCCESS')
+except Exception as e:
+    print('IMPORT FAILED:')
+    traceback.print_exc()
+" 2>&1
 
-# Wait for backend to be ready
-for i in $(seq 1 30); do
+echo "=============================="
+echo "STEP 4: Start backend"
+echo "=============================="
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 2>&1 &
+BPID=$!
+echo "Backend PID=$BPID"
+
+echo "=============================="
+echo "STEP 5: Wait for backend"
+echo "=============================="
+READY=0
+for i in $(seq 1 40); do
     if curl -sf http://127.0.0.1:8000/ > /dev/null 2>&1; then
-        echo "Backend is ready"
+        echo "Backend ready after ${i}s"
+        READY=1
         break
     fi
     sleep 1
 done
 
-# Start frontend
+if [ "$READY" -eq 0 ]; then
+    echo "BACKEND FAILED TO START after 40s"
+    echo "Checking if process still alive..."
+    kill -0 $BPID 2>/dev/null && echo "Process $BPID alive" || echo "Process $BPID DEAD"
+    wait $BPID 2>/dev/null
+    echo "Backend exit code: $?"
+fi
+
+echo "=============================="
+echo "STEP 6: Start frontend"
+echo "=============================="
 cd /app/frontend
-HOSTNAME=0.0.0.0 PORT=7860 BACKEND_URL=http://127.0.0.1:8000 NODE_ENV=production /usr/bin/node server.js &
-FRONTEND_PID=$!
-echo "Frontend started (PID: $FRONTEND_PID)"
+ls server.js 2>&1 || echo "server.js NOT FOUND"
+ls node_modules 2>&1 | head -3 || echo "node_modules NOT FOUND"
 
-# Start scanner
+HOSTNAME=0.0.0.0 PORT=7860 BACKEND_URL=http://127.0.0.1:8000 NODE_ENV=production node server.js 2>&1 &
+FPID=$!
+echo "Frontend PID=$FPID"
+
+echo "=============================="
+echo "STEP 7: Start scanner"
+echo "=============================="
 cd /app/backend
-python scanner.py &
-SCANNER_PID=$!
-echo "Scanner started (PID: $SCANNER_PID)"
+python scanner.py 2>&1 &
+SPID=$!
+echo "Scanner PID=$SPID"
 
-echo "=== All services started ==="
-echo "Backend: http://127.0.0.1:8000"
-echo "Frontend: http://127.0.0.1:7860"
+echo "=============================="
+echo "ALL STARTED: backend=$BPID frontend=$FPID scanner=$SPID"
+echo "=============================="
 
-# Trap signals for graceful shutdown
-trap "kill $BACKEND_PID $FRONTEND_PID $SCANNER_PID 2>/dev/null; exit 0" SIGTERM SIGINT
-
-# Wait for any process to exit
-wait -n $BACKEND_PID $FRONTEND_PID $SCANNER_PID
-EXIT_CODE=$?
-echo "A process exited with code $EXIT_CODE, shutting down..."
-kill $BACKEND_PID $FRONTEND_PID $SCANNER_PID 2>/dev/null
-exit $EXIT_CODE
+trap "kill $BPID $FPID $SPID 2>/dev/null; exit 0" SIGTERM SIGINT
+wait
