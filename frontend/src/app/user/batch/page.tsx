@@ -1,51 +1,99 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useState, useRef } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, CheckCircle2, AlertCircle, Loader2, ArrowRight } from "lucide-react";
 import { authFetch } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
 
+interface BatchResult {
+  total: number;
+  processed: number;
+  blocked: number;
+  failed: number;
+  details: Array<{ tx: { sender: string; receiver: string; amount: string }; status: string; reason?: string; tx_hash?: string; error?: string }>;
+}
+
+function parseCsvFile(text: string): Array<{ sender: string; receiver: string; amount: string }> {
+  const lines = text.trim().split("\n");
+  if (lines.length < 2) return [];
+
+  const header = lines[0].toLowerCase().split(",").map(h => h.trim());
+  const senderIdx = header.findIndex(h => h === "from_address" || h === "sender" || h === "from");
+  const receiverIdx = header.findIndex(h => h === "to_address" || h === "receiver" || h === "to");
+  const amountIdx = header.findIndex(h => h === "amount" || h === "amount_eth" || h === "value");
+
+  if (senderIdx === -1 || receiverIdx === -1 || amountIdx === -1) return [];
+
+  const transfers: Array<{ sender: string; receiver: string; amount: string }> = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",").map(c => c.trim());
+    const sender = cols[senderIdx];
+    const receiver = cols[receiverIdx];
+    const amount = cols[amountIdx];
+    if (sender?.startsWith("0x") && receiver?.startsWith("0x") && amount) {
+      transfers.push({ sender: sender.toLowerCase(), receiver: receiver.toLowerCase(), amount });
+    }
+  }
+  return transfers;
+}
+
 export default function BatchUploadPage() {
   const { notify } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [isFinished, setIsFinished] = useState(false);
+  const [result, setResult] = useState<BatchResult | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setResult(null);
+    }
+  };
 
   const handleUpload = async () => {
+    if (!selectedFile) return;
     setIsUploading(true);
     setProgress(10);
 
     try {
-      // Simulate reading file and preparing data
-      const demoAddress = process.env.NEXT_PUBLIC_SENDER_ADDRESS || "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
-      const sampleTransfers = Array.from({ length: 50 }, (_, i) => ({
-        sender: demoAddress,
-        receiver: "0x" + Math.random().toString(16).slice(2, 42).padStart(40, '0'),
-        amount: (Math.random() * 5).toFixed(4)
-      }));
+      const text = await selectedFile.text();
+      setProgress(30);
+      const transfers = parseCsvFile(text);
 
-      setProgress(40);
+      if (transfers.length === 0) {
+        throw new Error("No valid transfers found. CSV must have from_address, to_address, amount columns.");
+      }
 
+      setProgress(50);
       const response = await authFetch("/api/transfers/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transfers: sampleTransfers })
+        body: JSON.stringify({ transfers })
       });
 
       if (!response.ok) throw new Error("Batch upload failed");
-      
-      const result = await response.json();
+      const batchResult: BatchResult = await response.json();
 
       setProgress(100);
-      setIsUploading(false);
-      setIsFinished(true);
+      setResult(batchResult);
     } catch (error) {
-      console.error("Upload error:", error);
+      const message = error instanceof Error ? error.message : "Upload failed";
+      notify(message, "error");
+    } finally {
       setIsUploading(false);
-      notify("Failed to upload batch data. Please check connection.", "error");
     }
+  };
+
+  const resetUpload = () => {
+    setSelectedFile(null);
+    setResult(null);
+    setProgress(0);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   return (
@@ -56,32 +104,53 @@ export default function BatchUploadPage() {
           <p className="text-slate-400 max-w-lg mx-auto">Upload transaction datasets for retrospective AI risk analysis and historical scanning.</p>
         </div>
 
-        {!isFinished ? (
+        {!result ? (
           <Card className="bg-slate-900/40 border-slate-800 border-dashed border-2 hover:border-teal-500/50 transition-all">
             <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="h-20 w-20 rounded-full bg-slate-800 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.json"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <div className="h-20 w-20 rounded-full bg-slate-800 flex items-center justify-center mb-6">
                 <Upload className="h-10 w-10 text-teal-400" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Drag and drop your file here</h3>
-              <p className="text-slate-500 mb-8 max-w-xs">Supports CSV, XLSX up to 50MB per batch (Max 100,000 transactions).</p>
-              
+
+              {selectedFile ? (
+                <>
+                  <p className="text-white font-medium">{selectedFile.name}</p>
+                  <p className="text-slate-500 text-sm mt-1">{(selectedFile.size / 1024).toFixed(1)} KB</p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-xl font-semibold text-white mb-2">Select a CSV file</h3>
+                  <p className="text-slate-500 mb-8 max-w-xs">Required columns: from_address, to_address, amount</p>
+                </>
+              )}
+
               {isUploading ? (
-                <div className="w-full max-w-sm space-y-4">
+                <div className="w-full max-w-sm space-y-4 mt-6">
                   <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-teal-500 transition-all duration-300" 
-                      style={{ width: `${progress}%` }}
-                    />
+                    <div className="h-full bg-teal-500 transition-all duration-300" style={{ width: `${progress}%` }} />
                   </div>
                   <p className="text-sm text-slate-400 flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Analyzing risk patterns... {progress}%
+                    Processing... {progress}%
                   </p>
                 </div>
               ) : (
-                <Button onClick={handleUpload} size="lg" className="bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold px-10">
-                  Select File
-                </Button>
+                <div className="flex gap-3 mt-6">
+                  <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="border-slate-700 text-slate-300">
+                    Choose File
+                  </Button>
+                  {selectedFile && (
+                    <Button onClick={handleUpload} className="bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold px-10">
+                      Upload & Analyze
+                    </Button>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -91,31 +160,31 @@ export default function BatchUploadPage() {
               <CheckCircle2 className="h-8 w-8 text-teal-500" />
               <div>
                 <h3 className="text-xl font-bold text-white">Upload Successful</h3>
-                <p className="text-teal-400/70 text-sm">Processed 12,450 transactions in 4.2 seconds.</p>
+                <p className="text-teal-400/70 text-sm">Processed {result.processed} transactions. {result.blocked} blocked, {result.failed} failed.</p>
               </div>
             </div>
             <CardContent className="p-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-1">
-                  <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">Risk Detected</p>
-                  <p className="text-3xl font-bold text-amber-400">142</p>
-                  <p className="text-xs text-slate-400">Requires manual review</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">Processed</p>
+                  <p className="text-3xl font-bold text-teal-400">{result.processed}</p>
+                  <p className="text-xs text-slate-400">Transactions accepted</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">Critical Threat</p>
-                  <p className="text-3xl font-bold text-red-500">18</p>
-                  <p className="text-xs text-slate-400">Auto-blocked transfers</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">Blocked</p>
+                  <p className="text-3xl font-bold text-red-500">{result.blocked}</p>
+                  <p className="text-xs text-slate-400">Blacklisted receivers</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">Confidence</p>
-                  <p className="text-3xl font-bold text-white">99.8%</p>
-                  <p className="text-xs text-slate-400">AI Model Accuracy</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">Failed</p>
+                  <p className="text-3xl font-bold text-amber-400">{result.failed}</p>
+                  <p className="text-xs text-slate-400">Processing errors</p>
                 </div>
               </div>
               <div className="mt-8 flex gap-4">
-                <Button className="flex-1 bg-slate-800 hover:bg-slate-700">Download Full Analysis</Button>
-                <Button className="flex-1 bg-teal-500 text-slate-950 font-bold hover:bg-teal-600">
-                  Go to Investigator Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+                <Button onClick={resetUpload} className="flex-1 bg-slate-800 hover:bg-slate-700">Upload Another</Button>
+                <Button onClick={() => window.location.href = "/user/dashboard"} className="flex-1 bg-teal-500 text-slate-950 font-bold hover:bg-teal-600">
+                  Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </CardContent>
@@ -128,11 +197,12 @@ export default function BatchUploadPage() {
               <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
                 <FileText className="h-5 w-5" />
               </div>
-              <CardTitle className="text-base text-white">Template Guide</CardTitle>
+              <CardTitle className="text-base text-white">CSV Format</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-slate-400 leading-relaxed">Download our CSV template to ensure your transaction headers match our AI engine requirements (from_address, to_address, amount, timestamp).</p>
-              <Button variant="link" className="text-teal-400 p-0 mt-2 h-auto">Download Template.csv</Button>
+              <p className="text-sm text-slate-400 leading-relaxed">Required columns: from_address, to_address, amount. Optional: chain (default: ethereum).</p>
+              <pre className="mt-2 text-xs text-slate-500 bg-slate-950/50 rounded-lg p-3">from_address,to_address,amount
+0xabc...,0xdef...,0.5</pre>
             </CardContent>
           </Card>
           <Card className="bg-slate-900/30 border-slate-800/50">

@@ -393,19 +393,30 @@ const server = app.listen(PORT, () => {
   });
 });
 
-// Centralized error handler
-app.use((err, req, res, next) => {
-  console.error(`API Gateway Error:`, err.message);
-  res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
-});
-
-// Handle WebSocket upgrades
 server.on('upgrade', (req, socket, head) => {
   const service = getService(req.url);
-  if (service) {
+  if (!service) {
+    socket.destroy();
+    return;
+  }
+
+  const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const token = urlObj.searchParams.get('token')
+    || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+
+  if (!token) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
+  try {
+    jwt.verify(token, JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
     console.log(`→ Upgrading proxy for ${req.url} to ${service}`);
     proxies[service].ws(req, socket, head);
-  } else {
+  } catch (err) {
+    console.warn(`→ WebSocket auth rejected: ${err.message}`);
+    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
     socket.destroy();
   }
 });

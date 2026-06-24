@@ -322,9 +322,8 @@ export default function DashboardAssistantPanel({
       <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
         <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Knowledge sources</p>
         <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-300">
-          <span className="rounded-full border border-slate-700 px-2 py-1">README.md</span>
-          <span className="rounded-full border border-slate-700 px-2 py-1">DEPLOY_HF_SUPABASE.md</span>
-          <span className="rounded-full border border-slate-700 px-2 py-1">role-based-rearchitecture-plan.md</span>
+          <span className="rounded-full border border-slate-700 px-2 py-1">Project documentation</span>
+          <span className="rounded-full border border-slate-700 px-2 py-1">Database records</span>
         </div>
       </div>
     </section>

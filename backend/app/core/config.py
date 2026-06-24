@@ -84,5 +84,7 @@ GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_API_BASE_URL: str = os.getenv("GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1")
 GEMINI_REQUEST_TIMEOUT_SECONDS: int = int(os.getenv("GEMINI_REQUEST_TIMEOUT_SECONDS", "10"))
 
+REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0" if os.getenv("SPACE_ID") else "")
+
 # Legacy HF settings (kept for backward compatibility with older diagnostics payloads/docs).
 HF_API_TOKEN: str = os.getenv("HF_TOKEN", "")

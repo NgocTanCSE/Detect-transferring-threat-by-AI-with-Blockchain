@@ -345,39 +345,35 @@ def _build_system_component_answer(question: str, database_session: Session = No
     """Build system component answer using knowledge base or database data."""
     from app.services.assistant_knowledge_base import retrieve_relevant_snippets
     
-    # Try to use knowledge base first
     snippets = retrieve_relevant_snippets(question, role="admin", scope="dashboard", limit=3)
     if snippets:
         kb_content = "\n\n".join([s.content for s in snippets])
         return f"Thông tin hệ thống (từ tài liệu dự án):\n\n{kb_content[:1500]}"
     
-    # Fallback with dynamic data if session available
-    system_info = {
-        "model_info": "Multi-Agent Random Forest",
-        "wallet_count": 0,
-        "alert_count": 0,
-    }
+    if not database_session:
+        return "Hiện chưa có đủ dữ liệu hệ thống để trả lời câu hỏi này."
     
-    if database_session:
-        try:
-            from app.models.models import Wallet, Alert
-            system_info["wallet_count"] = database_session.query(func.count(Wallet.id)).scalar() or 0
-            system_info["alert_count"] = database_session.query(func.count(Alert.id)).scalar() or 0
-        except Exception as e:
-            logger.warning(f"Could not fetch system stats: {e}")
+    try:
+        from app.models.models import Wallet, Alert, Transaction, BlockedTransfer
+        wallet_count = database_session.query(func.count(Wallet.id)).scalar() or 0
+        alert_count = database_session.query(func.count(Alert.id)).scalar() or 0
+        critical_count = database_session.query(func.count(Alert.id)).filter(Alert.severity == "CRITICAL").scalar() or 0
+        tx_count = database_session.query(func.count(Transaction.id)).scalar() or 0
+        blocked_count = database_session.query(func.count(BlockedTransfer.id)).scalar() or 0
+        high_risk = database_session.query(func.count(Wallet.id)).filter(Wallet.risk_score >= 80).scalar() or 0
+        suspended = database_session.query(func.count(Wallet.id)).filter(Wallet.account_status == "suspended").scalar() or 0
+    except Exception as e:
+        logger.warning(f"Could not fetch system stats: {e}")
+        return "Không thể truy xuất dữ liệu hệ thống lúc này."
     
     return (
-        "1) Giải thích các thành phần chính\n"
-        "- Frontend (Next.js): Giao diện người dùng hiện đại, sử dụng Tailwind CSS và Recharts.\n"
-        "- Backend (FastAPI): Hệ thống xử lý trung tâm, quản lý dữ liệu blockchain, chạy AI Detection Engine.\n"
-        f"- AI Detection Engine: {system_info['model_info']} - Phát hiện Rửa tiền, Thao túng, Lừa đảo.\n"
-        f"- Database: {system_info['wallet_count']} ví, {system_info['alert_count']} cảnh báo theo dõi.\n\n"
-        "2) Cơ chế vận hành\n"
-        "- Hệ thống hoạt động theo RBAC với 4 vai trò: System Admin, AI Data Engineer, Security Analyst, Compliance Manager.\n"
-        "- Dữ liệu được tổng hợp theo thời gian thực từ blockchain và AI chấm điểm rủi ro.\n\n"
-        "3) Hành động đề xuất\n"
-        "- Vào 'Insights' để xem chi tiết từng ví.\n"
-        "- Vào 'Reporting' để xem báo cáo KPI."
+        f"Thông tin hệ thống hiện tại:\n"
+        f"- Tổng số ví theo dõi: {wallet_count}\n"
+        f"- Ví rủi ro cao (>=80): {high_risk}\n"
+        f"- Ví đang bị đình chỉ: {suspended}\n"
+        f"- Tổng cảnh báo: {alert_count} (CRITICAL: {critical_count})\n"
+        f"- Tổng giao dịch: {tx_count}\n"
+        f"- Giao dịch bị chặn: {blocked_count}"
     )
 
 
@@ -389,7 +385,6 @@ def _initialize_database() -> None:
 
 _initialize_database()
 
-# Sentry SDK initialization
 _sentry_dsn = os.getenv("SENTRY_DSN", "")
 if _sentry_dsn:
     try:
@@ -398,6 +393,28 @@ if _sentry_dsn:
         logger.info("Sentry SDK initialized")
     except Exception as e:
         logger.warning(f"Sentry SDK init failed: {e}")
+
+import threading
+
+def _refresh_high_risk_wallets_loop():
+    import time
+    while True:
+        time.sleep(300)
+        try:
+            from app.core.database import engine
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY high_risk_wallets"))
+                conn.commit()
+            logger.info("Refreshed high_risk_wallets materialized view")
+        except Exception as e:
+            logger.warning(f"Failed to refresh high_risk_wallets: {e}")
+
+try:
+    _mv_thread = threading.Thread(target=_refresh_high_risk_wallets_loop, daemon=True)
+    _mv_thread.start()
+except Exception as e:
+    logger.warning(f"Could not start materialized view refresh thread: {e}")
 
 app = FastAPI(
     title="Blockchain Risk Assessment API",

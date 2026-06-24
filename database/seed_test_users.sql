@@ -44,6 +44,8 @@ VALUES
   ('0x9876543210fedcba9876543210fedcba98765432', 'Dave Suspicious', 'individual', 75, 'high', 'under_review', 8, 'ethereum', NOW(), NOW()),
   ('0x1234567890abcdef1234567890abcdef12345678', 'Bob Analyst', 'individual', 10, 'low', 'active', 5, 'ethereum', NOW(), NOW()),
   ('0xfedcba9876543210fedcba9876543210fedcba98', 'Eve Compliance', 'individual', 5, 'low', 'active', 3, 'ethereum', NOW(), NOW())
+ON CONFLICT (address) DO NOTHING;
+
 -- Add user profiles for test users
 INSERT INTO user_profiles (user_id, full_name, phone, address, preferences)
 VALUES

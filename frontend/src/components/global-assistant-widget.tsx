@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
-import { fetchDashboardStats } from "@/lib/api";
+import { fetchDashboardStats, fetchWalletStats } from "@/lib/api";
 import DashboardAssistantPanel from "@/components/dashboard-assistant-panel";
 
 type AssistantScope = "dashboard" | "wallet" | "case" | "policy" | "tracking";
@@ -63,6 +63,13 @@ export default function GlobalAssistantWidget() {
     staleTime: 30_000,
   });
 
+  const { data: walletStats } = useQuery({
+    queryKey: ["assistant-wallet-stats", user?.wallet_address],
+    queryFn: () => fetchWalletStats(user!.wallet_address!),
+    enabled: open && !!user?.wallet_address,
+    staleTime: 30_000,
+  });
+
   const assistantContext = useMemo(
     () => ({
       overview: dashboardStats?.overview,
@@ -71,10 +78,10 @@ export default function GlobalAssistantWidget() {
         ? {
           address: user.wallet_address,
           exists: true,
-          risk_score: 0,
-          account_status: null,
+          risk_score: walletStats?.wallet_info?.risk_score ?? 0,
+          account_status: walletStats?.wallet_info?.account_status ?? walletStats?.account_status ?? null,
           label: user.username,
-          transaction_count: 0,
+          transaction_count: walletStats?.total_transactions ?? 0,
           alert_count: 0,
         }
         : null,
@@ -82,7 +89,7 @@ export default function GlobalAssistantWidget() {
       dashboard_role: dashboardRoleKey,
       dashboard_feature_index: dashboardFeatureIndex,
     }),
-    [dashboardStats?.overview, dashboardFeatureIndex, dashboardRoleKey, scope, user?.username, user?.wallet_address]
+    [dashboardStats?.overview, walletStats, dashboardFeatureIndex, dashboardRoleKey, scope, user?.username, user?.wallet_address]
   );
 
   return (

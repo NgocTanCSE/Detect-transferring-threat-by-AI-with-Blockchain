@@ -337,11 +337,6 @@ const requireRole = (allowedRoles) => {
   return (req, res, next) => {
     const userRole = req.headers['x-user-role'];
 
-    // In dev mode, if no gateway header is present, allow all (optional)
-    if (!userRole && process.env.NODE_ENV === 'development') {
-      return next();
-    }
-
     if (!userRole || !allowedRoles.includes(userRole)) {
       console.warn(`[RBAC] Access denied for role: ${userRole}`);
       return res.status(403).json({

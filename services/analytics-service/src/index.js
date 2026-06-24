@@ -106,23 +106,27 @@ app.get('/statistics/dashboard', async (req, res) => {
       "SELECT COUNT(*) as count FROM alerts WHERE chain_id = $1 AND detected_at >= $2",
       [chain, todayStart],
     );
+    const blockedTotal = await pool.query(
+      "SELECT COUNT(*) as count FROM blocked_transfers WHERE chain_id = $1",
+      [chain],
+    );
 
     res.json({
       data: {
         money_laundering: {
-          wallet_count: parseInt(wallets.rows[0].count),
+          wallet_count: parseInt(moneyLaundering.rows[0].count),
           alert_count: parseInt(mlAlerts.rows[0].count),
           icon: 'shield',
           color: 'blue',
         },
         manipulation: {
-          wallet_count: parseInt(wallets.rows[0].count),
+          wallet_count: parseInt(manipulation.rows[0].count),
           alert_count: parseInt(manipAlerts.rows[0].count),
           icon: 'activity',
           color: 'amber',
         },
         scam: {
-          wallet_count: parseInt(wallets.rows[0].count),
+          wallet_count: parseInt(scam.rows[0].count),
           alert_count: parseInt(scamAlerts.rows[0].count),
           icon: 'alert-triangle',
           color: 'red',
@@ -132,7 +136,7 @@ app.get('/statistics/dashboard', async (req, res) => {
           total_alerts: parseInt(alerts.rows[0].count),
           critical_alerts: parseInt(criticalAlerts.rows[0].count),
           alerts_today: parseInt(alertsToday.rows[0].count),
-          total_blocked: 0,
+          total_blocked: parseInt(blockedTotal.rows[0].count),
         },
       },
     });

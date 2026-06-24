@@ -423,42 +423,35 @@ ensureSchema()
     
     // Start Worker with dummy processor
 await queue.startWorker(async (content) => {
-  // If this is a risk event (no alert_type but contains risk data), persist it as an alert
   if (!content.alert_type && content.wallet_address && content.risk_score !== undefined) {
     const normalizedWalletAddress = String(content.wallet_address).toLowerCase().trim();
     if (/^0x[a-f0-9]{40}$/.test(normalizedWalletAddress)) {
-    try {
-      const { rows } = await pool.query(
-        `INSERT INTO alerts (
-          wallet_address, alert_type, severity, message, risk_score, meta, chain_id, detected_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, detected_at`,
-        [
-          content.wallet_address,
-          content.alert_type || 'RISK_EVENT',
-          content.severity || 'MEDIUM',
-          content.message || 'Risk event received',
-          content.risk_score,
-          content.meta ? JSON.stringify(content.meta) : null,
-          content.chain_id || 'ethereum'
-        ]
-      );
-      // Publish a notification that a risk alert has been stored
-      await queue.publishAlert({
-        ...rows[0],
-        event_type: 'RISK_ALERT_INSERTED'
-      });
-    } catch (err) {
-      console.error('Failed to store risk event as alert:', err.message);
-      // Propagate error to trigger retry logic
-      throw err;
+      try {
+        const { rows } = await pool.query(
+          `INSERT INTO alerts (
+            wallet_address, alert_type, severity, message, risk_score, meta, chain_id, detected_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id, wallet_address, alert_type, severity, message, risk_score, meta, chain_id, detected_at`,
+          [
+            content.wallet_address,
+            content.alert_type || 'RISK_EVENT',
+            content.severity || 'MEDIUM',
+            content.message || 'Risk event received',
+            content.risk_score,
+            content.meta ? JSON.stringify(content.meta) : null,
+            content.chain_id || 'ethereum'
+          ]
+        );
+        await queue.publishAlert({
+          ...rows[0],
+          event_type: 'RISK_ALERT_INSERTED'
+        });
+      } catch (err) {
+        console.error('Failed to store risk event as alert:', err.message);
+        throw err;
+      }
     }
   }
 
-  // Existing demo failure behavior – keep occasional transient errors
-  if (Math.random() < 0.1) {
-    throw new Error('Transient connectivity error to external notification provider');
-  }
-  // Processing succeeded
   return true;
 });
     

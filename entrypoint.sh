@@ -63,7 +63,14 @@ if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres://* || "$DATABASE_UR
     echo "Running Alembic migrations..."
     alembic -c /app/backend/alembic.ini upgrade head || echo "Alembic migration failed (DB might not be ready yet), continuing..."
     echo "Ensuring future partitions..."
-    python -c "from app.services.partition_manager import ensure_future_partitions; from app.core.database import SessionLocal; db = SessionLocal(); print(f'Created {ensure_future_partitions(db)} partitions')" || echo "Partition creation skipped"
+    python -c "
+from app.core.database import engine
+from sqlalchemy import text
+with engine.connect() as conn:
+    conn.execute(text('SELECT ensure_future_partitions(6)'))
+    conn.commit()
+print('Partitions ensured')
+" || echo "Partition creation skipped"
 else
     echo "Using local SQLite database at $DATABASE_URL. Attempting seed..."
     if ! python seed_wallets.py; then

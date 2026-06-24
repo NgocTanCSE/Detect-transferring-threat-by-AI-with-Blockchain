@@ -40,6 +40,11 @@ export default function UserProfile() {
     sms: false,
   });
   const { notify } = useToast();
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const copyAddress = () => {
     if (user?.wallet_address) {
@@ -111,6 +116,42 @@ export default function UserProfile() {
       } catch (err) {
         console.error(err);
         notify('Error saving preferences', 'error');
+     }
+   };
+
+   const handleChangePassword = async () => {
+     if (!newPassword || !confirmPassword) {
+       notify('Please fill in all fields', 'error');
+       return;
+     }
+     if (newPassword !== confirmPassword) {
+       notify('New passwords do not match', 'error');
+       return;
+     }
+     if (newPassword.length < 8) {
+       notify('Password must be at least 8 characters', 'error');
+       return;
+     }
+     setIsChangingPassword(true);
+     try {
+       const res = await authFetch('/auth/change-password', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+       });
+       if (!res.ok) {
+         const data = await res.json().catch(() => ({}));
+         throw new Error(data.error || 'Failed to change password');
+       }
+       notify('Password changed successfully', 'success');
+       setShowPasswordForm(false);
+       setCurrentPassword('');
+       setNewPassword('');
+       setConfirmPassword('');
+     } catch (err) {
+       notify(err instanceof Error ? err.message : 'Error changing password', 'error');
+     } finally {
+       setIsChangingPassword(false);
      }
    };
 
@@ -274,9 +315,28 @@ export default function UserProfile() {
             </div>
             <span className="text-xs text-slate-400">Active now</span>
           </div>
-          <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800">
+          <Button variant="outline" onClick={() => setShowPasswordForm(!showPasswordForm)} className="border-slate-700 text-slate-300 hover:bg-slate-800">
             Đổi Mật Khẩu
           </Button>
+          {showPasswordForm && (
+            <div className="space-y-3 p-4 rounded-xl bg-slate-900/30 border border-slate-800/30">
+              <div className="space-y-2">
+                <Label className="text-slate-400">Mật khẩu hiện tại</Label>
+                <Input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="bg-slate-900/50 border-slate-800 text-white" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-400">Mật khẩu mới</Label>
+                <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="bg-slate-900/50 border-slate-800 text-white" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-400">Xác nhận mật khẩu mới</Label>
+                <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="bg-slate-900/50 border-slate-800 text-white" />
+              </div>
+              <Button onClick={handleChangePassword} disabled={isChangingPassword} className="bg-teal-500 hover:bg-teal-400 text-slate-950">
+                {isChangingPassword ? 'Đang xử lý...' : 'Xác nhận đổi'}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

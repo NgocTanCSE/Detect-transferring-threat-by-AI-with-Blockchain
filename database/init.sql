@@ -162,7 +162,93 @@ CREATE TABLE IF NOT EXISTS transactions_2025_02 PARTITION OF transactions FOR
 VALUES
 FROM ('2025-02-01') TO ('2025-03-01');
 
+CREATE TABLE IF NOT EXISTS transactions_2025_03 PARTITION OF transactions FOR
+VALUES
+FROM ('2025-03-01') TO ('2025-04-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2025_04 PARTITION OF transactions FOR
+VALUES
+FROM ('2025-04-01') TO ('2025-05-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2025_05 PARTITION OF transactions FOR
+VALUES
+FROM ('2025-05-01') TO ('2025-06-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2025_06 PARTITION OF transactions FOR
+VALUES
+FROM ('2025-06-01') TO ('2025-07-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2025_07 PARTITION OF transactions FOR
+VALUES
+FROM ('2025-07-01') TO ('2025-08-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2025_08 PARTITION OF transactions FOR
+VALUES
+FROM ('2025-08-01') TO ('2025-09-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2025_09 PARTITION OF transactions FOR
+VALUES
+FROM ('2025-09-01') TO ('2025-10-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2025_10 PARTITION OF transactions FOR
+VALUES
+FROM ('2025-10-01') TO ('2025-11-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2025_11 PARTITION OF transactions FOR
+VALUES
+FROM ('2025-11-01') TO ('2025-12-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2025_12 PARTITION OF transactions FOR
+VALUES
+FROM ('2025-12-01') TO ('2026-01-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2026_01 PARTITION OF transactions FOR
+VALUES
+FROM ('2026-01-01') TO ('2026-02-01');
+
+CREATE TABLE IF NOT EXISTS transactions_2026_02 PARTITION OF transactions FOR
+VALUES
+FROM ('2026-02-01') TO ('2026-03-01');
+
 CREATE TABLE IF NOT EXISTS transactions_default PARTITION OF transactions DEFAULT;
+
+CREATE OR REPLACE FUNCTION create_monthly_partition(target_date DATE)
+RETURNS void AS $$
+DECLARE
+    partition_name TEXT;
+    month_start DATE;
+    month_end DATE;
+BEGIN
+    month_start := date_trunc('month', target_date);
+    month_end := month_start + INTERVAL '1 month';
+    partition_name := 'transactions_' || to_char(month_start, 'YYYY_MM');
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relname = partition_name AND n.nspname = 'public'
+    ) THEN
+        EXECUTE format(
+            'CREATE TABLE %I PARTITION OF transactions FOR VALUES FROM (%L) TO (%L)',
+            partition_name, month_start, month_end
+        );
+        RAISE NOTICE 'Created partition: %', partition_name;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION ensure_future_partitions(months_ahead INTEGER DEFAULT 6)
+RETURNS void AS $$
+DECLARE
+    i INTEGER;
+    target_date DATE;
+BEGIN
+    FOR i IN 0..months_ahead LOOP
+        target_date := date_trunc('month', CURRENT_DATE) + (i || ' months')::INTERVAL;
+        PERFORM create_monthly_partition(target_date);
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Indexes on main table and partitions
 CREATE INDEX IF NOT EXISTS idx_transactions_hash ON transactions (tx_hash);
@@ -568,7 +654,7 @@ VALUES (
         '11111111-1111-1111-1111-111111111100',
         'admin_security',
         'admin@blockchain-sentinel.io',
-        'admin123',
+        '$2a$10$w4cm5w6pa78LzYu0MrndFe5VBCXNVnmDRcylMQsLBzSHZYCkwOeNi',
         'admin',
         '0x0000000000000000000000000000000000000001',
         true,
@@ -578,7 +664,7 @@ VALUES (
         '11111111-1111-1111-1111-111111111101',
         'linh_analyst',
         'linh.analyst@blockchain-sentinel.io',
-        'analyst123',
+        '$2a$10$CjrBogpRSdT9X42c/b.3C.R0.tyUgLHe.61jmpu1W/XVKee3QJHq2',
         'analyst',
         '0x742d35cc6634c0532925a3b844bc454e4438f44e',
         true,

@@ -92,8 +92,9 @@ export default function UserExchange() {
         try {
           // Use common API for risk check
           const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/analyze/${toAddress}`);
-          const data = await res.json();
-          setReceiverRisk(data.payload || data);
+          const raw = await res.json();
+          const data = raw.data || raw;
+          setReceiverRisk({ risk_score: data.risk_score || 0, risk_level: data.risk_level || "UNKNOWN" });
         } catch {
           setReceiverRisk(null);
         } finally {

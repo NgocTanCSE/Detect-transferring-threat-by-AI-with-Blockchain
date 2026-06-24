@@ -1,6 +1,7 @@
 """Dynamic partition management for PostgreSQL transactions table."""
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -117,7 +118,3 @@ def cleanup_old_partitions(database_session: Session, keep_months: int = 12) -> 
         database_session.rollback()
     
     return dropped
-
-
-# Import os for environment variable check
-import os

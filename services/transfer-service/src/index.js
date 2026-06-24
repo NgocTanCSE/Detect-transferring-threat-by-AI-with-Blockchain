@@ -33,8 +33,8 @@ const analyzeAddress = async (address) => {
 // Create the breaker
 const aiBreaker = new CircuitBreaker(analyzeAddress, breakerOptions);
 aiBreaker.fallback((address) => {
-  console.warn(`Circuit open or AI service failed for ${address}. Using default low risk.`);
-  return { risk_score: 0.0, account_status: 'active', ai_insight: 'AI Analysis unavailable (Circuit Breaker)' };
+  console.warn(`Circuit open or AI service failed for ${address}. Blocking transfer due to inability to assess risk.`);
+  return { risk_score: 100.0, account_status: 'under_review', ai_insight: 'AI Analysis unavailable - transfer blocked for safety', block_transfer: true };
 });
 
 // Database connection
@@ -110,11 +110,6 @@ app.get('/metrics', async (req, res) => {
 const requireRole = (allowedRoles) => {
   return (req, res, next) => {
     const userRole = req.headers['x-user-role'];
-    
-    // In dev mode, if no gateway header is present, allow all (optional)
-    if (!userRole && process.env.NODE_ENV === 'development') {
-      return next();
-    }
 
     if (!userRole || !allowedRoles.includes(userRole)) {
       console.warn(`[RBAC] Transfer denied for role: ${userRole}`);
@@ -217,9 +212,14 @@ app.post(['/protected-transfer', '/transfer/protected', '/protected'], requireRo
         const aiData = await aiBreaker.fire(normalizedReceiver);
         receiverRisk = parseFloat(aiData.risk_score || 0);
         receiverStatus = aiData.account_status || 'unknown';
+        if (aiData.block_transfer) {
+          receiverRisk = 100.0;
+          receiverStatus = 'under_review';
+        }
       } catch (e) {
         console.error('AI analysis via breaker failed:', e.message);
-        // Risk remains 0.0 as initialized
+        receiverRisk = 100.0;
+        receiverStatus = 'under_review';
       }
     }
 

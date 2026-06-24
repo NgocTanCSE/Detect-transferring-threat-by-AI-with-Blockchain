@@ -853,6 +853,12 @@ def ensure_schema() -> None:
                 logger.warning("Applying schema fix: adding blocked_transfers.amount_eth")
                 connection.execute(text("ALTER TABLE blocked_transfers ADD COLUMN amount_eth NUMERIC(12,6)"))
 
+            try:
+                connection.execute(text("SELECT ensure_future_partitions(6)"))
+                logger.info("Ensured future transaction partitions exist")
+            except Exception as partition_err:
+                logger.warning(f"Could not ensure future partitions: {partition_err}")
+
     except Exception as schema_error:
         # Don't hard-fail startup on best-effort migration.
         logger.error(f"Schema ensure failed: {schema_error}")

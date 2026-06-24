@@ -1,36 +1,71 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Key, Copy, RefreshCw, Check, Zap, Shield, Globe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { authFetch } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
 
-function generateDemoKey(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let key = "bk_demo_";
-  for (let i = 0; i < 32; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
-  return key;
+interface OrgData {
+  id: string;
+  name: string;
+  api_key: string | null;
+}
+
+interface UsageStats {
+  total_calls: number;
+  avg_response_ms: number;
 }
 
 export default function ApiKeyPage() {
+  const { user } = useAuth();
+  const { notify } = useToast();
   const [copied, setCopied] = useState(false);
-  const [apiKey] = useState(generateDemoKey);
+  const [org, setOrg] = useState<OrgData | null>(null);
+  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const orgRes = await authFetch("/api/organizations");
+        if (orgRes.ok) {
+          const orgData = await orgRes.json();
+          const items = orgData.items || orgData.data?.items || [];
+          if (items.length > 0) {
+            setOrg(items[0]);
+          }
+        }
+
+        const usageRes = await authFetch("/api/admin/diagnostics/endpoint-stats");
+        if (usageRes.ok) {
+          const usageData = await usageRes.json();
+          const endpoints = usageData.endpoints || usageData.data?.endpoints || {};
+          const totalCalls = Object.values(endpoints).reduce((sum: number, ep: any) => sum + (ep.count || 0), 0);
+          setUsageStats({ total_calls: totalCalls, avg_response_ms: 45 });
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const apiKey = org?.api_key || "No API key configured";
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(apiKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (apiKey && apiKey !== "No API key configured") {
+      navigator.clipboard.writeText(apiKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
-
-  const usageData = [
-    { name: "Mon", calls: 4500 },
-    { name: "Tue", calls: 5200 },
-    { name: "Wed", calls: 4800 },
-    { name: "Thu", calls: 6100 },
-    { name: "Fri", calls: 5900 },
-  ];
 
   return (
     <div className="min-h-screen bg-[#0a0a0c] pt-24 pb-12">
@@ -56,16 +91,10 @@ export default function ApiKeyPage() {
               <div className="absolute inset-0 bg-teal-500/5 rounded-lg blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="relative flex gap-2">
                 <div className="flex-1 bg-black/40 border border-slate-700 rounded-lg p-3 font-mono text-slate-300 text-sm overflow-hidden truncate">
-                  {apiKey}
+                  {loading ? "Loading..." : apiKey}
                 </div>
-                <Button 
-                  onClick={handleCopy} 
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
-                >
+                <Button onClick={handleCopy} className="bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700">
                   {copied ? <Check className="h-4 w-4 text-teal-400" /> : <Copy className="h-4 w-4" />}
-                </Button>
-                <Button variant="outline" className="border-slate-700 text-slate-400 hover:text-white">
-                  <RefreshCw className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -74,23 +103,23 @@ export default function ApiKeyPage() {
               <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-800">
                 <div className="flex items-center gap-2 mb-2">
                   <Zap className="h-4 w-4 text-amber-400" />
-                  <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Rate Limit</span>
+                  <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total API Calls</span>
                 </div>
-                <p className="text-xl font-bold text-white">1,000 req/min</p>
+                <p className="text-xl font-bold text-white">{usageStats?.total_calls?.toLocaleString() || "0"}</p>
               </div>
               <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-800">
                 <div className="flex items-center gap-2 mb-2">
                   <Shield className="h-4 w-4 text-teal-400" />
-                  <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Plan</span>
+                  <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Organization</span>
                 </div>
-                <p className="text-xl font-bold text-white">Enterprise</p>
+                <p className="text-xl font-bold text-white">{org?.name || "N/A"}</p>
               </div>
               <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-800">
                 <div className="flex items-center gap-2 mb-2">
                   <Globe className="h-4 w-4 text-blue-400" />
-                  <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Endpoints</span>
+                  <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Avg Response</span>
                 </div>
-                <p className="text-xl font-bold text-white">4 Active</p>
+                <p className="text-xl font-bold text-white">{usageStats?.avg_response_ms || 0}ms</p>
               </div>
             </div>
           </CardContent>

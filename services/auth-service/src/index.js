@@ -666,6 +666,33 @@ authApp.get('/metrics', async (req, res) => {
     }
   });
 
+  authApp.post('/change-password', requireAuth, async (req, res) => {
+    try {
+      const { current_password, new_password } = req.body;
+      if (!current_password || !new_password) {
+        return res.status(400).json({ error: 'Current password and new password are required' });
+      }
+      if (new_password.length < 8) {
+        return res.status(400).json({ error: 'New password must be at least 8 characters' });
+      }
+      const userResult = await dbPool.query('SELECT id, password_hash FROM users WHERE id = $1', [req.user.sub]);
+      const user = userResult.rows[0];
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const valid = await verifyPassword(current_password, user.password_hash);
+      if (!valid) {
+        return res.status(401).json({ error: 'Current password is incorrect' });
+      }
+      const newHash = await hashPassword(new_password);
+      await dbPool.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newHash, req.user.sub]);
+      res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+      console.error('Change password error:', error);
+      res.status(500).json({ error: 'Failed to change password', detail: error.message });
+    }
+  });
+
   // Forgot password – generate reset code and store in Redis
   authApp.post('/forgot-password', async (req, res) => {
     try {

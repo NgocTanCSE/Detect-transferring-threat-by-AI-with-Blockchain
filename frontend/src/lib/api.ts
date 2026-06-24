@@ -237,6 +237,20 @@ function unwrapApiResponse<T>(payload: unknown): T {
   return payload as T;
 }
 
+function extractErrorMessage(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== "object") return fallback;
+  const obj = payload as Record<string, unknown>;
+  if (typeof obj.error === "string") return obj.error;
+  if (typeof obj.detail === "string") return obj.detail;
+  if (typeof obj.message === "string") return obj.message;
+  if (obj.data && typeof obj.data === "object") {
+    const data = obj.data as Record<string, unknown>;
+    if (typeof data.error === "string") return data.error;
+    if (typeof data.message === "string") return data.message;
+  }
+  return fallback;
+}
+
 export { formatEth } from "./utils";
 
 export async function askDashboardAssistant(
@@ -364,7 +378,10 @@ export async function fetchWalletStats(address: string): Promise<WalletStats> {
     throw new Error("Invalid wallet address format");
   }
   const res = await authFetch(`${API_BASE}/wallets/${normalizedAddress}/stats`);
-  if (!res.ok) throw new Error("Failed to fetch wallet stats");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(extractErrorMessage(body, `Failed to fetch wallet stats (${res.status})`));
+  }
   const payload = await res.json();
   return unwrapApiResponse<WalletStats>(payload);
 }
@@ -381,7 +398,10 @@ export async function fetchWalletTransactionHistory(
     timeout: 10000,
     retry: 2,
   });
-  if (!res.ok) throw new Error(`Failed to fetch wallet transactions: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(extractErrorMessage(body, `Failed to fetch wallet transactions (${res.status})`));
+  }
   const payload = await res.json();
   const data = unwrapApiResponse<{ transactions: WalletTransaction[] }>(payload);
   return data.transactions || [];
@@ -397,7 +417,10 @@ export async function updateWalletStatus(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status, notes }),
   });
-  if (!res.ok) throw new Error("Failed to update wallet status");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(extractErrorMessage(body, `Failed to update wallet status (${res.status})`));
+  }
   const payload = await res.json();
   return unwrapApiResponse<Wallet>(payload);
 }
@@ -524,7 +547,10 @@ export async function fetchUserHistory(walletAddress: string): Promise<UserHisto
 
 export async function fetchWalletBalance(address: string): Promise<WalletBalance> {
   const res = await authFetch(`${API_BASE}/wallet/${address}/balance`);
-  if (!res.ok) throw new Error("Failed to fetch wallet balance");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(extractErrorMessage(body, `Failed to fetch wallet balance (${res.status})`));
+  }
   const payload = await res.json();
   return unwrapApiResponse<WalletBalance>(payload);
 }
@@ -553,7 +579,10 @@ export async function sendProtectedTransfer(
       confirm_risk: confirmRisk,
     })
   });
-  if (!res.ok) throw new Error("Failed to send transfer");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(extractErrorMessage(body, `Failed to send transfer (${res.status})`));
+  }
   const payload = await res.json();
   return unwrapApiResponse<TransferResponse>(payload);
 }
@@ -605,7 +634,10 @@ export async function analyzeAddress(address: string): Promise<{
   detection_count: number;
 }> {
   const res = await authFetch(`${API_BASE}/analyze/${address}`, { timeout: 10000, retry: 2 });
-  if (!res.ok) throw new Error("Failed to analyze address");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(extractErrorMessage(body, `Failed to analyze address (${res.status})`));
+  }
   const payload = await res.json();
   return unwrapApiResponse(payload);
 }

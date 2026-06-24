@@ -1,4 +1,4 @@
-﻿"""AI-only router for the Blockchain AI Sentinel service.
+"""AI-only router for the Blockchain AI Sentinel service.
 
 This router contains only AI-related endpoints, separating them from
 the legacy monolith endpoints that duplicate microservice functionality.
@@ -175,3 +175,30 @@ def get_feedback_stats(current_user: User = Depends(admin_or_analyst), database_
     unlabeled = database_session.query(FeedbackLabel).filter(FeedbackLabel.used_for_training == False).count()
     counts = database_session.query(FeedbackLabel.admin_label, func.count(FeedbackLabel.id)).group_by(FeedbackLabel.admin_label).all()
     return {"total_feedback": total, "unlabeled_for_training": unlabeled, "used_for_training": total - unlabeled, "by_label": {l: c for l, c in counts}, "ready_for_retraining": unlabeled >= 50}
+
+@router.get("/transaction/{tx_hash}/status")
+def get_transaction_status(tx_hash: str, database_session: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
+    normalized = tx_hash.lower().strip()
+    if not normalized.startswith("0x") or len(normalized) != 66:
+        raise HTTPException(status_code=400, detail="Invalid transaction hash")
+    tx = database_session.query(Transaction).filter(Transaction.tx_hash == normalized).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    from_risk = database_session.query(Wallet).filter(Wallet.address == tx.from_address).first()
+    to_risk = database_session.query(Wallet).filter(Wallet.address == tx.to_address).first() if tx.to_address else None
+    return {
+        "tx_hash": tx.tx_hash,
+        "from_address": tx.from_address,
+        "to_address": tx.to_address,
+        "value_eth": float(tx.value or 0) / 1e18,
+        "status": "success" if tx.status == 1 else "failed",
+        "is_flagged": bool(tx.is_flagged),
+        "flag_reason": tx.flag_reason,
+        "case_status": getattr(tx, "case_status", None),
+        "assigned_to": getattr(tx, "assigned_to", None),
+        "chain_id": tx.chain_id,
+        "block_number": tx.block_number,
+        "timestamp": tx.timestamp.isoformat() if tx.timestamp else None,
+        "from_risk_score": float(from_risk.risk_score or 0) if from_risk else None,
+        "to_risk_score": float(to_risk.risk_score or 0) if to_risk else None,
+    }

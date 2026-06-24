@@ -112,7 +112,11 @@ export default function LiveDashboard() {
   // WebSocket for real-time threat alerts
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8001";
-    const socket = io(socketUrl);
+    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const socket = io(socketUrl, {
+      auth: { token },
+      query: token ? { token } : undefined,
+    });
 
     socket.on("connect", () => {
       // connected to real-time sentinel node
