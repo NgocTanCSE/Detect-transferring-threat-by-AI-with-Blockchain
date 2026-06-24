@@ -52,7 +52,7 @@ done
 
 # Start frontend
 cd /app/frontend
-HOSTNAME=0.0.0.0 PORT=7860 BACKEND_URL=http://127.0.0.1:8000 NODE_ENV=production node server.js &
+HOSTNAME=0.0.0.0 PORT=7860 BACKEND_URL=http://127.0.0.1:8000 NODE_ENV=production /usr/bin/node server.js &
 FRONTEND_PID=$!
 echo "Frontend started (PID: $FRONTEND_PID)"
 
