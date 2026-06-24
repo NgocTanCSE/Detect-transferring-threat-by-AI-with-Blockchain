@@ -1,83 +1,77 @@
 #!/bin/bash
-
-# Exit on error only for main operations (not for database setup which is best-effort)
 set -e
 
-echo "Starting entrypoint script..."
+echo "=== Blockchain AI Sentinel Startup ==="
 
-# Ensure local backend package imports (app.*) resolve first.
-export PYTHONPATH="/app/backend:${PYTHONPATH}"
+export PYTHONPATH="/app/backend"
 export PYTHONUNBUFFERED="1"
 
-# Ensure /data directory exists for persistent storage
-mkdir -p /data
+mkdir -p /data /database /var/log/supervisor
 
-# Create database directory for init.sql
-mkdir -p /database
-
-# Resolve database mode on HF Spaces:
-# - If DATABASE_URL points to Postgres (from .hf/hf_config.json), keep it
-# - Otherwise default to persistent SQLite in /data
+# Database setup
 if [ -n "$SPACE_ID" ]; then
-    echo "Detected HF Spaces environment (SPACE_ID=$SPACE_ID)"
-
-    if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres://* || "$DATABASE_URL" == postgresql://* ]]; then
-        echo "HF mode: remote PostgreSQL detected from DATABASE_URL"
-    else
-        if [ -z "$DATABASE_URL" ]; then
-            export DATABASE_URL="sqlite:////data/blockchain_local.db"
-            echo "HF mode: DATABASE_URL not provided, defaulting to persistent SQLite"
-        else
-            echo "HF mode: non-Postgres DATABASE_URL detected, using as provided"
-        fi
-
-        echo "DATABASE_URL set to: $DATABASE_URL"
-
-        # Optional one-shot DB reset for persistent HF storage.
-        # Set RESET_DB=1 in Space variables, restart once, then unset it.
-        if [ "$RESET_DB" = "1" ]; then
-            echo "RESET_DB=1 detected. Removing persistent SQLite files in /data"
-            rm -f /data/blockchain_local.db
-            rm -f /data/blockchain_local.db-wal
-            rm -f /data/blockchain_local.db-shm
-            rm -f /data/blockchain_local.db-journal
-        fi
-
-        # Run migration to move old data to /data if it exists elsewhere
-        if [ -f "/app/backend/migrate_persistent_storage.py" ]; then
-            echo "Running persistent storage migration..."
-            cd /app/backend
-            python migrate_persistent_storage.py || echo "Migration completed (no old data found)"
-        fi
+    echo "HF Spaces mode detected"
+    if [ -z "$DATABASE_URL" ]; then
+        export DATABASE_URL="sqlite:////data/blockchain_local.db"
     fi
-else
-    echo "Not on HF Spaces, using default database configuration"
+    if [ "$RESET_DB" = "1" ]; then
+        rm -f /data/blockchain_local.db*
+    fi
+    if [ -f "/app/backend/migrate_persistent_storage.py" ]; then
+        cd /app/backend && python migrate_persistent_storage.py 2>/dev/null || true
+    fi
 fi
 
-# Database bootstrap (best-effort, don't fail on error)
 cd /app/backend
 
-if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres://* || "$DATABASE_URL" == postgresql://* ]]; then
-    echo "Using PostgreSQL. Attempting database bootstrap..."
-    python bootstrap_supabase.py --once || echo "Bootstrap failed (DB might not be ready yet), continuing..."
-    echo "Running Alembic migrations..."
-    alembic -c /app/backend/alembic.ini upgrade head || echo "Alembic migration failed (DB might not be ready yet), continuing..."
-    echo "Ensuring future partitions..."
-    python -c "
-from app.core.database import engine
-from sqlalchemy import text
-with engine.connect() as conn:
-    conn.execute(text('SELECT ensure_future_partitions(6)'))
-    conn.commit()
-print('Partitions ensured')
-" || echo "Partition creation skipped"
+if [[ "$DATABASE_URL" == postgresql://* ]] || [[ "$DATABASE_URL" == postgres://* ]]; then
+    echo "PostgreSQL mode"
+    python bootstrap_supabase.py --once 2>/dev/null || echo "Bootstrap skipped"
+    python -c "from app.core.database import ensure_schema; ensure_schema()" 2>/dev/null || echo "Schema check skipped"
 else
-    echo "Using local SQLite database at $DATABASE_URL. Attempting seed..."
-    if ! python seed_wallets.py; then
-        echo "Seed failed. Will continue anyway - database may already exist..."
-    fi
+    echo "SQLite mode: $DATABASE_URL"
+    python seed_wallets.py 2>/dev/null || echo "Seed skipped"
 fi
 
-echo "Starting Supervisor..."
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+echo "=== Starting services ==="
 
+# Start backend
+cd /app/backend
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info &
+BACKEND_PID=$!
+echo "Backend started (PID: $BACKEND_PID)"
+
+# Wait for backend to be ready
+for i in $(seq 1 30); do
+    if curl -sf http://127.0.0.1:8000/ > /dev/null 2>&1; then
+        echo "Backend is ready"
+        break
+    fi
+    sleep 1
+done
+
+# Start frontend
+cd /app/frontend
+HOSTNAME=0.0.0.0 PORT=7860 BACKEND_URL=http://127.0.0.1:8000 NODE_ENV=production node server.js &
+FRONTEND_PID=$!
+echo "Frontend started (PID: $FRONTEND_PID)"
+
+# Start scanner
+cd /app/backend
+python scanner.py &
+SCANNER_PID=$!
+echo "Scanner started (PID: $SCANNER_PID)"
+
+echo "=== All services started ==="
+echo "Backend: http://127.0.0.1:8000"
+echo "Frontend: http://127.0.0.1:7860"
+
+# Trap signals for graceful shutdown
+trap "kill $BACKEND_PID $FRONTEND_PID $SCANNER_PID 2>/dev/null; exit 0" SIGTERM SIGINT
+
+# Wait for any process to exit
+wait -n $BACKEND_PID $FRONTEND_PID $SCANNER_PID
+EXIT_CODE=$?
+echo "A process exited with code $EXIT_CODE, shutting down..."
+kill $BACKEND_PID $FRONTEND_PID $SCANNER_PID 2>/dev/null
+exit $EXIT_CODE
