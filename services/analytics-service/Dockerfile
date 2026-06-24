@@ -1,8 +1,8 @@
-﻿FROM python:3.11-slim
+﻿FROM node:18-alpine
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY package*.json ./
+RUN npm install --production
 COPY . .
 EXPOSE 3005
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:3005/health')" || exit 1
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3005"]
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 CMD node -e "require('http').get('http://localhost:3005/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+CMD ["node", "src/index.js"]

@@ -437,6 +437,9 @@ app.get('/reporting/summary', async (req, res) => {
     const fraudCases = await pool.query("SELECT COUNT(*) FROM transactions WHERE case_status = 'FRAUD'");
     const ignoredCases = await pool.query("SELECT COUNT(*) FROM transactions WHERE case_status = 'IGNORED'");
 
+    const blockedValueResult = await pool.query('SELECT SUM(amount) as total FROM blocked_transfers WHERE blocked_at >= $1', [period_start]);
+    const blockedValueWei = BigInt(blockedValueResult.rows[0].total || '0');
+
     res.json({
       period: {
         days: days,
@@ -447,7 +450,7 @@ app.get('/reporting/summary', async (req, res) => {
         alerts_total: parseInt(alertsCount.rows[0].count),
         critical_alerts: parseInt(criticalCount.rows[0].count),
         blocked_total: parseInt(blockedCount.rows[0].count),
-        blocked_value_eth: 145.8, // Mock value for now
+        blocked_value_eth: parseFloat(blockedValueWei.toString()) / 1e18,
         policy_rules_active: parseInt(policiesCount.rows[0].count),
         notifications_sent: parseInt(alertsCount.rows[0].count) * 2,
         notifications_failed: 0,
