@@ -43,9 +43,9 @@ MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 1.0
 MAX_RETRY_DELAY = 30.0
 
-# Microservice URLs
-ALERT_SERVICE_URL = os.getenv("ALERT_SERVICE_URL", "http://alert-service:3003")
-ANALYTICS_SERVICE_URL = os.getenv("ANALYTICS_SERVICE_URL", "http://analytics-service:3005")
+# Microservice URLs - default to backend directly (HF single-container mode)
+ALERT_SERVICE_URL = os.getenv("ALERT_SERVICE_URL", "http://127.0.0.1:8000")
+ANALYTICS_SERVICE_URL = os.getenv("ANALYTICS_SERVICE_URL", "http://127.0.0.1:8000")
 
 # Graceful shutdown flag
 _shutdown_requested = False

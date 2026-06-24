@@ -5,6 +5,7 @@ COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV BACKEND_URL=http://127.0.0.1:8000
 RUN npm run build
 
 # --- Stage 2: Backend & Runtime ---
