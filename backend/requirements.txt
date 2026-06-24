@@ -20,3 +20,4 @@ redis==5.0.4
 slowapi==0.1.9
 prometheus-fastapi-instrumentator==7.0.2
 sentry-sdk==2.17.0
+google-generativeai==0.3.0

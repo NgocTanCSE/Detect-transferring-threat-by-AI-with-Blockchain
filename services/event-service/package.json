@@ -10,7 +10,8 @@
         "cors": "^2.8.5",
         "uuid": "^9.0.1",
         "prom-client": "^15.0.0",
-        "winston": "^3.11.0"
+        "winston": "^3.11.0",
+        "jsonwebtoken": "^9.0.2"
     },
     "devDependencies": {
         "jest": "^29.5.0",

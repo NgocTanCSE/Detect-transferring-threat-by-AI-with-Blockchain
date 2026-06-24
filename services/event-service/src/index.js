@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const helmet = require('helmet');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const queue = require('./services/queue');
 require('dotenv').config();
 const traceMiddleware = require('../../shared/trace');
@@ -18,6 +19,29 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 3007;
+const JWT_SECRET = process.env.JWT_SECRET_KEY || 'default-secret-change-in-production';
+
+// Authenticate JWT token middleware for Socket.io
+const authenticateSocket = (socket, next) => {
+  const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1] || socket.handshake.query.token;
+  
+  // Allow connection if AUTH_DISABLED is true
+  if (process.env.AUTH_DISABLED === 'true') {
+    return next();
+  }
+
+  if (!token) {
+    return next(new Error('Authentication error: No token provided'));
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    socket.user = decoded;
+    next();
+  } catch (error) {
+    next(new Error('Authentication error: Invalid token'));
+  }
+};
 
 app.use(helmet());
 app.use(cors());
@@ -63,9 +87,12 @@ app.get('/metrics', async (req, res) => {
   res.end(await client.register.metrics());
 });
 
-// Socket.io connection handling
+// Apply authentication middleware to all socket connections (must be before io.on)
+io.use(authenticateSocket);
+
+// Socket.io connection handling with JWT authentication
 io.on('connection', (socket) => {
-  console.log(`🔌 Client connected: ${socket.id}`);
+  console.log(`🔌 Client connected: ${socket.id}${socket.user ? ` (user: ${socket.user.username || 'unknown'})` : ' (unauthenticated)'}`);
   
   // Example: Client joining a specific chain room
   socket.on('join-chain', (chain) => {

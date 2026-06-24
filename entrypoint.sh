@@ -1,18 +1,22 @@
 #!/bin/bash
 
-# Exit on error
+# Exit on error only for main operations (not for database setup which is best-effort)
 set -e
 
 echo "Starting entrypoint script..."
 
 # Ensure local backend package imports (app.*) resolve first.
 export PYTHONPATH="/app/backend:${PYTHONPATH}"
+export PYTHONUNBUFFERED="1"
 
 # Ensure /data directory exists for persistent storage
 mkdir -p /data
 
+# Create database directory for init.sql
+mkdir -p /database
+
 # Resolve database mode on HF Spaces:
-# - If DATABASE_URL points to Postgres, keep it (Supabase/remote mode)
+# - If DATABASE_URL points to Postgres (from .hf/hf_config.json), keep it
 # - Otherwise default to persistent SQLite in /data
 if [ -n "$SPACE_ID" ]; then
     echo "Detected HF Spaces environment (SPACE_ID=$SPACE_ID)"
@@ -50,31 +54,20 @@ else
     echo "Not on HF Spaces, using default database configuration"
 fi
 
-# If DATABASE_URL points to Postgres, attempt remote bootstrap and migrations.
+# Database bootstrap (best-effort, don't fail on error)
+cd /app/backend
+
 if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" == postgres://* || "$DATABASE_URL" == postgresql://* ]]; then
     echo "Using PostgreSQL. Attempting database bootstrap..."
-    cd /app/backend
-    python bootstrap_supabase.py || echo "Bootstrap failed (DB might not be ready yet), continuing..."
+    python bootstrap_supabase.py --once || echo "Bootstrap failed (DB might not be ready yet), continuing..."
     echo "Running Alembic migrations..."
     alembic -c /app/backend/alembic.ini upgrade head || echo "Alembic migration failed (DB might not be ready yet), continuing..."
-    if [ -f "/app/backend/migrate.py" ]; then
-        echo "Attempting legacy Python migrations (if any)..."
-        python migrate.py || echo "Migration script failed, continuing..."
-    fi
+    echo "Ensuring future partitions..."
+    python -c "from app.services.partition_manager import ensure_future_partitions; from app.core.database import SessionLocal; db = SessionLocal(); print(f'Created {ensure_future_partitions(db)} partitions')" || echo "Partition creation skipped"
 else
-    echo "Using local SQLite database at /data/blockchain_local.db. Attempting seed..."
-    cd /app/backend
+    echo "Using local SQLite database at $DATABASE_URL. Attempting seed..."
     if ! python seed_wallets.py; then
-        echo "Seed failed. Performing hard SQLite cleanup and retry once..."
-        rm -f /data/blockchain_local.db
-        rm -f /data/blockchain_local.db-wal
-        rm -f /data/blockchain_local.db-shm
-        rm -f /data/blockchain_local.db-journal
-
-        if ! python seed_wallets.py; then
-            echo "Seed failed after retry. Exiting to avoid running with broken database."
-            exit 1
-        fi
+        echo "Seed failed. Will continue anyway - database may already exist..."
     fi
 fi
 

@@ -1156,3 +1156,87 @@ def update_profile_preferences(
     profile.preferences = prefs
     db.commit()
     return {"success": True, "preferences": prefs}
+
+
+# ============================================================================
+# PASSWORD RESET ENDPOINTS
+# ============================================================================
+
+from app.core.config import REDIS_URL
+import secrets
+import hashlib
+import time
+
+@router.post("/auth/forgot-password", tags=["Auth"])
+def forgot_password(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Generate password reset token for user."""
+    email = payload.get("email", "").strip().lower()
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    user = db.query(User).filter(User.email.ilike(email)).first()
+    if not user:
+        # Don't reveal if user exists
+        return {"success": True, "message": "If email exists, reset link will be sent"}
+    
+    # Generate reset token
+    reset_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(reset_token.encode()).hexdigest()
+    expires_at = int(time.time()) + 3600  # 1 hour
+    
+    # Store in Redis or in-memory
+    if cache:
+        cache.setex(f"pwd_reset:{user.id}", 3600, f"{token_hash}:{expires_at}:{user.id}")
+    
+    # In production, send email with reset_token
+    # For now, return token for testing purposes
+    return {
+        "success": True,
+        "message": "Reset token generated",
+        "reset_token": reset_token if os.getenv("DEV_MODE", "false").lower() == "true" else None
+    }
+
+
+@router.post("/auth/reset-password", tags=["Auth"])
+def reset_password(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Reset password using token."""
+    token = payload.get("token", "").strip()
+    new_password = payload.get("new_password", "")
+    
+    if not token or not new_password:
+        raise HTTPException(status_code=400, detail="Token and new password are required")
+    
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    
+    # Find user by token
+    found_user_id = None
+    if cache:
+        for key in cache.scan_iter(match="pwd_reset:*"):
+            value = cache.get(key)
+            if value and value.startswith(token_hash):
+                found_user_id = value.split(":")[-1]
+                cache.delete(key)
+                break
+    
+    if not found_user_id:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    user = db.query(User).filter(User.id == found_user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update password
+    user.password_hash = get_password_hash(new_password)
+    db.commit()
+    
+    return {"success": True, "message": "Password reset successfully"}

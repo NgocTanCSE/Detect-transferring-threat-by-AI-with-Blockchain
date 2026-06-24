@@ -155,4 +155,13 @@ def bootstrap_database() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
-    bootstrap_database()
+    
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--once":
+        # Run once without raising on errors (for HF startup)
+        try:
+            bootstrap_database()
+        except Exception as e:
+            logging.warning(f"Bootstrap completed with warnings: {e}")
+    else:
+        bootstrap_database()

@@ -5,68 +5,19 @@ the legacy monolith endpoints that duplicate microservice functionality.
 """
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from typing import Any, Dict, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.models import Wallet, Transaction, Blacklist, BlockedTransfer, UserWarning, AuditLog, FeedbackLabel, RiskAssessment, ExchangeRate, User
+from app.models.models import Wallet, Transaction, Blacklist, User, RiskAssessment, BlockedTransfer, UserWarning, ExchangeRate, FeedbackLabel, Alert, AuditLog
 from app.admin_diagnostics import log_diagnostic, DiagnosticLogType
 from app.utils.api_response import api_success
 from app.auth import optional_auth, require_admin, admin_or_analyst
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="", tags=["AI Service"])
-
-def _dedupe_preserve_order(values: List[str]) -> List[str]:
-    seen = set()
-    deduped = []
-    for value in values:
-        key = value.strip()
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        deduped.append(key)
-    return deduped
-
-@router.post("/assistant/chat")
-def assistant_chat(request: Request, payload: Dict[str, Any], database_session: Session = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:
-    from app.services.ai_agent_improvements import _build_enhanced_dashboard_context
-    message = (payload.get("message") or "").strip()
-    role = payload.get("role", "user")
-    wallet_address = payload.get("wallet_address")
-    screen_scope = payload.get("screen_scope", "dashboard")
-    ui_context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
-    if not message:
-        raise HTTPException(status_code=400, detail="Missing message")
-    if len(message) > 4000:
-        raise HTTPException(status_code=400, detail="Message too long")
-    try:
-        context = _build_enhanced_dashboard_context(database_session, role=role, wallet_address=wallet_address, screen_scope=screen_scope)
-        if ui_context:
-            context["ui_context"] = ui_context
-    except Exception as exc:
-        logger.warning(f"Assistant context failed: {exc}")
-        context = {"role": role, "screen_scope": screen_scope, "overview": {"total_wallets": 0, "total_alerts": 0, "critical_alerts": 0, "alerts_today": 0, "total_blocked": 0}, "top_risky_wallets": []}
-    try:
-        from app.services.hf_security_analyst import HFSecurityAnalyst
-        from app.services.assistant_knowledge_base import retrieve_relevant_snippets
-        from app.services.ai_agent_improvements import _detect_question_intent, _build_dynamic_account_support_answer, _build_dynamic_dashboard_answer, _build_operational_guidance_answer
-        analyst = HFSecurityAnalyst()
-        question_intent = _detect_question_intent(message, context)
-        if question_intent == "account_support":
-            normalized_answer = _build_dynamic_account_support_answer(message, context, database_session)
-        elif question_intent == "dashboard_analytics":
-            normalized_answer = _build_dynamic_dashboard_answer(message, context)
-        elif question_intent == "operational_guidance":
-            normalized_answer = _build_operational_guidance_answer(message, context)
-        else:
-            knowledge_snippets = retrieve_relevant_snippets(message, role=role, wallet_address=wallet_address, scope=screen_scope, limit=4)
-            normalized_answer = analyst._fallback_general_answer(question=message, context=context, conversation_history=[], knowledge_snippets=knowledge_snippets)
-    except Exception as exc:
-        logger.exception(f"Assistant chat error: {exc}")
-        normalized_answer = "Hiện trợ lý đang gặp lỗi. Vui lòng thử lại sau."
-    return {"answer": normalized_answer or "", "context": {"role": role, "screen_scope": screen_scope, "overview": context.get("overview", {}), "top_risky_wallets": context.get("top_risky_wallets", []), "wallet_focus": context.get("wallet_focus")}, "sources": _dedupe_preserve_order(["overview: wallets/alerts/blocked_transfers", "wallet_focus: wallets/transactions/alerts"]), "knowledge_sources": [], "model_enabled": False}
 
 @router.get("/diagnostics/alchemy/{wallet_address}")
 def diagnose_alchemy_wallet(wallet_address: str, chain: str = Query("ethereum"), current_user: Optional[User] = Depends(optional_auth)) -> Dict[str, Any]:

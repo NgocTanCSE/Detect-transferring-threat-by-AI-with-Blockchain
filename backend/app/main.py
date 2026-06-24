@@ -341,19 +341,43 @@ def _is_system_component_question(question: str) -> bool:
     return any(term in text for term in system_terms)
 
 
-def _build_system_component_answer(question: str) -> str:
+def _build_system_component_answer(question: str, database_session: Session = None) -> str:
+    """Build system component answer using knowledge base or database data."""
+    from app.services.assistant_knowledge_base import retrieve_relevant_snippets
+    
+    # Try to use knowledge base first
+    snippets = retrieve_relevant_snippets(question, role="admin", scope="dashboard", limit=3)
+    if snippets:
+        kb_content = "\n\n".join([s.content for s in snippets])
+        return f"Thông tin hệ thống (từ tài liệu dự án):\n\n{kb_content[:1500]}"
+    
+    # Fallback with dynamic data if session available
+    system_info = {
+        "model_info": "Multi-Agent Random Forest",
+        "wallet_count": 0,
+        "alert_count": 0,
+    }
+    
+    if database_session:
+        try:
+            from app.models.models import Wallet, Alert
+            system_info["wallet_count"] = database_session.query(func.count(Wallet.id)).scalar() or 0
+            system_info["alert_count"] = database_session.query(func.count(Alert.id)).scalar() or 0
+        except Exception as e:
+            logger.warning(f"Could not fetch system stats: {e}")
+    
     return (
         "1) Giải thích các thành phần chính\n"
-        "- Frontend (Next.js): Giao diện người dùng hiện đại, sử dụng Tailwind CSS và Recharts để trực quan hóa dữ liệu rủi ro.\n"
-        "- Backend (FastAPI): Hệ thống xử lý trung tâm, quản lý dữ liệu blockchain, chạy các mô hình AI và tạo báo cáo.\n"
-        "- AI Detection Engine: Hệ thống đa tác vụ (Multi-agent) giúp phát hiện Rửa tiền, Thao túng thị trường và Lừa đảo.\n"
-        "- Database: Lưu trữ lịch sử giao dịch, cảnh báo và các bản chụp (snapshots) để báo cáo KPI.\n\n"
-        "2) Nhận định về cấu trúc vận hành\n"
-        "- Hệ thống hoạt động theo cơ chế Phân quyền (RBAC) với 4 vai trò: Admin hệ thống, AI Data Engineer, Security Analyst và Compliance Manager.\n"
-        "- Dữ liệu được tổng hợp theo thời gian thực từ blockchain và được AI chấm điểm rủi ro từ 0 đến 100.\n\n"
-        "3) Hành động đề xuất cho người dùng\n"
-        "- Bạn có thể vào mục 'Insights' để xem chi tiết từng ví hoặc mục 'Reporting' để xem hiệu quả kiểm soát.\n"
-        "- Nếu muốn thử nghiệm dữ liệu mới, bạn có thể chạy script `seed_wallets.py` trong backend."
+        "- Frontend (Next.js): Giao diện người dùng hiện đại, sử dụng Tailwind CSS và Recharts.\n"
+        "- Backend (FastAPI): Hệ thống xử lý trung tâm, quản lý dữ liệu blockchain, chạy AI Detection Engine.\n"
+        f"- AI Detection Engine: {system_info['model_info']} - Phát hiện Rửa tiền, Thao túng, Lừa đảo.\n"
+        f"- Database: {system_info['wallet_count']} ví, {system_info['alert_count']} cảnh báo theo dõi.\n\n"
+        "2) Cơ chế vận hành\n"
+        "- Hệ thống hoạt động theo RBAC với 4 vai trò: System Admin, AI Data Engineer, Security Analyst, Compliance Manager.\n"
+        "- Dữ liệu được tổng hợp theo thời gian thực từ blockchain và AI chấm điểm rủi ro.\n\n"
+        "3) Hành động đề xuất\n"
+        "- Vào 'Insights' để xem chi tiết từng ví.\n"
+        "- Vào 'Reporting' để xem báo cáo KPI."
     )
 
 
@@ -1175,7 +1199,7 @@ def assistant_chat(request: Request, payload: schemas.AssistantChatRequest, data
 
         if not normalized_answer or _is_low_quality_answer(normalized_answer):
             if _is_system_component_question(message):
-                normalized_answer = _build_system_component_answer(message)
+                normalized_answer = _build_system_component_answer(message, database_session)
             else:
                 normalized_answer = analyst._fallback_general_answer(  # noqa: SLF001
                     question=message,
@@ -2445,20 +2469,21 @@ def get_dashboard_statistics(
     except HTTPException as e:
         raise e
 
-    wallets = database_session.query(Wallet.risk_category, Wallet.risk_score).filter(
+    # Query all wallets (no limit needed for accurate counts)
+    all_wallets = database_session.query(Wallet).filter(
         Wallet.chain_id == canonical_chain
-    ).limit(10000).all()
-    alerts = database_session.query(Alert.alert_type, Alert.severity).filter(
+    ).all()
+    all_alerts = database_session.query(Alert).filter(
         Alert.chain_id == canonical_chain
-    ).limit(10000).all()
+    ).all()
 
     ml_wallets = 0
     manip_wallets = 0
     scam_wallets = 0
 
-    for risk_category, risk_score in wallets:
-        category = (risk_category or "").lower()
-        score = float(risk_score or 0)
+    for wallet in all_wallets:
+        category = (wallet.risk_category or "").lower()
+        score = float(wallet.risk_score or 0)
 
         if category in {"scam", "fraud"} or score >= 85:
             scam_wallets += 1
@@ -2467,32 +2492,16 @@ def get_dashboard_statistics(
         elif category in {"money_laundering", "suspicious_activity", "layering", "structuring"} or score >= 45:
             ml_wallets += 1
 
-    ml_alerts = 0
-    manip_alerts = 0
-    scam_alerts = 0
-
-    for alert_type, severity in alerts:
-        alert_text = (alert_type or "").upper()
-        severity_text = (severity or "").upper()
-
-        if any(keyword in alert_text for keyword in ["BLACKLIST", "SCAM", "HONEYPOT", "PHISH", "FRAUD"]):
-            scam_alerts += 1
-            continue
-
-        if any(keyword in alert_text for keyword in ["WASH", "PUMP", "DUMP", "CYCLE", "MANIP", "VELOCITY"]):
-            manip_alerts += 1
-            continue
-
-        if any(keyword in alert_text for keyword in ["STRUCTUR", "MIXER", "LAYER", "RISK"]):
-            ml_alerts += 1
-            continue
-
-        if severity_text == "CRITICAL":
-            scam_alerts += 1
-        elif severity_text == "HIGH":
-            manip_alerts += 1
-        else:
-            ml_alerts += 1
+    # Alert categorization
+    ml_alerts = sum(1 for a in all_alerts 
+        if any(k in (a.alert_type or "").upper() 
+               for k in ["STRUCTUR", "MIXER", "LAYER", "RISK", "AML"]))
+    manip_alerts = sum(1 for a in all_alerts 
+        if any(k in (a.alert_type or "").upper() 
+               for k in ["WASH", "PUMP", "DUMP", "CYCLE", "MANIP", "VELOCITY"]))
+    scam_alerts = sum(1 for a in all_alerts 
+        if any(k in (a.alert_type or "").upper() 
+               for k in ["BLACKLIST", "SCAM", "HONEYPOT", "PHISH", "FRAUD"]))
 
     # General stats (filtered by chain)
     total_wallets = database_session.query(Wallet).filter(Wallet.chain_id == canonical_chain).count()
