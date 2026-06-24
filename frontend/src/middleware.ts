@@ -12,7 +12,8 @@ function decodeJwt(token: string): JwtPayload | null {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
     const payload = parts[1];
-    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    let base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    base64 = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
     const decoded = new TextDecoder().decode(
       Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
     );
@@ -66,13 +67,13 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    const role = payload.role;
+    const role = payload.role.toLowerCase();
 
-    if (isAdminRoute && role !== "admin") {
+    if (isAdminRoute && role !== "admin" && role !== "system_admin") {
       return NextResponse.redirect(new URL("/", request.url));
     }
 
-    if (isAnalystRoute && role !== "admin" && role !== "analyst") {
+    if (isAnalystRoute && role !== "admin" && role !== "analyst" && role !== "system_admin") {
       return NextResponse.redirect(new URL("/", request.url));
     }
   }
