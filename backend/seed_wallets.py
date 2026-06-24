@@ -68,7 +68,7 @@ def _seed_organization(session: Session):
     if existing:
         return
     org = m.Organization(
-        id=_uuid_str(),
+        id=uuid.uuid4(),
         name="Blockchain Sentinel Demo",
         slug="blockchain-sentinel-demo",
         contact_email="demo@blockchain-sentinel.io",
@@ -101,7 +101,7 @@ def _seed_users(session: Session):
         if existing:
             continue
         user = m.User(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             username=u["username"],
             email=u["email"],
             password_hash=password_hash,
@@ -115,7 +115,7 @@ def _seed_users(session: Session):
         session.add(user)
         session.flush()
         profile = m.UserProfile(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             user_id=user.id,
             full_name=u["name"],
             phone=f"+1-555-{random.randint(1000,9999)}",
@@ -137,7 +137,7 @@ def _seed_wallets(session: Session):
     statuses = ["active", "active", "active", "active", "suspended", "frozen", "under_review"]
     for i in range(500 - existing_count):
         wallet = m.Wallet(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             address=_random_eth_address(),
             label=f"Wallet_{i+1}",
             entity_type=random.choice(entity_types),
@@ -182,7 +182,7 @@ def _seed_transactions(session: Session):
         while to_wallet.address == from_wallet.address and len(wallets) > 1:
             to_wallet = random.choice(wallets)
         tx = m.Transaction(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             tx_hash=_random_tx_hash(),
             from_address=from_wallet.address,
             to_address=to_wallet.address,
@@ -219,7 +219,7 @@ def _seed_token_transfers(session: Session):
     for i in range(500 - existing_count):
         tx = random.choice(txs)
         token = m.TokenTransfer(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             transaction_hash=tx.tx_hash,
             block_number=tx.block_number,
             log_index=random.randint(0, 100),
@@ -252,7 +252,7 @@ def _seed_risk_assessments(session: Session):
         wallet = random.choice(wallets)
         score = wallet.risk_score
         ra = m.RiskAssessment(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             wallet_id=wallet.id,
             score=score,
             risk_level=random.choices(levels, weights=[30, 30, 20, 15, 5], k=1)[0],
@@ -278,7 +278,7 @@ def _seed_blacklist(session: Session):
     severities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
     for i in range(10 - existing_count):
         bl = m.Blacklist(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             address=_random_eth_address(),
             category=random.choice(categories),
             source="https://etherscan.io/",
@@ -312,7 +312,7 @@ def _seed_policy_rules(session: Session):
         if existing:
             continue
         pr = m.PolicyRule(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             rule_name=rule["name"],
             description=rule["desc"],
             min_risk_score=rule["min_risk"],
@@ -336,10 +336,10 @@ def _seed_audit_logs(session: Session):
     entities = ["User", "Wallet", "Transaction", "Alert", "PolicyRule", "Case"]
     for i in range(20 - existing_count):
         log = m.AuditLog(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             action_type=random.choice(actions),
             entity_type=random.choice(entities),
-            entity_id=_uuid_str(),
+            entity_id=uuid.uuid4(),
             user_identifier=f"user_{random.randint(1,5)}@sentinel.io",
             ip_address=f"{random.randint(1,255)}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,255)}",
             details={"source": "seed", "seed_version": "v1.0"},
@@ -362,7 +362,7 @@ def _seed_feedback_labels(session: Session):
     for i in range(10 - existing_count):
         wallet = random.choice(wallets)
         fl = m.FeedbackLabel(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             wallet_address=wallet.address,
             ai_score=wallet.risk_score,
             ai_risk_level=random.choice(["LOW", "MEDIUM", "HIGH", "CRITICAL"]),
@@ -390,7 +390,7 @@ def _seed_ai_threat_logs(session: Session):
     for i in range(20 - existing_count):
         wallet = random.choice(wallets)
         tl = m.AIThreatLog(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             wallet_address=wallet.address,
             threat_type=random.choice(threat_types),
             risk_score=wallet.risk_score,
@@ -418,7 +418,7 @@ def _seed_usage_logs(session: Session):
     methods = ["GET", "POST", "PUT", "DELETE"]
     for i in range(50 - existing_count):
         ul = m.UsageLog(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             organization_id=random.choice(orgs).id,
             user_id=random.choice(users).id,
             endpoint=random.choice(endpoints),
@@ -448,7 +448,7 @@ def _seed_auth_sessions(session: Session):
         token_raw = f"seed_token_{user.username}_{uuid.uuid4()}"
         token_hash = hashlib.sha256(token_raw.encode()).hexdigest()
         asession = m.AuthSession(
-            id=_uuid_str(),
+            id=uuid.uuid4(),
             user_id=user.id,
             token_hash=token_hash,
             expires_at=datetime.now(timezone.utc) + timedelta(days=7),
