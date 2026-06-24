@@ -25,7 +25,6 @@ from app.models.models import Wallet, Blacklist, Alert
 from app.services.ai_engine import MultiAgentDetectionEngine
 from app.services.persistence import persist_transactions
 from blockchain_client import fetch_wallet_history
-import requests
 import os
 
 # Structured logging configuration
@@ -161,24 +160,23 @@ def create_alert(session: Session, wallet_address: str, risk_score: float, risk_
     session.commit()
     logger.info(f"WALLET_STATUS_UPDATED | address={wallet_address} | risk={risk_score}%")
 
-    # 2. Notify Alert Microservice for real-time WebSocket broadcasting and persistent alert logging
-    alert_payload = {
-        "wallet_address": wallet_address,
-        "alert_type": "HIGH_RISK_DETECTION",
-        "severity": risk_level,
-        "message": f"Autonomous Scanner detected high-risk activity ({risk_score}%) from wallet {wallet_address}",
-        "risk_score": float(risk_score),
-        "chain_id": "ethereum" # Primary chain for scanning
-    }
-
+    # 2. Insert alert directly into database
+    from app.models.models import Alert as AlertModel
     try:
-        res = requests.post(f"{ALERT_SERVICE_URL}/alerts", json=alert_payload, timeout=5)
-        if res.status_code == 201:
-            logger.info(f"REALTIME_ALERT_BROADCASTED | wallet={wallet_address}")
-        else:
-            logger.warning(f"MICROSERVICE_ALERT_FAILED | code={res.status_code} | msg={res.text}")
+        alert = AlertModel(
+            wallet_address=wallet_address,
+            alert_type="HIGH_RISK_DETECTION",
+            severity=risk_level,
+            message=f"Autonomous Scanner detected high-risk activity ({risk_score}%) from wallet {wallet_address}",
+            risk_score=float(risk_score),
+            chain_id="ethereum",
+        )
+        session.add(alert)
+        session.commit()
+        logger.info(f"ALERT_INSERTED | wallet={wallet_address}")
     except Exception as e:
-        logger.error(f"ALERT_SERVICE_CONNECTION_ERROR | {e}")
+        logger.warning(f"ALERT_DB_INSERT_FAILED | {e}")
+        session.rollback()
 
 
 @retry_with_backoff(max_retries=2, exceptions=(Exception,))
@@ -211,20 +209,22 @@ def scan_wallet(session: Session, wallet_address: str) -> Optional[dict]:
 
     fetch_time = time.time() - start_time
 
-    # Record Pipeline Metric IMMEDIATELY after fetch/persist, before slow AI calls
+    # Record Pipeline Metric directly to database
     try:
+        from app.models.models import PipelineMetric
         current_time = time.time()
         total_ingest_time = current_time - start_time
-        metric_payload = {
-            "chain": "ethereum",
-            "throughput_tps": 1.0 / total_ingest_time if total_ingest_time > 0 else 0,
-            "ingestion_latency_ms": int(fetch_time * 1000),
-            "decode_latency_ms": int((total_ingest_time - fetch_time) * 1000)
-        }
-        logger.debug(f"Recording pipeline metric: {metric_payload}")
-        requests.post(f"{ANALYTICS_SERVICE_URL}/ops/system/pipeline-metrics", json=metric_payload, timeout=2)
+        metric = PipelineMetric(
+            chain="ethereum",
+            throughput_tps=1.0 / total_ingest_time if total_ingest_time > 0 else 0,
+            ingestion_latency_ms=int(fetch_time * 1000),
+            decode_latency_ms=int((total_ingest_time - fetch_time) * 1000),
+        )
+        session.add(metric)
+        session.commit()
     except Exception as e:
         logger.warning(f"FAILED_TO_RECORD_PIPELINE_METRIC | {e}")
+        session.rollback()
 
     try:
         ai_engine = MultiAgentDetectionEngine(database_session=session)
