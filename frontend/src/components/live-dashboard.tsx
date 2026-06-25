@@ -154,22 +154,9 @@ export default function LiveDashboard() {
   const activeFeatureLabel = role.sidebarFeatures[activeFeatureIndex] ?? role.sidebarFeatures[0] ?? "Workspace";
   const availableRoles = useMemo(() => ROLE_DEFINITIONS, []);
 
-  // Filter navigation routes based on authentication status
   const visibleRoutes = useMemo(() => {
-    const isAdmin = isUserAdminRole(user?.role);
-    return QUICK_ROUTES.filter(route => {
-      if (['/login', '/register'].includes(route.href)) {
-        return !isAuthenticated;
-      }
-      if (route.href.startsWith('/user')) {
-        return isAuthenticated;
-      }
-      if (route.href.startsWith('/admin') || route.href.includes('role=')) {
-        return true;
-      }
-      return true;
-    });
-  }, [isAuthenticated, user?.role]);
+    return QUICK_ROUTES;
+  }, []);
 
   const updateQuery = useCallback(
     (patch: Record<string, string | number | null | undefined>) => {

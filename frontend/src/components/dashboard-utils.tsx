@@ -277,8 +277,6 @@ export const ROLE_COLORS: Record<RoleKey, string[]> = {
 };
 
 export const QUICK_ROUTES = [
-  { label: "Login", href: "/login" },
-  { label: "Register", href: "/register" },
   { label: "User Exchange", href: "/user/exchange" },
   { label: "User History", href: "/user/history" },
 ];
