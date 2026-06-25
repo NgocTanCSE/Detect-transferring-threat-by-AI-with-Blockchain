@@ -671,7 +671,12 @@ def optional_auth(
     db: Session = Depends(get_db)
 ) -> Optional[User]:
     """Optional authentication - returns User or None without raising errors."""
-    return get_current_user(token, db)
+    if not token:
+        return None
+    try:
+        return get_current_user(token, db)
+    except HTTPException:
+        return None
 
 
 def require_admin(

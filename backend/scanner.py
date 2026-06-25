@@ -200,9 +200,21 @@ def scan_wallet(session: Session, wallet_address: str) -> Optional[dict]:
 
     start_time = time.time()
     try:
-        transactions = fetch_transactions_with_retry(wallet_address)
-        # Persist transactions to database so dashboard charts are updated
-        persist_transactions(session, transactions, wallet_address)
+        from app.models.models import Transaction
+        db_txs = session.query(Transaction).filter(
+            (Transaction.from_address == wallet_address) | (Transaction.to_address == wallet_address)
+        ).order_by(Transaction.timestamp.desc()).limit(100).all()
+        
+        if db_txs:
+            transactions = [
+                {"tx_hash": tx.tx_hash, "from_address": tx.from_address, "to_address": tx.to_address,
+                 "value": int(tx.value or 0), "block_number": tx.block_number, "timestamp": tx.timestamp,
+                 "chain": tx.chain_id or "ethereum"}
+                for tx in db_txs
+            ]
+        else:
+            transactions = fetch_transactions_with_retry(wallet_address)
+            persist_transactions(session, transactions, wallet_address)
     except Exception as e:
         logger.error(f"FETCH_FAILED | address={wallet_address[:10]}... | error={e}")
         return None
