@@ -308,7 +308,7 @@ const ROUTE_MAP = {
   '/ops/system': 'ai',
   '/ops/ai': 'ai',
   '/ops/security': 'ai',
-  '/ops/compliance': 'compliance',
+  '/ops/compliance': 'ai',
   '/cases': 'ai',
   '/analyze': 'ai',
   '/socket.io': 'event',
@@ -317,7 +317,7 @@ const ROUTE_MAP = {
 // Prefixes to strip when forwarding to specific services
 const STRIP_PREFIXES = {
   'auth': ['/auth'],
-  'compliance': ['/ops/compliance', '/compliance'],
+  'compliance': ['/compliance'],
   'transfer': ['/transfer', '/transfers'],
 };
 
