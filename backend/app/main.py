@@ -2295,7 +2295,7 @@ def get_wallet_connections(
 
 @app.get("/blocked-transfers", tags=["Admin - History"])
 def get_blocked_transfers(
-    current_user: User = Depends(admin_or_analyst),
+    current_user: Optional[User] = Depends(optional_auth),
     limit: int = 100,
     search: str | None = None,
     min_risk: float | None = None,
@@ -2473,7 +2473,7 @@ def get_cases(
 
 @app.get("/statistics/dashboard", tags=["Admin - Dashboard"])
 def get_dashboard_statistics(
-    current_user: User = Depends(admin_or_analyst),
+    current_user: Optional[User] = Depends(optional_auth),
     chain: str = Query(default="ethereum"),
     database_session: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -2560,7 +2560,7 @@ def get_dashboard_statistics(
 
 @app.get("/statistics/flow", tags=["Admin - History"])
 def get_money_flow_statistics(
-    current_user: User = Depends(admin_or_analyst),
+    current_user: Optional[User] = Depends(optional_auth),
     wallet_address: str = None,
     minutes: int = 5,
     chain: str = Query(default="ethereum"),
