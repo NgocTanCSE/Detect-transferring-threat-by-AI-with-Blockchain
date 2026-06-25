@@ -397,7 +397,7 @@ class PipelineMetric(Base):
 
     __tablename__ = "pipeline_metrics"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     chain = Column(String(50), nullable=False, index=True)
     block_number = Column(BigInteger, nullable=True, index=True)
     throughput_tps = Column(DECIMAL(10, 2), nullable=True)

@@ -661,6 +661,13 @@ export default function LiveDashboard() {
                 <RefreshCcw className="h-4 w-4" />
                 Refresh
               </button>
+
+              <a
+                href="/user/exchange"
+                className="inline-flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-300 transition hover:border-amber-300 hover:bg-amber-500/20"
+              >
+                User Test
+              </a>
             </div>
           </div>
         </header>

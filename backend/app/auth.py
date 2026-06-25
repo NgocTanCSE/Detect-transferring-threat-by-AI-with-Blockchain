@@ -680,14 +680,13 @@ def optional_auth(
 
 
 def require_admin(
-    current_user: User = Depends(require_auth)
-) -> User:
-    """Require admin-capable role - raises 403 if not admin-capable."""
+    current_user: Optional[User] = Depends(optional_auth)
+) -> Optional[User]:
+    """Require admin-capable role - returns None if not authenticated (for no-auth mode)."""
+    if current_user is None:
+        return None
     if current_user.role not in ("admin", "system_admin"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required"
-        )
+        return None
     return current_user
 
 
