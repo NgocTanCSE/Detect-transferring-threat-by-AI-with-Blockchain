@@ -860,21 +860,24 @@ def ensure_schema() -> None:
                 logger.warning(f"Could not ensure future partitions: {partition_err}")
 
             try:
-                connection.execute(text("DROP TABLE IF EXISTS pipeline_metrics"))
-                connection.execute(text("""
-                    CREATE TABLE pipeline_metrics (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        chain VARCHAR(50) NOT NULL,
-                        block_number BIGINT,
-                        throughput_tps REAL,
-                        ingestion_latency_ms INTEGER,
-                        decode_latency_ms INTEGER,
-                        inserted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """))
-                logger.info("Recreated pipeline_metrics table with autoincrement id")
+                pm_exists = connection.execute(
+                    text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_metrics'")
+                ).scalar()
+                if not pm_exists:
+                    connection.execute(text("""
+                        CREATE TABLE pipeline_metrics (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            chain VARCHAR(50) NOT NULL,
+                            block_number BIGINT,
+                            throughput_tps REAL,
+                            ingestion_latency_ms INTEGER,
+                            decode_latency_ms INTEGER,
+                            inserted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    logger.info("Created pipeline_metrics table")
             except Exception as pm_err:
-                logger.warning(f"Could not recreate pipeline_metrics: {pm_err}")
+                logger.warning(f"Could not check/create pipeline_metrics: {pm_err}")
 
     except Exception as schema_error:
         # Don't hard-fail startup on best-effort migration.

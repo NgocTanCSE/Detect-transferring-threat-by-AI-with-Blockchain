@@ -25,6 +25,52 @@ if [ -z "$DATABASE_URL" ]; then
 fi
 echo "DATABASE_URL=$DATABASE_URL"
 
+# Check for corrupted database and repair
+DB_FILE="/data/blockchain_local.db"
+if [ -f "$DB_FILE" ]; then
+    INTEGRITY=$(python -c "
+import sqlite3
+try:
+    conn = sqlite3.connect('$DB_FILE')
+    result = conn.execute('PRAGMA integrity_check').fetchone()
+    conn.close()
+    print(result[0])
+except Exception as e:
+    print(f'ERROR: {e}')
+" 2>&1)
+    echo "DB integrity: $INTEGRITY"
+    
+    if [ "$INTEGRITY" != "ok" ]; then
+        echo "Database corrupted! Attempting repair..."
+        python -c "
+import sqlite3, shutil, os
+db_path = '$DB_FILE'
+backup_path = db_path + '.backup'
+try:
+    conn = sqlite3.connect(db_path)
+    conn.backup(sqlite3.connect(backup_path))
+    conn.close()
+    os.remove(db_path)
+    conn2 = sqlite3.connect(backup_path)
+    conn2.execute('VACUUM')
+    shutil.copy2(backup_path, db_path)
+    conn2.close()
+    os.remove(backup_path)
+    print('Repair completed')
+except Exception as e:
+    print(f'Repair failed: {e}')
+    print('Resetting database...')
+    os.remove(db_path)
+" 2>&1
+    fi
+fi
+
+# Handle RESET_DB
+if [ "$RESET_DB" = "1" ]; then
+    echo "RESET_DB=1 detected. Removing database..."
+    rm -f /data/blockchain_local.db /data/blockchain_local.db-wal /data/blockchain_local.db-shm
+fi
+
 python seed_wallets.py 2>&1 || echo "SEED FAILED (continuing anyway)"
 
 echo "=============================="

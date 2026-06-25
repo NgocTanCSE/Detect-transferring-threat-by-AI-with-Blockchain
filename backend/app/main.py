@@ -1296,67 +1296,79 @@ def get_recent_alerts(
     """
     from datetime import timedelta
 
-    # Normalize chain parameter
     try:
-        canonical_chain = _normalize_chain_name(chain)
-    except HTTPException as e:
-        raise e
+        # Normalize chain parameter
+        try:
+            canonical_chain = _normalize_chain_name(chain)
+        except HTTPException as e:
+            raise e
 
-    query = database_session.query(Alert).order_by(Alert.detected_at.desc())
+        query = database_session.query(Alert).order_by(Alert.detected_at.desc())
 
-    # Apply chain filter
-    query = query.filter(Alert.chain_id == canonical_chain)
+        # Apply chain filter
+        query = query.filter(Alert.chain_id == canonical_chain)
 
-    # Apply severity filter
-    if severity and severity.upper() != "ALL":
-        query = query.filter(Alert.severity == severity.upper())
+        # Apply severity filter
+        if severity and severity.upper() != "ALL":
+            query = query.filter(Alert.severity == severity.upper())
 
-    # Apply search filter
-    if search:
-        search_term = f"%{search.lower()}%"
-        query = query.filter(
-            (Alert.wallet_address.ilike(search_term)) |
-            (Alert.alert_type.ilike(search_term)) |
-            (Alert.message.ilike(search_term))
-        )
+        # Apply search filter
+        if search:
+            search_term = f"%{search.lower()}%"
+            query = query.filter(
+                (Alert.wallet_address.ilike(search_term)) |
+                (Alert.alert_type.ilike(search_term)) |
+                (Alert.message.ilike(search_term))
+            )
 
-    # Get total count before limit
-    total_count = query.count()
+        # Get total count before limit
+        total_count = query.count()
 
-    # Apply limit
-    recent_alerts = query.limit(limit).all()
+        # Apply limit
+        recent_alerts = query.limit(limit).all()
 
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    alerts_today = database_session.query(Alert).filter(
-        Alert.detected_at >= today_start
-    ).count()
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        alerts_today = database_session.query(Alert).filter(
+            Alert.detected_at >= today_start
+        ).count()
 
-    critical_alerts = database_session.query(Alert).filter(
-        Alert.severity == "CRITICAL"
-    ).count()
+        critical_alerts = database_session.query(Alert).filter(
+            Alert.severity == "CRITICAL"
+        ).count()
 
-    return {
-        "alerts": [
-            {
-                "alert_id": str(alert.id),
-                "wallet_address": alert.wallet_address,
-                "alert_type": alert.alert_type,
-                "severity": alert.severity,
-                "message": alert.message,
-                "risk_score": alert.risk_score,
-                "context": alert.alert_metadata or {},
-                "detected_at": alert.detected_at.isoformat(),
-                "acknowledged": bool(alert.acknowledged)
+        return {
+            "alerts": [
+                {
+                    "alert_id": str(alert.id),
+                    "wallet_address": alert.wallet_address,
+                    "alert_type": alert.alert_type,
+                    "severity": alert.severity,
+                    "message": alert.message,
+                    "risk_score": alert.risk_score,
+                    "context": alert.alert_metadata or {},
+                    "detected_at": alert.detected_at.isoformat(),
+                    "acknowledged": bool(alert.acknowledged)
+                }
+                for alert in recent_alerts
+            ],
+            "statistics": {
+                "total_alerts_today": alerts_today,
+                "critical_count": critical_alerts,
+                "total_matching": total_count,
+                "returned_count": len(recent_alerts)
             }
-            for alert in recent_alerts
-        ],
-        "statistics": {
-            "total_alerts_today": alerts_today,
-            "critical_count": critical_alerts,
-            "total_matching": total_count,
-            "returned_count": len(recent_alerts)
         }
-    }
+    except Exception as e:
+        logger.warning(f"Database error in get_recent_alerts: {e}")
+        return {
+            "alerts": [],
+            "statistics": {
+                "total_alerts_today": 0,
+                "critical_count": 0,
+                "total_matching": 0,
+                "returned_count": 0
+            }
+        }
 
 
 @app.get("/alerts/latest", tags=["Alerts"])
