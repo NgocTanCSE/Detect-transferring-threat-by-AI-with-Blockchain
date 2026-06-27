@@ -934,6 +934,39 @@ def clear_diagnostics_logs(admin: User = Depends(require_admin), database_sessio
     return api_success(data=response, message="Diagnostics logs cleared", legacy=response)
 
 
+@app.get("/api/admin/diagnostics/logs", tags=["Admin Diagnostics"])
+def get_diagnostics_logs_api(
+    admin: User = Depends(require_admin),
+    limit: int = 50,
+    log_type: str = None,
+    endpoint: str | None = None,
+    min_status_code: int | None = None,
+    include_archived: bool = False,
+    database_session: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    return get_diagnostics_logs(admin, limit, log_type, endpoint, min_status_code, include_archived, database_session)
+
+
+@app.delete("/api/admin/diagnostics/logs", tags=["Admin Diagnostics"])
+def clear_diagnostics_logs_api(admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, str]:
+    return clear_diagnostics_logs(admin, database_session)
+
+
+@app.get("/api/admin/diagnostics/status", tags=["Admin Diagnostics"])
+def get_diagnostics_status_api(admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    return get_diagnostics_status(admin, database_session)
+
+
+@app.get("/api/admin/diagnostics/seed-data", tags=["Admin Diagnostics"])
+def get_seed_data_status_api(admin: User = Depends(require_admin), database_session: Session = Depends(get_db)) -> Dict[str, Any]:
+    return get_seed_data_status(admin, database_session)
+
+
+@app.get("/api/admin/diagnostics/endpoint-stats", tags=["Admin Diagnostics"])
+def get_endpoint_statistics_api(admin: User = Depends(require_admin)) -> Dict[str, Any]:
+    return get_endpoint_statistics(admin)
+
+
 # ============================================================================
 # END ADMIN DIAGNOSTICS ENDPOINTS
 # ============================================================================

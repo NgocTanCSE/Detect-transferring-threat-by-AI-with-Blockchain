@@ -322,6 +322,36 @@ app.post('/compliance/sar/export', async (req, res) => {
 
     const csvContent = csvRows.map(row => row.join(',')).join('\n');
 
+    // PDF generation
+    const generatePDF = () => {
+      const PDFDocument = require('pdfkit');
+      const doc = new PDFDocument();
+      const chunks = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => {});
+
+      doc.fontSize(16).text('SAR Report', { align: 'center' });
+      doc.fontSize(12).moveDown();
+      csvRows.forEach(([field, value]) => {
+        doc.text(`${field}: ${value || 'N/A'}`);
+        doc.moveDown(0.5);
+      });
+
+      doc.end();
+      return Buffer.concat(chunks);
+    };
+
+    if (format === 'pdf') {
+      try {
+        const pdfBuffer = generatePDF();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=SAR_Report_${case_id}.pdf`);
+        return res.status(200).send(pdfBuffer);
+      } catch (e) {
+        console.warn('PDF generation failed, falling back to CSV:', e.message);
+      }
+    }
+
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=SAR_Report_${case_id}.csv`);
     res.status(200).send(csvContent);

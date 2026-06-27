@@ -452,9 +452,9 @@ await queue.startWorker(async (content) => {
     }
   }
 
-  return true;
-});
-    
+return true;
+    });
+
     app.listen(PORT, () => {
       console.log(`alert-service running on port ${PORT}`);
     });

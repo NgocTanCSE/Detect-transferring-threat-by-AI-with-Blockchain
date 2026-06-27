@@ -68,19 +68,22 @@ app.get('/statistics/dashboard', async (req, res) => {
 
   try {
     const [wallets, alerts, tokenTxs] = await Promise.all([
-      pool.query('SELECT COUNT(*) as count FROM wallets'),
+      pool.query('SELECT COUNT(*) as count FROM wallets WHERE chain_id = $1', [chain]),
       pool.query('SELECT COUNT(*) as count FROM alerts WHERE chain_id = $1', [chain]),
       pool.query('SELECT COUNT(*) as count FROM token_transfers WHERE chain_id = $1', [chain]),
     ]);
 
     const moneyLaundering = await pool.query(
-      "SELECT COUNT(*) as count FROM wallets WHERE risk_category = 'money_laundering'",
+      "SELECT COUNT(*) as count FROM wallets WHERE risk_category = 'money_laundering' AND chain_id = $1",
+      [chain],
     );
     const manipulation = await pool.query(
-      "SELECT COUNT(*) as count FROM wallets WHERE risk_category = 'manipulation'",
+      "SELECT COUNT(*) as count FROM wallets WHERE risk_category = 'manipulation' AND chain_id = $1",
+      [chain],
     );
     const scam = await pool.query(
-      "SELECT COUNT(*) as count FROM wallets WHERE risk_category = 'scam'",
+      "SELECT COUNT(*) as count FROM wallets WHERE risk_category = 'scam' AND chain_id = $1",
+      [chain],
     );
 
     const mlAlerts = await pool.query(

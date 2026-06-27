@@ -26,6 +26,7 @@ from app.models.models import (
     Transaction,
     User,
 )
+from app.services.partition_manager import ensure_future_partitions
 from app.utils.api_response import api_success
 from app.utils.auth_utils import get_org_id
 from app.auth import optional_auth, require_admin
@@ -688,3 +689,18 @@ def auto_fix_system_data_integrity(payload: DataIntegrityAutoFixRequest, db: Ses
         meta={"actions": len(actions)},
         legacy={"dry_run": payload.dry_run, "requested_keys": sorted(list(requested_keys)), "actions": actions, "after": report},
     )
+
+
+@router.post("/system/partitions/ensure")
+def ensure_partitions(
+    months_ahead: int = Query(default=6, ge=1, le=12),
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> Dict[str, Any]:
+    """Create future partitions for transactions table to avoid data falling into default partition."""
+    created = ensure_future_partitions(db, months_ahead)
+    return {
+        "message": "Partitions ensured",
+        "created_count": created,
+        "months_ahead": months_ahead,
+    }

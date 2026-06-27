@@ -72,6 +72,12 @@ if [ "$RESET_DB" = "1" ]; then
 fi
 
 python seed_wallets.py 2>&1 || echo "SEED FAILED (continuing anyway)"
+python seed_demo_wallets.py 2>&1 || echo "DEMO WALLETS SEED FAILED"
+python seed_demo_transactions.py 2>&1 || echo "DEMO TRANSACTIONS SEED FAILED"
+python seed_model_registry.py 2>&1 || echo "MODEL REGISTRY SEED FAILED"
+python seed_system_admin_data.py 2>&1 || echo "SYSTEM ADMIN SEED FAILED"
+python seed_security_data.py 2>&1 || echo "SECURITY DATA SEED FAILED"
+python seed_compliance_data.py 2>&1 || echo "COMPLIANCE DATA SEED FAILED"
 
 echo "=============================="
 echo "STEP 3: Test backend import"
@@ -134,8 +140,16 @@ SPID=$!
 echo "Scanner PID=$SPID"
 
 echo "=============================="
-echo "ALL STARTED: backend=$BPID frontend=$FPID scanner=$SPID"
+echo "STEP 8: Start demo traffic"
+echo "=============================="
+cd /app/backend
+python demo-scripts/sim_generate_traffic.py 2>&1 &
+DTPID=$!
+echo "Demo Traffic PID=$DTPID"
+
+echo "=============================="
+echo "ALL STARTED: backend=$BPID frontend=$FPID scanner=$SPID demo-traffic=$DTPID"
 echo "=============================="
 
-trap "kill $BPID $FPID $SPID 2>/dev/null; exit 0" SIGTERM SIGINT
+trap "kill $BPID $FPID $SPID $DTPID 2>/dev/null; exit 0" SIGTERM SIGINT
 wait

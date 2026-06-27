@@ -717,6 +717,14 @@ authApp.get('/metrics', async (req, res) => {
       const resetKey = `reset:${email.toLowerCase()}`;
       await redisClient.setex(resetKey, 15 * 60, resetCode);
 
+      // Simulate email in development/HF mode
+      if (!process.env.SMTP_HOST) {
+        return res.json({
+          message: 'If the email is registered, a password reset code has been sent.',
+          reset_code: resetCode,
+          simulated: true
+        });
+      }
       res.json({ message: 'If the email is registered, a password reset code has been sent.' });
     } catch (error) {
       console.error('Forgot password error:', error);
@@ -752,6 +760,47 @@ authApp.get('/metrics', async (req, res) => {
     } catch (error) {
       console.error('Reset password error:', error);
       res.status(500).json({ error: 'Failed to reset password', detail: error.message });
+    }
+  });
+
+  // 2FA: Setup - Generate TOTP secret
+  const twofa = require('./twofa');
+  authApp.post('/2fa/setup', requireRole(['user', 'admin']), async (req, res) => {
+    try {
+      const userId = req.user.sub;
+      const { rows } = await dbPool.query('SELECT email FROM users WHERE id = $1', [userId]);
+      if (!rows.length) return res.status(404).json({ error: 'User not found' });
+
+      const { secret, otpauth_url } = twofa.generateSecret(userId, rows[0].email);
+      const qrCode = await twofa.generateQRCode(otpauth_url);
+
+      await dbPool.query('UPDATE users SET totp_secret = $1 WHERE id = $2', [secret, userId]);
+
+      res.json({ secret, qr_code: qrCode });
+    } catch (error) {
+      res.status(500).json({ error: '2FA setup failed', detail: error.message });
+    }
+  });
+
+  // 2FA: Verify and enable
+  authApp.post('/2fa/verify', requireRole(['user', 'admin']), async (req, res) => {
+    try {
+      const { token } = req.body;
+      if (!token) return res.status(400).json({ error: 'Token required' });
+
+      const { rows } = await dbPool.query('SELECT totp_secret FROM users WHERE id = $1', [req.user.sub]);
+      if (!rows.length || !rows[0].totp_secret) {
+        return res.status(400).json({ error: '2FA not set up' });
+      }
+
+      if (twofa.verifyToken(rows[0].totp_secret, token)) {
+        await dbPool.query('UPDATE users SET totp_enabled = true WHERE id = $1', [req.user.sub]);
+        res.json({ message: '2FA enabled successfully' });
+      } else {
+        res.status(401).json({ error: 'Invalid TOTP token' });
+      }
+    } catch (error) {
+      res.status(500).json({ error: '2FA verification failed', detail: error.message });
     }
   });
 

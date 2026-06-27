@@ -25,11 +25,6 @@ const JWT_SECRET = process.env.JWT_SECRET_KEY || 'default-secret-change-in-produ
 const authenticateSocket = (socket, next) => {
   const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1] || socket.handshake.query.token;
   
-  // Allow connection if AUTH_DISABLED is true
-  if (process.env.AUTH_DISABLED === 'true') {
-    return next();
-  }
-
   if (!token) {
     return next(new Error('Authentication error: No token provided'));
   }
@@ -93,11 +88,29 @@ io.use(authenticateSocket);
 // Socket.io connection handling with JWT authentication
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}${socket.user ? ` (user: ${socket.user.username || 'unknown'})` : ' (unauthenticated)'}`);
-  
+
+  // Setup offline queue for this client
+  const offlineQueue = [];
+
+  // Send queued messages when client reconnects
+  const sendQueuedMessages = async () => {
+    if (offlineQueue.length > 0) {
+      for (const msg of offlineQueue) {
+        socket.emit(msg.event, msg.data);
+      }
+      offlineQueue.length = 0;
+    }
+  };
+
   // Example: Client joining a specific chain room
   socket.on('join-chain', (chain) => {
     socket.join(`chain:${chain}`);
     console.log(`👤 Client ${socket.id} joined room: chain:${chain}`);
+  });
+
+  // Replay missed events
+  socket.on('replay-events', async () => {
+    await sendQueuedMessages();
   });
 
   socket.on('disconnect', () => {
@@ -105,14 +118,10 @@ io.on('connection', (socket) => {
   });
 });
 
-/**
- * Handle incoming events from RabbitMQ
- */
+// Offline message storage
+const offlineMessages = new Map();
+
 const handleMQEvent = (routingKey, data) => {
-  // Broadcast to all clients (original new-alert format)
-  io.emit('new-alert', data);
-  
-  // Map fields to match what the frontend expects for new-threat
   const threat = {
     chain: data.chain_id || 'ethereum',
     address: data.wallet_address || '',
@@ -120,16 +129,37 @@ const handleMQEvent = (routingKey, data) => {
     score: Number(data.risk_score || 0),
     timestamp: data.detected_at || new Date().toISOString()
   };
+
+  // Store for offline clients
+  const msgId = data.id || Date.now();
+  offlineMessages.set(msgId, { event: 'new-threat', data: threat, timestamp: Date.now() });
+
+  // Keep only last 100 messages
+  if (offlineMessages.size > 100) {
+    const firstKey = offlineMessages.keys().next().value;
+    offlineMessages.delete(firstKey);
+  }
+
+  // Broadcast to connected clients
+  io.emit('new-alert', data);
   io.emit('new-threat', threat);
-  
-  // Also broadcast to specific chain room if chain_id exists
+
   if (data.chain_id) {
     io.to(`chain:${data.chain_id}`).emit('new-alert', data);
     io.to(`chain:${data.chain_id}`).emit('new-threat', threat);
   }
-  
+
   console.log(`📢 Broadcasted event ${routingKey} to ${io.engine.clientsCount} clients`);
 };
+
+// Endpoint to get missed events
+app.get('/missed-events', express.json(), async (req, res) => {
+  const since = parseInt(req.query.since) || 0;
+  const missed = Array.from(offlineMessages.entries())
+    .filter(([_, msg]) => msg.timestamp > since)
+    .map(([id, msg]) => ({ id, ...msg.data }));
+  res.json({ events: missed });
+});
 
 // Centralized error handler
 app.use((err, req, res, next) => {

@@ -23,7 +23,9 @@
     "helmet": "^7.0.0",
     "redis": "^4.6.10",
     "prom-client": "^15.0.0",
-    "joi": "^17.9.2"
+    "joi": "^17.9.2",
+    "speakeasy": "^2.0.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",

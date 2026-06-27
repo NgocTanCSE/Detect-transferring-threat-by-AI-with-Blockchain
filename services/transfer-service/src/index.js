@@ -33,8 +33,8 @@ const analyzeAddress = async (address) => {
 // Create the breaker
 const aiBreaker = new CircuitBreaker(analyzeAddress, breakerOptions);
 aiBreaker.fallback((address) => {
-  console.warn(`Circuit open or AI service failed for ${address}. Blocking transfer due to inability to assess risk.`);
-  return { risk_score: 100.0, account_status: 'under_review', ai_insight: 'AI Analysis unavailable - transfer blocked for safety', block_transfer: true };
+  console.warn(`Circuit open or AI service failed for ${address}. Blocking transfer for safety.`);
+  return { risk_score: 99.0, account_status: 'under_review', ai_insight: 'AI Analysis unavailable - transfer blocked for security', block_transfer: true };
 });
 
 // Database connection

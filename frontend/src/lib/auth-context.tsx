@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { authFetch } from "./api";
 
 interface UserData {
   id: string;
@@ -15,35 +16,62 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   token: string | null;
+  login: (token: string, userData: UserData) => void;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TEST_USER: UserData = {
-  id: "test-user-001",
-  username: "testuser",
-  email: "test@sentinel.io",
-  role: "user",
-  wallet_address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-};
-
-const TEST_TOKEN = "test-token-auto-login";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    setUser(TEST_USER);
-    localStorage.setItem("auth_token", TEST_TOKEN);
-    setIsLoading(false);
+    const storedToken = localStorage.getItem("auth_token");
+    if (storedToken) {
+      setToken(storedToken);
+      authFetch("/auth/validate", {
+        headers: { Authorization: `Bearer ${storedToken}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.valid && data.user) {
+            setUser(data.user);
+          } else {
+            localStorage.removeItem("auth_token");
+            setToken(null);
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem("auth_token");
+          setToken(null);
+        })
+        .finally(() => setIsLoading(false));
+    } else {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const login = useCallback((newToken: string, userData: UserData) => {
+    setToken(newToken);
+    setUser(userData);
+    localStorage.setItem("auth_token", newToken);
+  }, []);
+
+  const logout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem("auth_token");
   }, []);
 
   const value: AuthContextType = {
     user,
-    isAuthenticated: true,
+    isAuthenticated: !!user,
     isLoading,
-    token: TEST_TOKEN,
+    token,
+    login,
+    logout,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
