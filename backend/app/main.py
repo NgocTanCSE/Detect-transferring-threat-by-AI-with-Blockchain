@@ -719,7 +719,7 @@ def get_diagnostics_logs(
         "logs": logs,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    return api_success(data=response, message="Diagnostics logs fetched", alert_metadata={"count": len(logs)}, legacy=response)
+    return api_success(data=response, message="Diagnostics logs fetched", legacy=response)
 
 
 @app.post("/admin/diagnostics/logs", tags=["Admin Diagnostics"])
@@ -864,7 +864,7 @@ def export_diagnostics_logs(
         "rows": export_rows,
         "csv": csv_buffer.getvalue(),
     }
-    return api_success(data=response, message="Diagnostics export generated", alert_metadata={"count": len(export_rows)}, legacy=response)
+    return api_success(data=response, message="Diagnostics export generated", legacy=response)
 
 
 @app.get("/admin/diagnostics/endpoint-stats", tags=["Admin Diagnostics"])
