@@ -567,17 +567,21 @@ app.include_router(case_router)
 # Mount Phase 2 operations router
 from app.phase2_ops import router as phase2_ops_router
 app.include_router(phase2_ops_router)
+app.include_router(phase2_ops_router, prefix="/api")
 
 # Mount Phase 3 governance router
 from app.phase3_governance import router as phase3_governance_router
 app.include_router(phase3_governance_router)
+app.include_router(phase3_governance_router, prefix="/api")
 
 # Mount Phase 4 reporting router
 from app.phase4_reporting import router as phase4_reporting_router
 app.include_router(phase4_reporting_router)
+app.include_router(phase4_reporting_router, prefix="/api")
 # Include AI router (has been extracted to separate module)
 from app.ai_router import router as ai_router
 app.include_router(ai_router)
+app.include_router(ai_router, prefix="/api")
 
 
 @app.get("/", tags=["Health"])

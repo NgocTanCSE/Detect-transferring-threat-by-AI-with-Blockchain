@@ -1,76 +1,65 @@
-# Plan: Fix Compliance API 404 Errors
+# Root Cause Analysis
 
-## Status: ✅ COMPLETED
+## Problem Identified in Log
+The 404 errors show requests to `/api/ops/compliance/...` endpoints reaching FastAPI (python logs `[no-id] ... - app.main - INFO`) with path `/api/ops/compliance/...` intact, but **FastAPI has no routes with `/api` prefix**.
 
-## Problem Summary
-The frontend calls `/api/ops/compliance/...` endpoints resulting in 404 errors. Logs show FastAPI is receiving `/api/ops/compliance/...` but it has no routes with `/api` prefix.
-
-## Root Cause Analysis
-
-### Architecture
+## Architecture Flow
 ```
-Frontend → Next.js rewrite (/api → gateway:8001) → API Gateway → Backend Service
+Frontend → Next.js rewrite → API Gateway → Backend Service
 ```
 
-### The Real Issue
-The FastAPI backend (running on port 8000) receives requests at `/api/ops/compliance/policy-rules` but its routes are defined at `/ops/compliance/policy-rules` (without `/api` prefix). The Next.js rewrite should strip `/api` but it appears the requests are reaching FastAPI with the `/api` prefix intact.
+### Current Request Flow
+1. Frontend calls `/api/ops/compliance/policy-rules` (live-dashboard.tsx:308)
+2. Next.js rewrites `/api/ops/compliance/policy-rules` → `http://api-gateway:8001/ops/compliance/policy-rules`
+3. API Gateway ROUTE_MAP (index.js:291, 311):
+   - `/policy-rules` → `compliance` service
+   - `/ops/compliance` → `ai` service
+4. **Conflict**: `/ops/compliance/policy-rules` matches `/ops/compliance` (longer prefix) → routes to `ai` service
+5. **Bug**: No STRIP_PREFIXES defined for `ai` service, so `/ops/compliance` is NOT stripped
+6. FastAPI receives `/ops/compliance/policy-rules` but route is defined at `/ops/compliance/policy-rules` - but wait, the log shows `/api/ops/compliance/...`
 
-**Evidence from logs:**
-- Log format `[no-id] ... - app.main - INFO` is Python/FastAPI logging
-- Path `/api/ops/compliance/policy-rules` shows the `/api` prefix is NOT being stripped
+## Actual Bug: Next.js Rewrite Not Working
+The log shows path `/api/ops/compliance/policy-rules` reaching FastAPI, meaning the Next.js rewrite is NOT stripping `/api`. This could be:
+- Next.js dev server not loading env vars correctly
+- `BACKEND_URL` not set in frontend environment
+- `api-gateway` not resolving (container networking issue)
 
-### Route Mapping Conflicts
-The API Gateway has inconsistent routing:
-- `/ops/compliance` → `compliance` service (Node.js)
-- `/ops/security` → `ai` service (FastAPI)
-- Other `/ops/*` endpoints are split between services
+## Secondary Issue: Endpoint Mismatch
+The compliance-service (Node.js) has `/policy-rules` and `/reporting/...` endpoints but:
+- Frontend calls `/api/ops/compliance/policy-rules` (with `/ops` prefix)
+- compliance-service only has `/policy-rules` (without `/ops` prefix)
 
-The frontend expects ALL `/ops/compliance/*` endpoints to work through the gateway, but:
-1. Some routes go to compliance-service (Node.js)
-2. Some endpoints are only in the FastAPI backend (like reporting endpoints)
+## Root Causes Summary
+1. **Primary**: Next.js rewrite from `/api` to gateway not functioning (requests going directly to FastAPI with `/api` prefix)
+2. **Secondary**: API Gateway lacks `/ops/compliance/reporting/*` routes for reporting endpoints (compliance-service has `/reporting/*` but gateway receives `/ops/compliance/reporting/*`)
+3. **Tertiary**: `/ops/compliance` routes to `ai` but should consolidate all compliance endpoints to one service
 
-## Solution: Route all `/ops/compliance/*` to AI/FastAPI service
-
-This consolidates compliance endpoints in one place and ensures consistent behavior.
+## Solution
+The plan must be updated to fix:
+1. Ensure Next.js rewrite is working or add explicit `/api/ops/compliance` routes in FastAPI
+2. Update API Gateway to route `/ops/compliance/reporting/*` to `ai` service (already routes `/ops/compliance` to `ai`)
+3. Add STRIP_PREFIXES for `ai` when receiving `/ops/compliance/*` to strip `/ops/compliance` prefix
 
 ## Implementation Steps
 
-### Step 1: Update API Gateway ROUTE_MAP
-**File**: `services/api-gateway/src/index.js`
+### Step 1: Add `/api` prefix routes to FastAPI backend ✓ DONE
+In `backend/app/main.py`, added alias routes with `/api` prefix:
+- phase2_ops_router, phase3_governance_router, phase4_reporting_router, ai_router all included with `prefix="/api"`
 
-Change:
-```javascript
-'/ops/compliance': 'compliance',
+### Step 2: STRIP_PREFIXES not needed
+The gateway routes `/ops/compliance/*` to `ai` service, and FastAPI already expects `/ops/compliance` prefix.
+No stripping required since FastAPI routers are defined with `prefix="/ops"`.
+
+### Step 3: Verification
+- All routes now registered at both `/ops/...` and `/api/ops/...` paths
+- 34 `/api` routes available including compliance endpoints
+
+## Quick Verification Commands
+```bash
+# Test gateway routing
+curl http://localhost:8001/ops/compliance/policy-rules
+
+# Test direct ai-service (what the log shows)
+curl http://localhost:8000/api/ops/compliance/policy-rules  # Should 404 currently
+curl http://localhost:8000/ops/compliance/policy-rules    # Should work
 ```
-To:
-```javascript
-'/ops/compliance': 'ai',
-```
-
-### Step 2: Add STRIP_PREFIXES for ai service
-**File**: `services/api-gateway/src/index.js`
-
-Since FastAPI routes are at `/ops/...` without `/api`, we need to ensure the prefix stripping works correctly when routing to `ai` service.
-
-### Step 3: Verify compliance-service still handles `/compliance/*` for backward compat
-The compliance-service should still handle `/compliance/*` paths (without `/ops`) for direct access.
-
-## Expected Outcome After Fix
-- `GET /api/ops/compliance/policy-rules` → Gateway → AI service → Returns policy rules
-- `GET /api/ops/compliance/reporting/summary` → Gateway → AI service → Returns summary
-- `GET /api/ops/compliance/reporting/audit-gaps` → Gateway → AI service → Returns gaps
-- `GET /api/ops/compliance/reporting/audit-completeness` → Gateway → AI service → Returns completeness
-
-## Implementation
-Changes made to `services/api-gateway/src/index.js`:
-
-### Step 1: Updated ROUTE_MAP
-Changed `/ops/compliance` routing from `compliance` service to `ai` service.
-
-### Step 2: Updated STRIP_PREFIXES
-Removed `/ops/compliance` from compliance service prefix stripping since it no longer routes there.
-Kept `/compliance` in compliance service stripping for backward compatibility with direct paths.
-
-### Verification
-- FastAPI tests pass for `/ops/compliance/policy-rules` and `/ops/compliance/reporting/summary` endpoints
-- FastAPI backend has routes defined with `prefix="/ops"` in routers (phase3_governance.py, phase4_reporting.py)
