@@ -74,6 +74,7 @@ fi
 python seed_wallets.py 2>&1 || echo "SEED FAILED (continuing anyway)"
 python seed_demo_wallets.py 2>&1 || echo "DEMO WALLETS SEED FAILED"
 python seed_demo_transactions.py 2>&1 || echo "DEMO TRANSACTIONS SEED FAILED"
+python seed_alerts.py 2>&1 || echo "ALERTS SEED FAILED"
 python seed_model_registry.py 2>&1 || echo "MODEL REGISTRY SEED FAILED"
 python seed_feature_store.py 2>&1 || echo "FEATURE STORE SEED FAILED"
 python seed_system_admin_data.py 2>&1 || echo "SYSTEM ADMIN SEED FAILED"
