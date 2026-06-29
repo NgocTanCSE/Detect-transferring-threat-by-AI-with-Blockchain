@@ -24,7 +24,10 @@ type PolicyRule = {
 };
 
 async function fetchPolicies(): Promise<PolicyRule[]> {
-  const response = await fetch("/api/ops/compliance/policy-rules", { cache: "no-store" });
+  const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+  const headers: Record<string, string> = { "cache": "no-store" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const response = await fetch("/api/ops/compliance/policy-rules", { headers });
   if (!response.ok) {
     throw new Error("Failed to fetch policy rules");
   }
@@ -52,7 +55,7 @@ function PolicyInsightContent() {
   const role = searchParams.get("role");
   const feature = searchParams.get("feature");
   const backQuery = role || feature ? `?${new URLSearchParams({ role: role ?? "system_admin", feature: feature ?? "0" }).toString()}` : "";
-  const backHref = `/${backQuery}`;
+  const backHref = `/admin/dashboard${backQuery}`;
 
   const { data: policies, isLoading, error } = useQuery({
     queryKey: ["policyInsightRules"],

@@ -47,7 +47,6 @@ import {
 } from "@/lib/api";
 import {
   formatAddress,
-  formatEth,
   getRiskColor,
   getRiskLevel,
   getStatusColor,

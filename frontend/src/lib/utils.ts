@@ -68,6 +68,14 @@ export function getStatusColor(status: string): string {
   }
 }
 
+export function formatEthValue(eth: number | undefined | null): string {
+  if (eth === undefined || eth === null) return "0.00";
+  return eth.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  });
+}
+
 export function formatDate(date: string | Date): string {
   return new Date(date).toLocaleString("en-US", {
     year: "numeric",

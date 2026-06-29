@@ -24,7 +24,7 @@ import {
   type WalletTransaction,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { formatAddress, formatEth, formatDate } from "@/lib/utils";
+import { formatAddress, formatEthValue, formatDate } from "@/lib/utils";
 import Link from "next/link";
 
 export default function UserWallet() {
@@ -233,7 +233,7 @@ export default function UserWallet() {
                   >
                     {tx.direction === "sent"
                       ? "-"
-                      : "+"}{formatEth(tx.value_eth || 0)}
+                      : "+"}{formatEthValue(tx.value_eth || 0)}
                   </span>
                 </div>
               ))}

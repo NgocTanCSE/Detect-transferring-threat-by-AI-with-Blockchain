@@ -19,7 +19,7 @@ import {
   type WalletTransaction,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { formatAddress, formatDate, formatEth } from "@/lib/utils";
+import { formatAddress, formatDate } from "@/lib/utils";
 
 export default function UserTransactions() {
   const { user } = useAuth();

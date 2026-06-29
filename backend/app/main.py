@@ -383,6 +383,60 @@ def _initialize_database() -> None:
     except Exception as error:
         logger.warning(f"Database schema initialization skipped or failed: {error}")
 
+    try:
+        from app.core.database import SessionLocal
+        from app.models.models import User
+        session = SessionLocal()
+        try:
+            user_count = session.query(User).count()
+            if user_count == 0:
+                logger.info("Database is empty; running seed data...")
+                from seed_wallets import seed as seed_core
+                seed_core()
+                logger.info("Core seed data inserted")
+                try:
+                    from seed_demo_wallets import seed as seed_demo
+                    seed_demo()
+                    logger.info("Demo wallet seed data inserted")
+                except Exception as demo_err:
+                    logger.warning(f"Demo wallet seed skipped: {demo_err}")
+                try:
+                    from seed_alerts import seed as seed_alerts
+                    seed_alerts()
+                    logger.info("Alert seed data inserted")
+                except Exception as alert_err:
+                    logger.warning(f"Alert seed skipped: {alert_err}")
+                try:
+                    from seed_compliance_data import seed as seed_compliance
+                    seed_compliance()
+                    logger.info("Compliance seed data inserted")
+                except Exception as comp_err:
+                    logger.warning(f"Compliance seed skipped: {comp_err}")
+                try:
+                    from seed_system_admin_data import seed as seed_admin
+                    seed_admin()
+                    logger.info("System admin seed data inserted")
+                except Exception as admin_err:
+                    logger.warning(f"System admin seed skipped: {admin_err}")
+                try:
+                    from seed_model_registry import seed as seed_model
+                    seed_model()
+                    logger.info("Model registry seed data inserted")
+                except Exception as model_err:
+                    logger.warning(f"Model registry seed skipped: {model_err}")
+                try:
+                    from seed_security_data import seed as seed_security
+                    seed_security()
+                    logger.info("Security data seed inserted")
+                except Exception as sec_err:
+                    logger.warning(f"Security data seed skipped: {sec_err}")
+            else:
+                logger.info(f"Database has {user_count} users; skipping seed")
+        finally:
+            session.close()
+    except Exception as seed_error:
+        logger.warning(f"Auto-seed failed (non-critical): {seed_error}")
+
 _initialize_database()
 
 _sentry_dsn = os.getenv("SENTRY_DSN", "")

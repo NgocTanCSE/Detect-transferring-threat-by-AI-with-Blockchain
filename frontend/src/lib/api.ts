@@ -251,7 +251,7 @@ function extractErrorMessage(payload: unknown, fallback: string): string {
   return fallback;
 }
 
-export { formatEth } from "./utils";
+export { formatEth, formatEthValue } from "./utils";
 
 export async function askDashboardAssistant(
   message: string,

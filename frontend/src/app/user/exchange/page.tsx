@@ -35,7 +35,7 @@ import {
   type WalletTransaction,
   type TransferResponse,
 } from "@/lib/api";
-import { formatAddress, formatEth, formatDate } from "@/lib/utils";
+import { formatAddress, formatEthValue, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 
 export default function UserExchange() {
@@ -214,7 +214,7 @@ export default function UserExchange() {
                      </div>
                    </div>
                    <span className={`font-bold ${tx.direction === "sent" ? "text-slate-100" : "text-teal-400"}`}>
-                     {tx.direction === "sent" ? "-" : "+"}{formatEth(tx.value_eth || 0)}
+                      {tx.direction === "sent" ? "-" : "+"}{formatEthValue(tx.value_eth || 0)}
                    </span>
                  </div>
                ))}

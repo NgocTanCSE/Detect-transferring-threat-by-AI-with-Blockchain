@@ -58,7 +58,6 @@ class DeepScanService:
         """
         Perform a simplified trace-back of funds to identify ultimate sources.
         """
-        # This is a mock/simplified version since we don't have a full graph crawler here
         sources = {}
         target_address = target_address.lower()
 

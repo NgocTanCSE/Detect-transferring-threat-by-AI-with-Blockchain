@@ -28,6 +28,7 @@ function ApiAccessPanel() {
       }
     } catch (err: any) {
       console.error(err);
+      notify("Không thể tải dữ liệu API keys", "error");
     } finally {
       setIsLoading(false);
     }

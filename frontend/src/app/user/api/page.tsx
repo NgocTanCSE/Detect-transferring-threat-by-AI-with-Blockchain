@@ -45,11 +45,12 @@ export default function ApiKeyPage() {
         if (usageRes.ok) {
           const usageData = await usageRes.json();
           const endpoints = usageData.endpoints || usageData.data?.endpoints || {};
-          const totalCalls = Object.values(endpoints).reduce((sum: number, ep: any) => sum + (ep.count || 0), 0);
-          setUsageStats({ total_calls: totalCalls, avg_response_ms: 45 });
+          const totalCalls = Object.values(endpoints).reduce((sum: number, ep: any) => sum + (ep.total_calls || ep.count || 0), 0);
+          setUsageStats({ total_calls: totalCalls, avg_response_ms: 0 });
         }
       } catch (err) {
         console.error(err);
+        notify("Không thể tải dữ liệu API", "error");
       } finally {
         setLoading(false);
       }
@@ -119,7 +120,7 @@ export default function ApiKeyPage() {
                   <Globe className="h-4 w-4 text-blue-400" />
                   <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Avg Response</span>
                 </div>
-                <p className="text-xl font-bold text-white">{usageStats?.avg_response_ms || 0}ms</p>
+                <p className="text-xl font-bold text-white">{usageStats?.avg_response_ms ? `${usageStats.avg_response_ms}ms` : "N/A"}</p>
               </div>
             </div>
           </CardContent>

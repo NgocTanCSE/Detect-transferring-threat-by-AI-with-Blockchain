@@ -77,7 +77,7 @@ class AlchemyClient(BlockchainClient):
                 raise ValueError(f"Alchemy RPC error ({self.chain_name}): {error_msg}")
             return data.get("result", {})
         except Exception as e:
-            logger.warning(f"Alchemy RPC request failed for {self.chain_name} (Likely Rate Limit): {e}. Falling back to mock data.")
+            logger.warning(f"Alchemy RPC request failed for {self.chain_name}: {e}")
             raise
 
     def fetch_wallet_history(self, wallet_address: str, max_count: int = 1000) -> List[Dict[str, Any]]:
@@ -98,41 +98,11 @@ class AlchemyClient(BlockchainClient):
                     dedup_map[tx_hash] = transfer
 
             sorted_transfers = sorted(dedup_map.values(), key=lambda x: x.get("block_number", 0), reverse=True)
-            
-            # If no real data found or API failed, use mock data in development mode
-            if not sorted_transfers:
-                return self._generate_mock_history(wallet_address, max_count)
 
             return list(sorted_transfers)[:max_count]
         except Exception as e:
-            logger.warning(f"Error fetching real history for {wallet_address}, falling back to mock: {e}")
-            return self._generate_mock_history(wallet_address, max_count)
-
-    def _generate_mock_history(self, wallet_address: str, count: int) -> List[Dict[str, Any]]:
-        """Generate realistic-looking mock transaction history for demo purposes."""
-        import random
-        import uuid
-        
-        history = []
-        # Generate 5-15 mock transactions
-        num_tx = random.randint(5, 15)
-        for i in range(num_tx):
-            is_outgoing = random.choice([True, False])
-            from_addr = wallet_address.lower() if is_outgoing else "0x" + uuid.uuid4().hex[:40]
-            to_addr = "0x" + uuid.uuid4().hex[:40] if is_outgoing else wallet_address.lower()
-            
-            history.append({
-                "tx_hash": "0x" + uuid.uuid4().hex,
-                "from_address": from_addr,
-                "to_address": to_addr,
-                "value": int(random.uniform(0.01, 10.0) * 10**18),
-                "block_number": 18000000 + i,
-                "timestamp": datetime.now(timezone.utc),
-                "category": "external",
-                "asset": "ETH",
-                "chain": self.chain_name
-            })
-        return history
+            logger.warning(f"Error fetching history for {wallet_address}: {e}")
+            return []
 
     def _fetch_transfers(self, category: List[str], from_address: Optional[str] = None, to_address: Optional[str] = None, max_count: int = 500) -> List[Dict[str, Any]]:
         params = [{

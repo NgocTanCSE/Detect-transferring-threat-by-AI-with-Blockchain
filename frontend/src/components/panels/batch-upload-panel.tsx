@@ -1,51 +1,108 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useToast } from "@/lib/toast-context";
+
+interface TransferRow {
+  sender: string;
+  receiver: string;
+  amount: string;
+}
+
+function parseCsvFile(csvText: string): TransferRow[] {
+  const lines = csvText.trim().split("\n");
+  if (lines.length < 2) return [];
+
+  const header = lines[0].toLowerCase().split(",").map((h) => h.trim());
+  const senderIdx = header.findIndex((h) => h === "sender" || h === "from_address" || h === "from");
+  const receiverIdx = header.findIndex((h) => h === "receiver" || h === "to_address" || h === "to");
+  const amountIdx = header.findIndex((h) => h === "amount" || h === "amount_eth" || h === "value");
+
+  if (senderIdx === -1 || receiverIdx === -1 || amountIdx === -1) {
+    throw new Error("CSV phải có cột: sender/from_address, receiver/to_address, amount/amount_eth");
+  }
+
+  const transfers: TransferRow[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",").map((c) => c.trim());
+    if (cols.length > Math.max(senderIdx, receiverIdx, amountIdx)) {
+      const sender = cols[senderIdx];
+      const receiver = cols[receiverIdx];
+      const amount = cols[amountIdx];
+      if (sender && receiver && amount && sender.startsWith("0x") && receiver.startsWith("0x")) {
+        transfers.push({ sender, receiver, amount });
+      }
+    }
+  }
+  return transfers;
+}
 
 function BatchUploadPanel() {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState<{ processed: number; blocked: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { notify } = useToast();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0] || null;
+    setFile(selected);
+    setResult(null);
+  };
 
   const handleUpload = async () => {
     if (!file) return;
     setIsUploading(true);
-    setProgress(20);
+    setProgress(10);
+    setResult(null);
 
     try {
-      const demoAddr = process.env.NEXT_PUBLIC_SENDER_ADDRESS || "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
-      const dummyTransfers = [
-        { sender: demoAddr, receiver: "0x" + "ab58" + "01a7d398351b8be11c439e05c5b3259aec9b", amount: "1.2" },
-        { sender: "0x" + "8ba1f109551bd432803012645ac136ddd64dba72", receiver: "0x" + "098b716b8aaf21512996dc57eb0615e2383e2f96", amount: "0.5" },
-        { sender: "0x" + "d8da6bf26964af9d7eed9e03e53415d37aa96045", receiver: "0x" + "1da5821544e25c636c1417ba96ade4cf6d2f9b5a", amount: "10.0" }
-      ];
+      const text = await file.text();
+      setProgress(30);
+
+      const transfers = parseCsvFile(text);
+      if (transfers.length === 0) {
+        throw new Error("Không tìm thấy giao dịch hợp lệ trong file");
+      }
+      setProgress(50);
 
       const response = await fetch("/api/transfers/batch", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
+          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`,
         },
-        body: JSON.stringify({ transfers: dummyTransfers })
+        body: JSON.stringify({ transfers }),
       });
 
-      if (!response.ok) throw new Error("Upload failed");
-      
-      const result = await response.json();
+      setProgress(80);
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail || body?.error || "Upload failed");
+      }
+
+      const data = await response.json();
       setProgress(100);
-      
+
+      const processed = data.processed || data.total || transfers.length;
+      const blocked = data.blocked || 0;
+      setResult({ processed, blocked });
+
       setTimeout(() => {
         setIsUploading(false);
         setFile(null);
         setProgress(0);
-        notify(`Batch ingestion complete. ${result.processed} transactions processed, ${result.blocked} blocked.`, "success");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        notify(`Hoàn thành: ${processed} giao dịch đã xử lý, ${blocked} bị chặn.`, "success");
       }, 500);
     } catch (error) {
       console.error("Batch upload error:", error);
       setIsUploading(false);
-      notify("Failed to process batch upload.", "error");
+      setProgress(0);
+      const message = error instanceof Error ? error.message : "Upload failed";
+      notify(`Lỗi: ${message}`, "error");
     }
   };
 
@@ -55,22 +112,46 @@ function BatchUploadPanel() {
         <svg className="w-8 h-8 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
       </div>
       <h3 className="text-xl font-bold text-white mb-2">Upload Transaction Data</h3>
-      <p className="text-slate-400 text-center max-w-sm mb-8">Supported formats: .csv, .xlsx. Max file size: 100MB. Data will be analyzed for AML/Risk patterns instantly.</p>
-      
+      <p className="text-slate-400 text-center max-w-sm mb-2">Supported formats: .csv. Max file size: 100MB.</p>
+      <p className="text-slate-500 text-center text-xs max-w-sm mb-8">
+        CSV phải có cột: sender/from_address, receiver/to_address, amount/amount_eth
+      </p>
+
       {isUploading ? (
         <div className="w-full max-w-md space-y-4">
           <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-             <div className="h-full bg-teal-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+            <div className="h-full bg-teal-500 transition-all duration-300" style={{ width: `${progress}%` }} />
           </div>
           <p className="text-center text-xs text-slate-500 font-mono uppercase tracking-widest">Processing {progress}%</p>
+        </div>
+      ) : result ? (
+        <div className="text-center space-y-3">
+          <div className="p-4 rounded-xl bg-teal-500/10 border border-teal-500/20">
+            <p className="text-teal-400 font-semibold">Hoàn thành!</p>
+            <p className="text-slate-300 text-sm mt-1">
+              {result.processed} giao dịch đã xử lý, {result.blocked} bị chặn
+            </p>
+          </div>
+          <button
+            onClick={() => { setResult(null); setFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+            className="text-sm text-slate-400 hover:text-white underline"
+          >
+            Upload thêm
+          </button>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4">
           <label className="cursor-pointer group">
             <span className="rounded-2xl bg-teal-500/10 border border-teal-500/30 px-8 py-3 text-teal-400 font-semibold group-hover:bg-teal-500 group-hover:text-white transition-all duration-300">
-              {file ? file.name : "Select File"}
+              {file ? file.name : "Select CSV File"}
             </span>
-            <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} accept=".csv,.xlsx" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileChange}
+              accept=".csv"
+            />
           </label>
           {file && (
             <button onClick={handleUpload} className="text-sm text-slate-300 underline hover:text-white">

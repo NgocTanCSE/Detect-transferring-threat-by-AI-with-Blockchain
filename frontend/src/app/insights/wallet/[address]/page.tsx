@@ -21,7 +21,7 @@ import {
   Search,
   Globe
 } from "lucide-react";
-import { fetchWalletConnections, fetchWalletStats, fetchWalletTransactionHistory, formatEth, analyzeAddress } from "@/lib/api";
+import { fetchWalletConnections, fetchWalletStats, fetchWalletTransactionHistory, formatEthValue, analyzeAddress } from "@/lib/api";
 import { authFetch } from "@/lib/auth-fetch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -170,8 +170,8 @@ function WalletInsightContent() {
 
         {/* Top Metrics */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard title="Balance" value={statsLoading ? "..." : formatEth(stats?.eth_balance ?? 0)} tone="teal" />
-          <MetricCard title="Total Volume" value={statsLoading ? "..." : formatEth((stats?.eth_sent ?? 0) + (stats?.eth_received ?? 0))} tone="slate" />
+          <MetricCard title="Balance" value={statsLoading ? "..." : formatEthValue(stats?.eth_balance ?? 0)} tone="teal" />
+          <MetricCard title="Total Volume" value={statsLoading ? "..." : formatEthValue((stats?.eth_sent ?? 0) + (stats?.eth_received ?? 0))} tone="slate" />
           <MetricCard title="Inbound Tx" value={statsLoading ? "..." : String(stats?.total_transactions ?? 0)} tone="slate" />
           <MetricCard title="Detections" value={aiLoading ? "..." : String(aiAnalysis?.detection_count ?? 0)} tone={(aiAnalysis?.risk_score ?? 0) > 50 ? "amber" : "slate"} />
         </div>
@@ -224,7 +224,7 @@ function WalletInsightContent() {
                               </Link>
                             </td>
                             <td className="px-8 py-5 font-black text-white text-base">
-                              {formatEth(tx.value_eth)}
+                              {formatEthValue(tx.value_eth)}
                             </td>
                             <td className="px-8 py-5 text-slate-500 text-xs font-medium">
                               {new Date(tx.timestamp).toLocaleString()}
@@ -280,7 +280,7 @@ function WalletInsightContent() {
                       </div>
                       <div className="text-right">
                         <p className="text-xs font-bold text-white">{conn.tx_count} TX</p>
-                        <p className="text-[10px] text-teal-500 font-black">{formatEth(conn.total_value_eth)}</p>
+                        <p className="text-[10px] text-teal-500 font-black">{formatEthValue(conn.total_value_eth)}</p>
                       </div>
                    </div>
                 ))}
