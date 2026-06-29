@@ -45,17 +45,15 @@ def seed():
         existing_cases = session.query(m.TransactionCase).count()
         if existing_cases < 50:
             alerts = session.query(m.Alert).filter(m.Alert.severity.in_(["HIGH", "CRITICAL"])).limit(50).all()
+            users = session.query(m.User).all()
             for alert in alerts:
                 case = m.TransactionCase(
                     id=str(uuid.uuid4()),
                     tx_hash=f"0x{uuid.uuid4().hex}",
-                    from_address=alert.wallet_address,
-                    risk_score=float(alert.risk_score),
-                    status="PENDING",
-                    assigned_to=None,
-                    is_flagged=True,
-                    flag_reason=alert.alert_type,
-                    created_at=datetime.now(timezone.utc) - timedelta(hours=random.randint(0, 168))
+                    action="ASSIGN",
+                    state="PENDING",
+                    note=f"Alert: {alert.alert_type}",
+                    analyst_id=random.choice(users).id if users else None,
                 )
                 session.add(case)
 
