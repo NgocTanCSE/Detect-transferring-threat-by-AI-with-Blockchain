@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import {
   TestTube,
   Users,
-  ArrowLeftRight,
   Shield,
   RefreshCw,
   Play,
@@ -12,77 +11,14 @@ import {
   CheckCircle2,
   AlertTriangle,
   Clock,
-  Loader2,
   Zap,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
-
-interface TestUser {
-  id: string;
-  username: string;
-  email: string;
-  role: "user" | "analyst" | "admin";
-  wallet_address: string;
-  status: "active" | "idle" | "blocked";
-  lastAction: string;
-  riskLevel: "low" | "medium" | "high";
-}
-
-const TEST_USERS: TestUser[] = [
-  {
-    id: "user-001",
-    username: "alice_trader",
-    email: "alice@example.com",
-    role: "user",
-    wallet_address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-    status: "active",
-    lastAction: "Gửi 2.5 ETH",
-    riskLevel: "low",
-  },
-  {
-    id: "user-002",
-    username: "bob_analyst",
-    email: "bob@example.com",
-    role: "analyst",
-    wallet_address: "0x1234567890abcdef1234567890abcdef12345678",
-    status: "active",
-    lastAction: "Phân tích cảnh báo #1234",
-    riskLevel: "low",
-  },
-  {
-    id: "user-003",
-    username: "charlie_whale",
-    email: "charlie@example.com",
-    role: "user",
-    wallet_address: "0xabcdef1234567890abcdef1234567890abcdef12",
-    status: "active",
-    lastAction: "Nhận 100 ETH",
-    riskLevel: "medium",
-  },
-  {
-    id: "user-004",
-    username: "dave_suspicious",
-    email: "dave@example.com",
-    role: "user",
-    wallet_address: "0x9876543210fedcba9876543210fedcba98765432",
-    status: "blocked",
-    lastAction: "Chuyển 50 ETH đến mixer",
-    riskLevel: "high",
-  },
-  {
-    id: "user-005",
-    username: "eve_compliance",
-    email: "eve@example.com",
-    role: "admin",
-    wallet_address: "0xfedcba9876543210fedcba9876543210fedcba98",
-    status: "active",
-    lastAction: "Xác nhận fraud case #567",
-    riskLevel: "low",
-  },
-];
+import { fetchTestUsers, fetchWalletBalance, fetchWalletStats, type WalletBalance, type WalletStats, type TestUser } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 interface TestLog {
   id: string;
@@ -101,6 +37,23 @@ export default function TestEnvironment() {
     totalActions: 0,
     blockedActions: 0,
     warnings: 0,
+  });
+
+  const { data: testUsers = [], isLoading: usersLoading } = useQuery<TestUser[]>({
+    queryKey: ["testUsers"],
+    queryFn: () => fetchTestUsers(),
+  });
+
+  const { data: selectedUserBalance } = useQuery<WalletBalance>({
+    queryKey: ["walletBalance", selectedUser?.wallet_address],
+    queryFn: () => fetchWalletBalance(selectedUser!.wallet_address),
+    enabled: !!selectedUser?.wallet_address,
+  });
+
+  const { data: selectedUserStats } = useQuery<WalletStats>({
+    queryKey: ["walletStats", selectedUser?.wallet_address],
+    queryFn: () => fetchWalletStats(selectedUser!.wallet_address!),
+    enabled: !!selectedUser?.wallet_address,
   });
 
   const addLog = useCallback((action: string, type: TestLog["type"], userId: string) => {
@@ -151,7 +104,6 @@ export default function TestEnvironment() {
     [addLog]
   );
 
-  // Auto-run simulation
   useEffect(() => {
     if (!isAutoRunning || !selectedUser) return;
 
@@ -187,6 +139,14 @@ export default function TestEnvironment() {
       default:
         return "bg-slate-500/20 text-slate-400";
     }
+  };
+
+  const getCurrentUserLastAction = () => {
+    if (!selectedUser) return "";
+    if (selectedUserBalance) {
+      return `Số dư: ${selectedUserBalance.balance_eth?.toFixed(4) || "0"} ETH`;
+    }
+    return selectedUser.lastAction;
   };
 
   return (
@@ -256,36 +216,48 @@ export default function TestEnvironment() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {TEST_USERS.map((testUser) => (
-              <div
-                key={testUser.id}
-                onClick={() => switchToUser(testUser)}
-                className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
-                  selectedUser?.id === testUser.id
-                    ? "bg-teal-500/10 border-teal-500/30"
-                    : "bg-slate-900/30 border-slate-800/30 hover:border-slate-700/50"
-                }`}
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-800">
-                  <span className="text-lg font-bold text-white">
-                    {testUser.username.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-white">{testUser.username}</p>
-                    <Badge variant="outline" className={`text-[10px] ${getStatusColor(testUser.status)}`}>
-                      {testUser.status}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">{testUser.email}</p>
-                  <p className="text-xs text-slate-600 mt-0.5">Vai trò: {testUser.role}</p>
-                </div>
-                <Badge variant="outline" className={`text-[10px] ${getRiskColor(testUser.riskLevel)}`}>
-                  Risk: {testUser.riskLevel}
-                </Badge>
+            {usersLoading ? (
+              <div className="text-center py-8 text-slate-500">
+                <RefreshCw className="h-6 w-6 mx-auto animate-spin mb-2" />
+                <p>Đang tải danh sách user...</p>
               </div>
-            ))}
+            ) : testUsers.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <p>Chưa có user nào trong hệ thống</p>
+              </div>
+            ) : (
+              testUsers.map((testUser) => (
+                <div
+                  key={testUser.id}
+                  onClick={() => switchToUser(testUser)}
+                  className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
+                    selectedUser?.id === testUser.id
+                      ? "bg-teal-500/10 border-teal-500/30"
+                      : "bg-slate-900/30 border-slate-800/30 hover:border-slate-700/50"
+                  }`}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-800">
+                    <span className="text-lg font-bold text-white">
+                      {testUser.username.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-white">{testUser.username}</p>
+                      <Badge variant="outline" className={`text-[10px] ${getStatusColor(testUser.status)}`}>
+                        {testUser.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">{testUser.email}</p>
+                    <p className="text-xs text-slate-600 mt-0.5">Vai trò: {testUser.role} • Cảnh báo: {testUser.warning_count}</p>
+                  </div>
+                  <Badge variant="outline" className={`text-[10px] ${getRiskColor(testUser.riskLevel)}`}>
+                    Risk: {testUser.riskLevel}
+                  </Badge>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -374,6 +346,36 @@ export default function TestEnvironment() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Selected User Wallet Info */}
+      {selectedUser && selectedUserBalance && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <Card className="bg-[#0f0f16] border-slate-800/50">
+            <CardContent className="p-4">
+              <p className="text-xs text-slate-400">Số Dư</p>
+              <p className="text-2xl font-bold text-teal-400">{selectedUserBalance.balance_eth?.toFixed(4) || "0"} ETH</p>
+              <p className="text-[10px] text-slate-600 mt-1">Rủi ro: {selectedUserBalance.risk_score}%</p>
+            </CardContent>
+          </Card>
+          {selectedUserStats && (
+            <Card className="bg-[#0f0f16] border-slate-800/50">
+              <CardContent className="p-4">
+                <p className="text-xs text-slate-400 mb-2">Thống Kê Giao Dịch</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-slate-500">Đã Gửi:</span>
+                    <span className="text-white ml-1">{selectedUserStats.eth_sent?.toFixed(2)} ETH</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Đã Nhận:</span>
+                    <span className="text-teal-400 ml-1">{selectedUserStats.eth_received?.toFixed(2)} ETH</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );

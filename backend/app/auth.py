@@ -1244,3 +1244,23 @@ def reset_password(
     db.commit()
     
     return {"success": True, "message": "Password reset successfully"}
+
+
+@router.get("/users", tags=["User Management"])
+def list_users(limit: int = 50, db: Session = Depends(get_db)):
+    """Get list of all users for test environment viewing."""
+    users = db.query(User).filter(User.is_active == True).limit(limit).all()
+    return {
+        "users": [
+            {
+                "id": str(u.id),
+                "username": u.username,
+                "email": u.email,
+                "role": u.role,
+                "wallet_address": u.wallet_address,
+                "warning_count": u.warning_count or 0,
+                "is_active": u.is_active,
+            }
+            for u in users
+        ]
+    }

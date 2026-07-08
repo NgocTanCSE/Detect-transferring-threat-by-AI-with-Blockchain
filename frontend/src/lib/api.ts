@@ -684,6 +684,37 @@ export async function fetchPipelineMetrics(limit: number = 100): Promise<any[]> 
   return data.items || [];
 }
 
+export interface TestUser {
+  id: string;
+  username: string;
+  email: string;
+  role: "user" | "analyst" | "admin";
+  wallet_address: string;
+  warning_count: number;
+  is_active: boolean;
+  status: "active" | "idle" | "blocked";
+  lastAction: string;
+  riskLevel: "low" | "medium" | "high";
+}
+
+export async function fetchTestUsers(): Promise<TestUser[]> {
+  const res = await authFetch(`${API_BASE}/users?limit=100`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.users.map((u: any) => ({
+    id: u.id,
+    username: u.username,
+    email: u.email,
+    role: u.role,
+    wallet_address: u.wallet_address || "",
+    warning_count: u.warning_count || 0,
+    is_active: u.is_active,
+    status: u.warning_count >= 3 ? "blocked" : "active",
+    lastAction: "",
+    riskLevel: u.warning_count >= 3 ? "high" : u.warning_count > 0 ? "medium" : "low",
+  }));
+}
+
 export interface Organization {
   id: string;
   name: string;
