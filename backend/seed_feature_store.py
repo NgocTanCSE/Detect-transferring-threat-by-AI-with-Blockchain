@@ -63,7 +63,7 @@ def _seed_feature_store_configs(session: Session):
             continue
 
         record = m.FeatureStoreConfig(
-            id=_uuid_str(),
+            id=uuid.UUID(_uuid_str()),
             feature_key=feature["feature_key"],
             enabled=feature["enabled"],
             expression=feature["expression"],

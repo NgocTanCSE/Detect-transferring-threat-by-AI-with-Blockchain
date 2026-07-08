@@ -17,7 +17,7 @@ def seed():
         for chain in chains:
             for _ in range(3):
                 node = m.NodeEndpoint(
-                    id=str(uuid.uuid4()),
+                    id=uuid.UUID(str(uuid.uuid4())),
                     provider_name=f"alchemy_{chain}",
                     chain=chain,
                     endpoint_url=f"https://{chain}-mainnet.g.alchemy.com/v2/demo",
@@ -32,7 +32,6 @@ def seed():
         # Pipeline metrics - 1000 records
         for i in range(1000):
             metric = m.PipelineMetric(
-                id=str(uuid.uuid4()),
                 chain=random.choice(chains),
                 block_number=random.randint(20000000, 21000000),
                 throughput_tps=random.uniform(5.0, 50.0),
@@ -46,7 +45,7 @@ def seed():
         log_types = ["info", "warning", "error", "api_call"]
         for i in range(1000):
             event = m.DiagnosticEvent(
-                id=str(uuid.uuid4()),
+                id=uuid.UUID(str(uuid.uuid4())),
                 log_type=random.choice(log_types),
                 message=f"System event {i}",
                 status_code=random.choice([200, 200, 200, 400, 500]),

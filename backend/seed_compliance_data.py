@@ -23,7 +23,7 @@ def seed():
                 if existing:
                     continue
                 rule = m.PolicyRule(
-                    id=str(uuid.uuid4()),
+                    id=uuid.UUID(str(uuid.uuid4())),
                     rule_name=rule_name,
                     description=f"Policy rule {i}",
                     min_risk_score=random.randint(60, 90),
@@ -43,7 +43,7 @@ def seed():
             action_types = ["LOGIN", "TRANSFER", "RISK_ASSESSMENT", "ALERT_REVIEW", "CASE_UPDATE", "WALLET_FREEZE"]
             for i in range(1000 - existing_audits):
                 audit = m.AuditLog(
-                    id=str(uuid.uuid4()),
+                    id=uuid.UUID(str(uuid.uuid4())),
                     action_type=random.choice(action_types),
                     entity_type=random.choice(["wallet", "transaction", "alert", "case"]),
                     user_identifier=f"admin_{random.randint(1, 10)}",

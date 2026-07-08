@@ -69,13 +69,13 @@ def _seed_alerts(session: Session):
         wallet = random.choice(wallets)
         severity = random.choices(severities, weights=[30, 35, 25, 10], k=1)[0]
         alert = m.Alert(
-            id=_uuid_str(),
+            id=uuid.UUID(_uuid_str()),
             wallet_address=wallet.address,
             alert_type=random.choice(alert_types),
             severity=severity,
             message=f"[{severity}] {random.choice(alert_types).replace('_',' ').title()} detected on {wallet.address[:10]}...",
             risk_score=wallet.risk_score,
-            meta={
+            alert_metadata={
                 "chain": random.choice(chains),
                 "detected_by": "multi_agent_v1",
                 "tx_count": wallet.total_transactions,
@@ -117,7 +117,7 @@ def _seed_blocked_transfers(session: Session):
         while receiver.address == sender.address and len(wallets) > 1:
             receiver = random.choice(wallets)
         bt = m.BlockedTransfer(
-            id=_uuid_str(),
+            id=uuid.UUID(_uuid_str()),
             sender_address=sender.address,
             receiver_address=receiver.address,
             amount=str(random.randint(1, 10**16)),
@@ -152,7 +152,7 @@ def _seed_user_warnings(session: Session):
     for i in range(20 - existing_count):
         user = random.choice(users)
         uw = m.UserWarning(
-            id=_uuid_str(),
+            id=uuid.UUID(_uuid_str()),
             user_id=user.id,
             wallet_address=user.wallet_address or wallets[0].address,
             target_address=random.choice(wallets).address,
@@ -177,13 +177,13 @@ def _seed_notification_events(session: Session):
 
     for i in range(20 - existing_count):
         ne = m.NotificationEvent(
-            id=_uuid_str(),
+            id=uuid.UUID(_uuid_str()),
             channel=random.choice(channels),
             recipient=f"admin+{uuid.uuid4().hex[:4]}@sentinel.io",
             severity=random.choice(severities),
             message=f"[{random.choice(severities)}] Alert notification for demo",
             status=random.choice(statuses),
-            meta={"source": "seed_alerts", "event_type": "demo_alert"},
+            notification_metadata={"source": "seed_alerts", "event_type": "demo_alert"},
             sent_at=datetime.now(timezone.utc) if random.random() < 0.7 else None,
         )
         session.add(ne)

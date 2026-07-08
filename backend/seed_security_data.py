@@ -29,7 +29,7 @@ def seed():
         for wallet in wallets[:150]:
             if wallet.risk_score and wallet.risk_score >= 50:
                 alert = m.Alert(
-                    id=str(uuid.uuid4()),
+                    id=uuid.UUID(str(uuid.uuid4())),
                     wallet_address=wallet.address,
                     alert_type=random.choice(alert_types),
                     severity=random.choices(severities, weights=[10, 30, 40, 20])[0],
@@ -48,7 +48,7 @@ def seed():
             users = session.query(m.User).all()
             for alert in alerts:
                 case = m.TransactionCase(
-                    id=str(uuid.uuid4()),
+                    id=uuid.UUID(str(uuid.uuid4())),
                     tx_hash=f"0x{uuid.uuid4().hex}",
                     action="ASSIGN",
                     state="PENDING",

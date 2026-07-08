@@ -35,13 +35,12 @@ def _seed_model_registry(session: Session):
         return
 
     record = m.ModelRegistry(
-        id=_uuid_str(),
+        id=uuid.UUID(_uuid_str()),
         model_name="risk_predictor",
         version="v1.0",
         artifact_uri="/app/services/risk_model.pkl",
         framework="pkl",
         is_active=True,
-        promoted_by=None,
         promoted_at=datetime.now(timezone.utc),
     )
     session.add(record)
