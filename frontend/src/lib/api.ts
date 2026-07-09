@@ -517,7 +517,7 @@ export async function fetchFlowStats(chain = "ethereum"): Promise<FlowStats[]> {
 
 export interface UserHistory {
   blocked_transfers: BlockedTransfer[];
-  successful_transactions: Transaction[];
+  successful_transactions: UserTransaction[];
   warnings: UserWarning[];
   summary?: {
     total_transactions: number;
@@ -525,6 +525,19 @@ export interface UserHistory {
     total_warnings: number;
     warning_count: number;
   };
+}
+
+export interface UserTransaction {
+  id?: string;
+  tx_hash: string;
+  from_address: string;
+  to_address: string;
+  value_eth?: number;
+  value_wei?: string;
+  timestamp?: string | null;
+  status?: number;
+  is_flagged?: boolean;
+  flag_reason?: string | null;
 }
 
 export interface UserWarning {

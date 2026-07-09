@@ -16,6 +16,7 @@ import {
   fetchUserHistory,
   fetchWalletBalance,
   type UserHistory,
+  type UserTransaction,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { formatAddress, formatDate } from "@/lib/utils";
@@ -252,7 +253,7 @@ export default function UserDashboard() {
             <div className="space-y-2">
               {successfulTxs.slice(0, 5).map((tx) => (
                 <div
-                  key={tx.tx_hash || tx.id}
+                  key={tx.tx_hash}
                   className="flex items-center gap-4 p-3 rounded-xl bg-slate-900/40 border border-slate-800/30 hover:border-slate-700/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
@@ -265,7 +266,7 @@ export default function UserDashboard() {
                       <p className="text-xs font-mono text-slate-300">
                         {tx.from_address === walletAddress ? "Đến" : "Từ"}: {formatAddress(tx.from_address === walletAddress ? tx.to_address : tx.from_address)}
                       </p>
-                      <p className="text-[10px] text-slate-500">{formatDate(tx.timestamp)}</p>
+                      <p className="text-[10px] text-slate-500">{formatDate(tx.timestamp || new Date().toISOString())}</p>
                     </div>
                   </div>
                   <span className={`font-bold ${tx.from_address === walletAddress ? "text-red-400" : "text-teal-400"}`}>
