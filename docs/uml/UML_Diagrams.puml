@@ -1,0 +1,1237 @@
+' =============================================================================
+' PlantUML — Blockchain AI Sentinel (Real-Time Threat Detection & Compliance)
+' Comprehensive Enterprise UML Architecture Documentation
+' 
+' Master Diagrams:
+'   1. container-diagram (C4 Level 2 Container Architecture)
+'   2. microservices-event-architecture (Microservices & RabbitMQ Mesh)
+'   3. ai-threat-detection-components (Multi-Agent AI Sentinel Core)
+'   4. entity-relationship-diagram (SQLAlchemy Schema with Partitioning)
+'   5. deployment-diagram (14-Container Docker Topology & Observability)
+'   6. usecase-overall (Cybersecurity & Compliance Actors)
+'   7. frontend-architecture (Next.js 14 Dashboard & Real-Time Vis)
+'   8. seq-realtime-threat-scan (Autonomous Scanner to Alert Flow)
+'   9. seq-transaction-investigation (Case Investigation & Gemini Chat)
+'  10. seq-compliance-aml-screening (AML Screening & Auto-Block Transfer)
+'  11. seq-auth-gateway-proxy (API Gateway Circuit Breaker & Auth Proxy)
+'  12. state-transaction-risk-lifecycle (Transaction Risk State Machine)
+'  13. state-alert-incident-lifecycle (Security Incident State Machine)
+'  14. activity-scanner-ai-detection (Continuous Block Ingestion Pipeline)
+' =============================================================================
+
+' =============================================================================
+' 1. C4 CONTAINER DIAGRAM
+' =============================================================================
+@startuml container-diagram
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 35
+skinparam ranksep 40
+
+skinparam package {
+  BackgroundColor #F8F9FA
+  BorderColor #5F6368
+  FontColor #202124
+  FontStyle bold
+  FontSize 12
+}
+
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #1A73E8
+  FontColor #202124
+  FontSize 11
+}
+
+skinparam database {
+  BackgroundColor #E8F0FE
+  BorderColor #1967D2
+  FontColor #174EA6
+  FontSize 11
+}
+
+skinparam queue {
+  BackgroundColor #FEE2E2
+  BorderColor #DC2626
+  FontColor #991B1B
+  FontSize 11
+}
+
+skinparam cloud {
+  BackgroundColor #FEF7E0
+  BorderColor #F9AB00
+  FontColor #B06000
+  FontSize 11
+}
+
+title Container Diagram - Blockchain AI Sentinel Platform (C4 Level 2)
+
+package "Presentation Layer" as CLIENT_LAYER #FAFAFA {
+  component "Security Analyst Dashboard\n[Next.js 14, React 18, TypeScript, Tailwind]\n• Live Threat Map, Case Management, Chat\n• Port: 3000" as WEB_UI #FEFCE8
+}
+
+package "API Gateway & Edge Proxy" as GATEWAY_LAYER #F1F5F9 {
+  component "API Gateway\n[Node.js, Express]\n• JWT & API Key Auth, Rate Limiter\n• Opossum Circuit Breakers & Request Tracing\n• Port: 8001" as API_GW #EFF6FF
+}
+
+package "Microservices Ecosystem" as SERVICES_LAYER #FFFFFF {
+  component "Auth Service\n[Express, Port: 3001]\n• User Sessions & Multi-tenant Orgs" as AUTH_SVC #EFF6FF
+  component "Wallet Service\n[Express, Port: 3002]\n• Monitored Wallets & Balance Sync" as WALLET_SVC #EFF6FF
+  component "Alert Service\n[Express, Port: 3003]\n• Incident Lifecycle & Pager Alerts" as ALERT_SVC #EFF6FF
+  component "Transfer Service\n[Express, Port: 3004]\n• Crypto Transfers & Policy Enforcement" as TRANSFER_SVC #EFF6FF
+  component "Analytics Service\n[Express, Port: 3005]\n• Threat Aggregation & Money Flow" as ANALYTICS_SVC #EFF6FF
+  component "Compliance Service\n[Express, Port: 3006]\n• AML Rule Engine & Blacklist Checks" as COMPLIANCE_SVC #EFF6FF
+  component "Event Service\n[Express + Socket.IO, Port: 3007]\n• Real-Time WebSocket Push to Frontend" as EVENT_SVC #EFF6FF
+}
+
+package "AI Intelligence & Autonomous Ingestion" as AI_LAYER #FFF7ED {
+  component "AI Engine Microservice\n[FastAPI, Python 3.11, Port: 8000]\n• Multi-Agent Risk Classifier (RF / XGBoost)\n• Gemini 1.5/2.0 Assistant & Knowledge Base\n• Continuous Retraining Pipeline" as AI_SVC #FED7AA
+
+  component "Autonomous Chain Scanner\n[Python Daemon Worker]\n• Continuous Mempool & Block Monitoring\n• Feature Extraction & Event Publisher" as SCANNER #FED7AA
+}
+
+package "Persistence & Message Broker" as DATA_LAYER #F8FAFC {
+  database "PostgreSQL 16 Database\n• Monthly Partitioned 'transactions' Table\n• 26 Tables (Wallets, Alerts, Cases, Models)\n• Port: 5432" as POSTGRES #E8F0FE
+
+  queue "RabbitMQ 3.12 Message Broker\n• Exchanges: 'blockchain.events', 'alerts'\n• Queues with Dead Letter Exchanges (DLQ)\n• Port: 5672 (Admin: 15672)" as RABBITMQ #FEE2E2
+
+  queue "Redis 7 In-Memory Store\n• Rate Limit Counters & Token Cache\n• Port: 6379" as REDIS #FEE2E2
+}
+
+package "External Blockchain Networks & AI" as EXT_SVCS #FEF7E0 {
+  cloud "Alchemy Web3 RPC Gateway\n(Ethereum, Polygon, Arbitrum Nodes)" as ALCHEMY_API
+  cloud "Google Gemini Generative AI\n(Natural Language Threat Copilot)" as GEMINI_API
+}
+
+' Connections
+WEB_UI --> API_GW : HTTPS REST API Calls
+WEB_UI <.. EVENT_SVC : WebSocket Live Push (Port 3007)
+
+API_GW --> AUTH_SVC : Proxy /api/v1/auth
+API_GW --> WALLET_SVC : Proxy /api/v1/wallets
+API_GW --> ALERT_SVC : Proxy /api/v1/alerts
+API_GW --> TRANSFER_SVC : Proxy /api/v1/transfers
+API_GW --> ANALYTICS_SVC : Proxy /api/v1/analytics
+API_GW --> COMPLIANCE_SVC : Proxy /api/v1/compliance
+API_GW --> AI_SVC : Proxy /api/v1/ai
+
+SCANNER --> ALCHEMY_API : Query Blocks & Event Logs
+SCANNER --> RABBITMQ : Publish 'tx.scanned'
+RABBITMQ --> AI_SVC : Consume raw tx for scoring
+AI_SVC --> GEMINI_API : Copilot Prompts & Case Reasoning
+
+AI_SVC --> RABBITMQ : Publish 'threat.detected'
+RABBITMQ --> ALERT_SVC : Consume threat event
+ALERT_SVC --> EVENT_SVC : Trigger Real-Time Broadcast
+
+AUTH_SVC --> POSTGRES
+WALLET_SVC --> POSTGRES
+ALERT_SVC --> POSTGRES
+TRANSFER_SVC --> POSTGRES
+ANALYTICS_SVC --> POSTGRES
+COMPLIANCE_SVC --> POSTGRES
+AI_SVC --> POSTGRES : Query & Insert Partitioned Tx
+API_GW --> REDIS : Rate Limit Validation
+@enduml
+
+' =============================================================================
+' 2. MICROSERVICES & RABBITMQ EVENT ARCHITECTURE
+' =============================================================================
+@startuml microservices-event-architecture
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam linetype ortho
+
+title Microservices Event-Driven Mesh & Circuit Breaker Architecture
+
+package "API Gateway Core (Port: 8001)" #F8FAFC {
+  component "Incoming Request Handler\n• Injects 'x-correlation-id'\n• Validates JWT Bearer Token" as GW_CORE #EFF6FF
+
+  component "Opossum Circuit Breakers" as CB_GROUP #EFF6FF {
+    component "Auth CB" as CB_AUTH #FFFFFF
+    component "AI CB" as CB_AI #FFFFFF
+    component "Alert CB" as CB_ALERT #FFFFFF
+    component "Transfer CB" as CB_TRANSFER #FFFFFF
+  }
+}
+
+package "RabbitMQ Topic Exchanges" #FEE2E2 {
+  queue "Exchange: 'blockchain.tx.exchange'\n• Routing Key: 'tx.incoming'" as EX_TX
+  queue "Exchange: 'threat.alert.exchange'\n• Routing Key: 'threat.high', 'threat.critical'" as EX_ALERT
+  queue "Dead Letter Exchange (DLQ)\n• Captures failed event processing" as EX_DLQ
+}
+
+package "Domain Consumer Workers" #FFFFFF {
+  component "AI Risk Classifier Worker\n• Evaluates ML feature vector\n• Fast heuristic blacklist lookup" as WORKER_AI #FFF7ED
+  component "Alert Dispatcher Worker\n• Persists Alert to Database\n• Sends PagerDuty / Webhook" as WORKER_ALERT #EFF6FF
+  component "Compliance AML Worker\n• Checks OFAC sanctions lists\n• Freezes suspicious transfers" as WORKER_COMPLIANCE #EFF6FF
+  component "WebSocket Broadcaster\n• Emits event to connected browsers" as WORKER_WS #EFF6FF
+}
+
+GW_CORE --> CB_AUTH : Forward
+GW_CORE --> CB_AI : Forward
+GW_CORE --> CB_ALERT : Forward
+GW_CORE --> CB_TRANSFER : Forward
+
+EX_TX --> WORKER_AI : Consume 'tx.incoming'
+WORKER_AI --> EX_ALERT : Publish if RiskScore > 0.75
+WORKER_AI ..> EX_DLQ : On parsing failure
+
+EX_ALERT --> WORKER_ALERT : Process Incident
+EX_ALERT --> WORKER_COMPLIANCE : Evaluate AML Block
+EX_ALERT --> WORKER_WS : Push to Security Dashboard
+@enduml
+
+' =============================================================================
+' 3. AI THREAT DETECTION INTERNAL COMPONENTS
+' =============================================================================
+@startuml ai-threat-detection-components
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam linetype ortho
+
+title Multi-Agent AI Sentinel & Risk Classification Architecture (FastAPI :8000)
+
+package "FastAPI Endpoints & Routers" #F8FAFC {
+  component "AI Router (/api/v1/ai)\n• POST /analyze/{address}\n• POST /assistant/chat\n• GET /cases/{case_id}" as ROUTER_AI #EFF6FF
+  component "Diagnostics & Ops Router\n• /admin/diagnostics\n• /ops/pipeline/metrics" as ROUTER_OPS #EFF6FF
+}
+
+package "Multi-Agent Threat Detection Engine" #FFF7ED {
+  component "Transaction Analyzer Agent\n• Gas price anomaly, value spike\n• Flash loan / Tornado cash heuristics" as AGENT_TX #FED7AA
+
+  component "Behavioral Profiler Agent\n• Historic wallet velocity analysis\n• Graph clustering (dormant activation)" as AGENT_BEHAVIOR #FED7AA
+
+  component "Compliance & Sanctions Agent\n• Real-time sanctions list (OFAC)\n• Known exploiters & phishing addresses" as AGENT_COMPLIANCE #FED7AA
+
+  component "Ensemble Risk Scorer\n• Combines heuristics + ML classifier\n• Outputs RiskScore: 0.00 to 1.00\n• Categorizes: LOW, MEDIUM, HIGH, CRITICAL" as ENSEMBLE_SCORER #FDBA74
+}
+
+package "Generative AI Threat Copilot" #ECFDF5 {
+  component "Gemini 1.5/2.0 Assistant Core\n• Prompt template with blockchain context\n• Multi-turn investigation chat" as GEMINI_COPILOT #A7F3D0
+  component "Money Flow Snapshot Generator\n• Visualizes token transit path\n• Identifies destination mixer or exchange" as FLOW_GEN #A7F3D0
+}
+
+package "Feature Store & Model Governance" #FEFCE8 {
+  component "Feature Store\n(32 graph & statistical features per tx)" as FEATURE_STORE #FEF08A
+  component "Model Registry\n(Versioned models: RF_v2.1, XGBoost_v1.4)" as MODEL_REGISTRY #FEF08A
+  component "Feedback Retraining Engine\n• Incorporates Analyst false-positive tags\n• Scheduled model drift evaluation" as RETRAIN_ENGINE #FEF08A
+}
+
+ROUTER_AI --> AGENT_TX
+ROUTER_AI --> AGENT_BEHAVIOR
+ROUTER_AI --> AGENT_COMPLIANCE
+
+AGENT_TX --> FEATURE_STORE
+AGENT_BEHAVIOR --> FEATURE_STORE
+FEATURE_STORE --> MODEL_REGISTRY : Query active weights
+MODEL_REGISTRY --> ENSEMBLE_SCORER : Predict probability
+
+ROUTER_AI --> GEMINI_COPILOT : Copilot query
+GEMINI_COPILOT --> FLOW_GEN : Request graph snapshot
+
+ROUTER_AI --> RETRAIN_ENGINE : Submit analyst feedback
+RETRAIN_ENGINE --> MODEL_REGISTRY : Promote validated candidate model
+@enduml
+
+' =============================================================================
+' 4. ENTITY RELATIONSHIP DIAGRAM (ERD)
+' =============================================================================
+@startuml entity-relationship-diagram
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 10
+skinparam roundCorner 6
+skinparam shadowing false
+skinparam linetype ortho
+skinparam classFontSize 10
+skinparam classAttributeFontSize 9
+
+title Entity Relationship Diagram (ERD) - PostgreSQL Schema (Partitioned)
+
+package "Tenancy & User Management" #EFF6FF {
+  class Organization {
+    + String id [PK]
+    + String name
+    + String slug [Unique]
+    + String plan [STARTER, PRO, ENTERPRISE]
+    + Boolean is_active
+    + DateTime created_at
+  }
+
+  class User {
+    + String id [PK]
+    + String organization_id [FK]
+    + String email [Unique]
+    + String hashed_password
+    + String role [ADMIN, ANALYST, AUDITOR]
+    + Boolean is_active
+  }
+}
+
+package "Blockchain Ledger (Partitioned by Month)" #ECFDF5 {
+  class Wallet {
+    + String address [PK]
+    + String organization_id [FK]
+    + String chain_id [ETH, POLYGON, ARB]
+    + String label
+    + Float risk_score
+    + Boolean is_monitored
+    + DateTime first_seen
+  }
+
+  class Transaction {
+    + String tx_hash [PK]
+    + DateTime block_timestamp [PK, Partition Key]
+    + String organization_id [FK]
+    + String chain_id
+    + String from_address [FK]
+    + String to_address [FK]
+    + Decimal value_eth
+    + Decimal gas_price_gwei
+    + Boolean is_flagged
+  }
+  note right: Table partitioned monthly\n(tx_2026_01, tx_2026_02, etc.)
+
+  class TokenTransfer {
+    + String id [PK]
+    + String tx_hash [FK]
+    + String token_address
+    + String token_symbol
+    + Decimal amount
+  }
+}
+
+package "Threat Intelligence & Security Alerts" #FFF7ED {
+  class RiskAssessment {
+    + String id [PK]
+    + String tx_hash [FK]
+    + Float risk_score
+    + String risk_level [LOW, MED, HIGH, CRITICAL]
+    + Json feature_vector
+    + Json explanation
+    + DateTime evaluated_at
+  }
+
+  class Alert {
+    + String id [PK]
+    + String organization_id [FK]
+    + String tx_hash [FK]
+    + String title
+    + String severity [LOW, MEDIUM, HIGH, CRITICAL]
+    + String status [NEW, INVESTIGATING, RESOLVED, FALSE_POSITIVE]
+    + String assigned_to_user_id [FK]
+    + DateTime created_at
+  }
+
+  class Blacklist {
+    + String address [PK]
+    + String reason [TORNADO_CASH, PHISHING, RANSOMWARE]
+    + String source [OFAC, INTERNAL, CHAINALYSIS]
+    + Boolean is_active
+    + DateTime added_at
+  }
+
+  class BlockedTransfer {
+    + String id [PK]
+    + String tx_hash [FK]
+    + String rule_triggered
+    + Decimal blocked_amount
+    + DateTime intercepted_at
+  }
+}
+
+package "Governance & Investigation Cases" #FEFCE8 {
+  class TransactionCase {
+    + String id [PK]
+    + String organization_id [FK]
+    + String title
+    + String status [OPEN, IN_REVIEW, CLOSED]
+    + String lead_analyst_id [FK]
+    + Json evidence_notes
+    + DateTime created_at
+  }
+
+  class FeedbackLabel {
+    + String id [PK]
+    + String tx_hash [FK]
+    + String analyst_id [FK]
+    + String true_label [THREAT, BENIGN]
+    + String notes
+    + DateTime submitted_at
+  }
+
+  class PolicyRule {
+    + String id [PK]
+    + String organization_id [FK]
+    + String rule_name
+    + String condition_expression
+    + String action [FLAG, BLOCK, ALERT]
+    + Boolean is_enabled
+  }
+
+  class AuditLog {
+    + String id [PK]
+    + String user_id [FK]
+    + String action
+    + String target_entity
+    + DateTime timestamp
+  }
+}
+
+Organization ||--o{ User : "members"
+Organization ||--o{ Wallet : "monitors"
+Organization ||--o{ Alert : "receives"
+Organization ||--o{ TransactionCase : "opens"
+Organization ||--o{ PolicyRule : "configures"
+
+Wallet ||--o{ Transaction : "sends / receives"
+Transaction ||--o{ TokenTransfer : "contains"
+Transaction ||--o| RiskAssessment : "evaluated by"
+Transaction ||--o{ Alert : "triggers"
+Transaction ||--o| BlockedTransfer : "intercepted"
+
+Alert }o--|| User : "assigned to"
+TransactionCase }o--|| User : "led by"
+FeedbackLabel }o--|| Transaction : "labels"
+FeedbackLabel }o--|| User : "provided by"
+@enduml
+
+' =============================================================================
+' 5. DEPLOYMENT TOPOLOGY DIAGRAM
+' =============================================================================
+@startuml deployment-diagram
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam linetype ortho
+
+title 14-Container Microservices Deployment Topology (Docker Compose)
+
+node "Production Host Server (Linux 64-bit)" as HOST {
+  
+  node "Docker Network: sentinel-net (Bridge)" as NET {
+    
+    package "Ingress & Presentation" {
+      component "Frontend Container\n[Next.js 14, Port: 3000]" as C_FRONTEND #FEFCE8
+      component "API Gateway Container\n[Express + Opossum, Port: 8001]" as C_GATEWAY #EFF6FF
+    }
+
+    package "Node.js Domain Microservices" {
+      component "Auth Service :3001" as C_AUTH #EFF6FF
+      component "Wallet Service :3002" as C_WALLET #EFF6FF
+      component "Alert Service :3003" as C_ALERT #EFF6FF
+      component "Transfer Service :3004" as C_TRANSFER #EFF6FF
+      component "Analytics Service :3005" as C_ANALYTICS #EFF6FF
+      component "Compliance Service :3006" as C_COMPLIANCE #EFF6FF
+      component "Event Service :3007 (WebSocket)" as C_EVENT #EFF6FF
+    }
+
+    package "AI & Ingestion Tier" {
+      component "AI FastAPI Service Container\n[Uvicorn + ML Models, Port: 8000]" as C_AI #FFF7ED
+      component "Autonomous Scanner Container\n[Python Alchemy Daemon]" as C_SCANNER #FFF7ED
+    }
+
+    package "Data & Streaming Tier" {
+      database "PostgreSQL 16 Container\n[Partitioned Storage, Port: 5432]" as C_PG #E8F0FE
+      queue "RabbitMQ 3.12 Container\n[Erlang Broker, Ports: 5672, 15672]" as C_RMQ #FEE2E2
+      queue "Redis 7 Container\n[In-Memory Store, Port: 6379]" as C_REDIS #FEE2E2
+    }
+
+    package "Observability & Telemetry" {
+      component "Prometheus Container\n[Scrapes /metrics, Port: 9090]" as C_PROM #F3F4F6
+      component "Grafana Container\n[Visual Dashboards, Port: 3002 (Host: 3008)]" as C_GRAFANA #F3F4F6
+    }
+  }
+}
+
+C_FRONTEND --> C_GATEWAY : REST HTTP :8001
+C_FRONTEND <.. C_EVENT : WebSocket Push :3007
+
+C_GATEWAY --> C_AUTH
+C_GATEWAY --> C_WALLET
+C_GATEWAY --> C_ALERT
+C_GATEWAY --> C_TRANSFER
+C_GATEWAY --> C_ANALYTICS
+C_GATEWAY --> C_COMPLIANCE
+C_GATEWAY --> C_AI
+
+C_SCANNER --> C_RMQ : Publish scanned tx
+C_RMQ --> C_AI : Feed tx stream
+C_AI --> C_RMQ : Emit threat event
+C_RMQ --> C_ALERT : Deliver alert
+
+C_AUTH --> C_PG
+C_WALLET --> C_PG
+C_ALERT --> C_PG
+C_TRANSFER --> C_PG
+C_COMPLIANCE --> C_PG
+C_AI --> C_PG
+
+C_PROM --> C_GATEWAY : Scrape metrics
+C_PROM --> C_AI : Scrape metrics
+C_GRAFANA --> C_PROM : Query time series
+@enduml
+
+' =============================================================================
+' 6. OVERALL USE CASE DIAGRAM
+' =============================================================================
+@startuml usecase-overall
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam linetype polyline
+
+title Overall System Use Cases - Blockchain AI Sentinel
+
+left to right direction
+
+actor "Security Analyst" as ANALYST #EFF6FF
+actor "Compliance Officer" as COMPLIANCE_OFFICER #FEFCE8
+actor "System Admin" as ADMIN #FEE2E2
+actor "DeFi User / Client" as CLIENT #ECFDF5
+actor "Autonomous Chain Scanner" as SCANNER_ACTOR #FFF7ED
+actor "AI Sentinel Agent" as AI_AGENT #FDF2F8
+
+rectangle "Blockchain AI Sentinel Boundary" {
+  
+  package "Real-Time Threat Detection" {
+    usecase "Continuously Ingest Blocks & Transactions" as UC_INGEST
+    usecase "Perform ML Feature Extraction & Scoring" as UC_ML_SCORE
+    usecase "Match Against Known Blacklists & Sanctions" as UC_BLACKLIST_MATCH
+    usecase "Broadcast Critical Alert to SOC Dashboard" as UC_ALERT_BROADCAST
+  }
+
+  package "Incident Investigation & Copilot" {
+    usecase "Manage Investigation Cases" as UC_MANAGE_CASE
+    usecase "Query Gemini Threat Copilot via Natural Language" as UC_COPILOT_CHAT
+    usecase "Trace Token Money Flow Snapshot" as UC_TRACE_FLOW
+    usecase "Label False Positive / True Positive (Feedback)" as UC_FEEDBACK_LABEL
+  }
+
+  package "Compliance & AML Enforcement" {
+    usecase "Submit Transfer & Perform Pre-Flight Screen" as UC_TRANSFER_SCREEN
+    usecase "Auto-Block High-Risk / Sanctioned Transfer" as UC_AUTO_BLOCK
+    usecase "Generate AML Audit & Regulatory KPI Report" as UC_AUDIT_REPORT
+  }
+
+  package "System Administration & Ops" {
+    usecase "Configure Organization API Keys & Policy Rules" as UC_CONFIG_POLICY
+    usecase "Monitor Pipeline Health & Model Performance" as UC_MONITOR_OPS
+  }
+}
+
+SCANNER_ACTOR --> UC_INGEST
+UC_INGEST ..> UC_ML_SCORE : <<triggers>>
+AI_AGENT --> UC_ML_SCORE
+AI_AGENT --> UC_BLACKLIST_MATCH
+UC_ML_SCORE ..> UC_ALERT_BROADCAST : <<if threat>>
+
+ANALYST --> UC_MANAGE_CASE
+ANALYST --> UC_COPILOT_CHAT
+ANALYST --> UC_TRACE_FLOW
+ANALYST --> UC_FEEDBACK_LABEL
+
+COMPLIANCE_OFFICER --> UC_AUDIT_REPORT
+COMPLIANCE_OFFICER --> UC_MANAGE_CASE
+
+CLIENT --> UC_TRANSFER_SCREEN
+UC_TRANSFER_SCREEN ..> UC_AUTO_BLOCK : <<if violation>>
+
+ADMIN --> UC_CONFIG_POLICY
+ADMIN --> UC_MONITOR_OPS
+@enduml
+
+' =============================================================================
+' 7. FRONTEND CLIENT ARCHITECTURE DIAGRAM
+' =============================================================================
+@startuml frontend-architecture
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam linetype ortho
+
+title Frontend Client Architecture (Next.js 14 & Real-Time Visualization)
+
+package "Presentation & SOC Dashboard Views" #FAFAFA {
+  component "Live Threat Stream View\n• Real-time Flash Loan & Exploit Feed\n• Severity Filter (CRITICAL, HIGH, MED)" as VIEW_STREAM #FEFCE8
+  component "Threat Visualizer & Analytics\n• Recharts Line/Area charts of Gas & Volume\n• Money Flow Sankey / Graph Visualization" as VIEW_CHARTS #FEFCE8
+  component "Case Investigation Room\n• Multi-tab Case Dossier\n• Gemini AI Chat Assistant Sidebar" as VIEW_CASE #FEFCE8
+  component "Wallet Radar & Blacklist Manager\n• Monitored Address table with Risk Badges" as VIEW_WALLETS #FEFCE8
+}
+
+package "Client State & Communications" #EFF6FF {
+  component "Socket.IO Real-time Client\n• Listens on ws://...:3007\n• Events: 'threat:alert', 'tx:flagged'" as REALTIME_WS #DBEAFE
+  component "TanStack React Query\n• Caches Case Details, Alerts, Metrics\n• Background refetching on reconnect" as QUERY_CACHE #DBEAFE
+  component "Auth & Organization Context\n• Holds JWT, User Role, Tenant Org ID" as AUTH_CTX #DBEAFE
+}
+
+package "Design System Components (@/components/ui)" #ECFDF5 {
+  component "Shadcn UI & Tailwind CSS\n• AlertBanner, DialogModal, DataTable\n• Lucide React Threat Icons, Sonner Toasts" as UI_KIT #A7F3D0
+}
+
+package "Network Gateway Client" #FFF7ED {
+  component "Axios API Client Instance\n• Base URL: http://localhost:8001\n• Injects 'Authorization: Bearer <jwt>'\n• Intercepts 401 Unauthorized for Refresh" as API_CLIENT #FED7AA
+}
+
+VIEW_STREAM --> REALTIME_WS
+VIEW_CHARTS --> QUERY_CACHE
+VIEW_CASE --> QUERY_CACHE
+VIEW_WALLETS --> QUERY_CACHE
+
+VIEW_STREAM --> UI_KIT
+VIEW_CASE --> UI_KIT
+
+QUERY_CACHE --> API_CLIENT
+REALTIME_WS --> VIEW_STREAM : Appends incoming alert
+AUTH_CTX --> API_CLIENT
+@enduml
+
+' =============================================================================
+' 8. SEQUENCE: REAL-TIME THREAT SCANNING & ALERT BROADCAST
+' =============================================================================
+@startuml seq-realtime-threat-scan
+!theme plain
+autonumber
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title Sequence: Autonomous Scanner Threat Detection & Real-Time Alert Broadcast
+
+participant "Alchemy Web3 RPC" as ALCHEMY #FEF7E0
+participant "Autonomous Scanner" as SCANNER #FFF7ED
+queue "RabbitMQ ('blockchain.tx')" as RMQ_TX #FEE2E2
+participant "FastAPI AI Service" as AI #FFF7ED
+database "PostgreSQL DB" as DB #E8F0FE
+queue "RabbitMQ ('threat.alert')" as RMQ_ALERT #FEE2E2
+participant "Alert Service (:3003)" as ALERT_SVC #EFF6FF
+participant "Event Service (:3007)" as EVENT_SVC #EFF6FF
+participant "Next.js Dashboard" as FE #FEFCE8
+
+SCANNER -> ALCHEMY: eth_getBlockByNumber("latest", true)
+ALCHEMY --> SCANNER: Return Block with 120 Transactions
+
+SCANNER -> SCANNER: Extract transactions touching monitored contracts
+SCANNER -> RMQ_TX: Publish 'tx.scanned' { txHash, from, to, value, gasPrice }
+
+RMQ_TX -> AI: Consume 'tx.scanned' event
+activate AI
+AI -> DB: Check address against 'blacklist' table
+alt Address Found in Blacklist
+  AI -> AI: Immediate RiskScore = 1.0 (Flagged: BLACKLIST_MATCH)
+else Address Clean
+  AI -> AI: Compute 32 ML Graph & Behavioral Features
+  AI -> AI: Model Inference (RandomForest Classifier) -> Probability: 0.92
+  AI -> AI: RiskScore = 0.92 (Flagged: FLASH_LOAN_EXPLOIT)
+end
+
+AI -> DB: INSERT INTO transactions (tx_hash, is_flagged = true, ...) [Partitioned Table]
+AI -> DB: INSERT INTO risk_assessments (risk_score = 0.92, level = 'CRITICAL')
+AI -> RMQ_ALERT: Publish 'threat.detected' { txHash, riskScore: 0.92, type: 'FLASH_LOAN' }
+deactivate AI
+
+RMQ_ALERT -> ALERT_SVC: Consume 'threat.detected'
+activate ALERT_SVC
+ALERT_SVC -> DB: INSERT INTO alerts (severity = 'CRITICAL', status = 'NEW', ...)
+ALERT_SVC -> EVENT_SVC: POST /broadcast/alert { alertData }
+deactivate ALERT_SVC
+
+activate EVENT_SVC
+EVENT_SVC -> FE: WebSocket Emit 'threat:alert' { txHash, severity: 'CRITICAL' }
+deactivate EVENT_SVC
+
+FE -> FE: Play Audio Warning & Pop Up Toast
+FE -> FE: Flash Red Indicator on Live Threat Stream
+@enduml
+
+' =============================================================================
+' 9. SEQUENCE: CASE INVESTIGATION & GEMINI COPILOT
+' =============================================================================
+@startuml seq-transaction-investigation
+!theme plain
+autonumber
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title Sequence: Incident Investigation & Gemini Threat Copilot
+
+actor "Security Analyst" as ANALYST #EFF6FF
+participant "Next.js Dashboard" as FE #FEFCE8
+participant "API Gateway (:8001)" as GW #EFF6FF
+participant "AI Service (:8000)" as AI #FFF7ED
+database "PostgreSQL DB" as DB #E8F0FE
+participant "Gemini Generative AI" as GEMINI #FEF7E0
+
+ANALYST -> FE: Opens Alert #ALT-1092 -> Clicks "Open Investigation Case"
+FE -> GW: POST /api/v1/cases { alertId, title: "Tornado Cash Transit Investigation" }
+GW -> DB: INSERT INTO transaction_cases (status = 'OPEN', lead_analyst_id = ...)
+DB --> FE: 201 Created (Case #CASE-402)
+
+== Interactive Copilot Assistance ==
+
+ANALYST -> FE: Types: "Summarize the fund routing path for 0x7a25... and check known mixers"
+FE -> GW: POST /api/v1/ai/assistant/chat { caseId: "CASE-402", message: "..." }
+GW -> AI: Proxy POST /assistant/chat
+activate AI
+
+AI -> DB: Query transactions & token transfers related to 0x7a25...
+DB --> AI: Return 4 transfer hops totaling 150 ETH
+
+AI -> GEMINI: Send Prompt with Case Evidence + Blockchain Graph Context
+activate GEMINI
+GEMINI --> AI: Response: "Address 0x7a25 bridged 150 ETH from Arbitrum, routed through Railgun, and deposited into Tornado Cash Contract at block 19283120."
+deactivate GEMINI
+
+AI --> GW: Return Markdown Explanation & Money Flow Node Graph
+deactivate AI
+GW --> FE: Return 200 OK
+FE --> ANALYST: Renders Natural Language Summary & Interactive Flow Graph
+
+ANALYST -> FE: Clicks "Add to Blacklist & Close Case"
+FE -> GW: POST /api/v1/compliance/blacklist { address: "0x7a25...", reason: "TORNADO_MIXER" }
+GW -> DB: INSERT INTO blacklist (address, reason, added_by = analyst)
+GW -> DB: UPDATE transaction_cases SET status = 'CLOSED'
+@enduml
+
+' =============================================================================
+' 10. SEQUENCE: COMPLIANCE AML SCREENING & AUTO-BLOCK
+' =============================================================================
+@startuml seq-compliance-aml-screening
+!theme plain
+autonumber
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title Sequence: Pre-Flight AML Screening & Automated Transfer Interception
+
+actor "DeFi Client / User" as CLIENT #EFF6FF
+participant "Transfer Service (:3004)" as TRANSFER_SVC #EFF6FF
+participant "Compliance Service (:3006)" as COMPLIANCE_SVC #EFF6FF
+participant "AI Service (:8000)" as AI #FFF7ED
+database "PostgreSQL DB" as DB #E8F0FE
+
+CLIENT -> TRANSFER_SVC: POST /transfers/submit { destination: "0x991b...", amountEth: 50.0 }
+activate TRANSFER_SVC
+TRANSFER_SVC -> COMPLIANCE_SVC: POST /screen { destination: "0x991b...", amount: 50.0 }
+
+activate COMPLIANCE_SVC
+COMPLIANCE_SVC -> DB: SELECT * FROM blacklist WHERE address = '0x991b...'
+alt Match Found in Blacklist
+  COMPLIANCE_SVC --> TRANSFER_SVC: 403 Forbidden { reason: "SANCTIONED_ADDRESS_OFAC" }
+  TRANSFER_SVC -> DB: INSERT INTO blocked_transfers (rule: "OFAC_SANCTION", amount: 50.0)
+  TRANSFER_SVC --> CLIENT: Error: Transfer Blocked by Anti-Money Laundering Policy
+else Not on Blacklist
+  COMPLIANCE_SVC -> AI: POST /score-wallet { address: "0x991b..." }
+  activate AI
+  AI -> AI: Check AML heuristic rules (Large Volume, Velocity > 300%)
+  AI --> COMPLIANCE_SVC: 200 OK { riskScore: 0.85, action: "FLAG_AND_HOLD" }
+  deactivate AI
+
+  COMPLIANCE_SVC -> DB: INSERT INTO blocked_transfers (rule: "RISK_SCORE_THRESHOLD", amount: 50.0)
+  COMPLIANCE_SVC --> TRANSFER_SVC: 202 Accepted { status: "PENDING_COMPLIANCE_MANUAL_REVIEW" }
+  TRANSFER_SVC --> CLIENT: Notice: Transfer Held for Secondary Compliance Clearance
+end
+deactivate COMPLIANCE_SVC
+deactivate TRANSFER_SVC
+@enduml
+
+' =============================================================================
+' 11. SEQUENCE: API GATEWAY CIRCUIT BREAKER & AUTH PROXY
+' =============================================================================
+@startuml seq-auth-gateway-proxy
+!theme plain
+autonumber
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title Sequence: API Gateway Authentication, Rate Limiting & Circuit Breaker
+
+actor "Client App" as CLIENT #EFF6FF
+participant "API Gateway (:8001)" as GW #EFF6FF
+queue "Redis Store (:6379)" as REDIS #FEE2E2
+participant "Opossum Circuit Breaker" as CB #EFF6FF
+participant "Target Microservice" as SVC #EFF6FF
+
+CLIENT -> GW: GET /api/v1/wallets/0x123... (Authorization: Bearer <jwt>)
+activate GW
+
+GW -> GW: Generate 'x-correlation-id: uuid-992'
+GW -> REDIS: INCR rate_limit:ip:127.0.0.1 (Max 200 / 15min)
+REDIS --> GW: Count: 14 (Rate Limit OK)
+
+GW -> GW: Verify JWT Signature with Public Key
+alt Token Invalid / Expired
+  GW --> CLIENT: 401 Unauthorized
+else Token Valid
+  GW -> CB: Check Circuit Breaker State for 'wallet-service'
+  alt Circuit is OPEN (Service Down)
+    GW --> CLIENT: 503 Service Unavailable (Fallback Response)
+  else Circuit is CLOSED (Service Healthy)
+    CB -> SVC: Forward GET /wallets/0x123... (with x-correlation-id)
+    activate SVC
+    SVC --> CB: 200 OK { wallet: {...} }
+    deactivate SVC
+    CB --> GW: 200 OK
+    GW --> CLIENT: 200 OK { wallet: {...} }
+  end
+end
+deactivate GW
+@enduml
+
+' =============================================================================
+' 12. STATE MACHINE: TRANSACTION RISK LIFECYCLE
+' =============================================================================
+@startuml state-transaction-risk-lifecycle
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title State Machine - Transaction Risk Assessment Lifecycle
+
+[*] --> PENDING_ANALYSIS : Ingested by Autonomous Scanner
+
+state PENDING_ANALYSIS #EFF6FF : Awaiting ML feature extraction\nand blacklist heuristic lookup
+
+state LOW_RISK #DCFCE7 : Score < 0.35\nNormal transfer pattern\nAuto-cleared
+
+state MEDIUM_RISK #FEFCE8 : Score 0.35 - 0.70\nHigh gas or unverified token\nLogged for periodic audit
+
+state HIGH_RISK_FLAGGED #FFF7ED : Score 0.70 - 0.90\nSuspicious routing pattern\nAlert queued for SOC review
+
+state CRITICAL_EXPLOIT #FEE2E2 : Score > 0.90 or Blacklist match\nImmediate SOC alarm triggered\nTransfer blocked
+
+state UNDER_INVESTIGATION #E0E7FF : Analyst opened active Case\nEvidence gathering in progress
+
+state RESOLVED_CLEARED #DCFCE7 : Analyst verified benign\nFeedback label submitted
+
+state BLACKLISTED_CONFIRMED #991B1B : Analyst confirmed threat\nAddress blacklisted permanently
+
+PENDING_ANALYSIS --> LOW_RISK : Normal transaction
+PENDING_ANALYSIS --> MEDIUM_RISK : Minor anomaly
+PENDING_ANALYSIS --> HIGH_RISK_FLAGGED : High risk detected
+PENDING_ANALYSIS --> CRITICAL_EXPLOIT : Exploit or Blacklist match
+
+HIGH_RISK_FLAGGED --> UNDER_INVESTIGATION : Analyst opens Case
+CRITICAL_EXPLOIT --> UNDER_INVESTIGATION : Analyst investigates
+
+UNDER_INVESTIGATION --> RESOLVED_CLEARED : Marked as False Positive
+UNDER_INVESTIGATION --> BLACKLISTED_CONFIRMED : Confirmed Malicious
+
+LOW_RISK --> [*]
+RESOLVED_CLEARED --> [*]
+BLACKLISTED_CONFIRMED --> [*]
+@enduml
+
+' =============================================================================
+' 13. STATE MACHINE: SECURITY ALERT INCIDENT
+' =============================================================================
+@startuml state-alert-incident-lifecycle
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title State Machine - Security Incident Alert Lifecycle
+
+[*] --> NEW : Alert generated from AI Engine
+
+state NEW #FEE2E2 : Unassigned alert in queue\nWebSocket audio notification playing
+
+state ACKNOWLEDGED #FEFCE8 : Analyst claimed alert\nAudio alert muted
+
+state INVESTIGATING #E0E7FF : Linked to Transaction Case\nMoney flow analysis ongoing
+
+state ESCALATED #FED7AA : Transferred to Senior Compliance Officer\nRegulatory report initiated
+
+state CLOSED_CONFIRMED #DCFCE7 : Threat confirmed & mitigated\nBlacklist updated
+
+state CLOSED_FALSE_POSITIVE #F3F4F6 : Marked as benign\nModel feedback recorded
+
+NEW --> ACKNOWLEDGED : Analyst clicks "Claim"
+ACKNOWLEDGED --> INVESTIGATING : Case opened
+INVESTIGATING --> ESCALATED : AML threshold exceeded
+INVESTIGATING --> CLOSED_CONFIRMED : Remediation complete
+INVESTIGATING --> CLOSED_FALSE_POSITIVE : Validated safe
+ESCALATED --> CLOSED_CONFIRMED : Regulatory filing complete
+
+CLOSED_CONFIRMED --> [*]
+CLOSED_FALSE_POSITIVE --> [*]
+@enduml
+
+' =============================================================================
+' 14. ACTIVITY FLOW: SCANNER CONTINUOUS DETECTION PIPELINE
+' =============================================================================
+@startuml activity-scanner-ai-detection
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title Activity / Flow: Continuous Blockchain Threat Detection Pipeline
+
+start
+
+:Autonomous Scanner polls latest Block from Alchemy Web3 RPC;
+
+partition "Block Parsing & Ingestion" {
+  :Parse Block Header and Transactions Array;
+  :Filter Transactions matching Monitored Contracts / Wallets;
+  :Publish JSON Payload to RabbitMQ 'blockchain.tx.exchange';
+}
+
+partition "Multi-Agent AI Evaluation" {
+  :AI Worker consumes event from Queue;
+  :Check Destination Address in In-Memory Blacklist Set;
+
+  if (Address in Blacklist?) then (yes)
+    :Set RiskScore = 1.0 (Reason: BLACKLIST_MATCH);
+  else (no)
+    :Extract 32 Features (Gas, Velocity, Contract interaction);
+    :Execute ML Classifier Inference (RandomForest & XGBoost);
+    :Calculate Weighted Ensemble Score (0.0 to 1.0);
+  endif
+}
+
+partition "Classification & Dispatch" {
+  if (RiskScore >= 0.70?) then (yes)
+    :Flag Transaction as Malicious;
+    :Publish 'threat.detected' to RabbitMQ Alert Topic;
+    
+    fork
+      :Alert Service persists Incident to PostgreSQL;
+      :Emit WebSocket Alert to Next.js SOC Dashboard;
+    fork again
+      if (Transfer is In-Flight?) then (yes)
+        :Trigger Compliance Auto-Block on Transfer Service;
+      endif
+    end fork
+  else (no)
+    :Log as Standard Safe Transaction;
+  endif
+}
+
+partition "Database Partitioned Storage" {
+  :Route INSERT to corresponding Monthly Table (e.g. tx_2026_09);
+  :Store RiskAssessment record;
+}
+
+stop
+@enduml
+
+' =============================================================================
+' 15. SEQUENCE: HUMAN-IN-THE-LOOP RETRAINING LOOP
+' =============================================================================
+@startuml seq-model-retraining-feedback
+!theme plain
+autonumber
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title Sequence: Human-in-the-Loop Analyst Feedback & Model Retraining Loop
+
+actor "SOC Analyst" as ANALYST #EFF6FF
+participant "Next.js Dashboard" as FE #FEFCE8
+participant "FastAPI AI Engine (:8000)" as AI #FFF7ED
+database "PostgreSQL DB" as DB #E8F0FE
+participant "Retraining Script (Daemon)" as RETRAIN #FFF7ED
+participant "Model Registry" as REGISTRY #FEFCE8
+
+ANALYST -> FE: Review Flagged Tx #0x9a31... -> Clicks "Mark False Positive"
+FE -> AI: POST /api/v1/ai/feedback { txHash: '0x9a31...', label: 'BENIGN', notes: 'Whitelisted DEX Arbitrage' }
+activate AI
+AI -> DB: INSERT INTO feedback_labels (tx_hash, analyst_id, true_label = 'BENIGN')
+AI --> FE: 201 Created (Feedback Logged)
+deactivate AI
+
+== Scheduled Nightly Retraining Job ==
+
+RETRAIN -> DB: SELECT * FROM feedback_labels WHERE retrained = false
+DB --> RETRAIN: Return 150 New Analyst Labels (True/False Positives)
+RETRAIN -> DB: Fetch corresponding Feature Vectors from feature_store_configs
+
+RETRAIN -> RETRAIN: Merge with Baseline Transaction Dataset (4.3MB CSV)
+RETRAIN -> RETRAIN: Train Candidate RandomForest & XGBoost Models (80/20 Train/Test Split)
+RETRAIN -> RETRAIN: Evaluate Metrics: Precision: 98.4%, Recall: 96.1%, F1-Score: 0.972
+
+alt Candidate F1-Score > Active Model Benchmark
+  RETRAIN -> REGISTRY: Register Model: 'RF_v2.2_retrained' (Status: ACTIVE)
+  RETRAIN -> AI: POST /admin/models/reload { modelVersion: 'RF_v2.2_retrained' }
+  activate AI
+  AI -> AI: Hot-swap In-Memory Model Weights without Downtime
+  AI --> RETRAIN: 200 OK (Model Reloaded)
+  deactivate AI
+  RETRAIN -> DB: UPDATE feedback_labels SET retrained = true
+else Metrics Degraded (Model Drift Detected)
+  RETRAIN -> DB: Flag Alert to ML Engineer (Retraining Aborted)
+end
+@enduml
+
+' =============================================================================
+' 16. SEQUENCE: API GATEWAY CIRCUIT BREAKER & DEAD LETTER QUEUE
+' =============================================================================
+@startuml seq-circuit-breaker-dlq
+!theme plain
+autonumber
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title Sequence: API Gateway Circuit Breaker Failover & RabbitMQ Dead Letter Queue
+
+actor "Client / Scanner" as CLIENT #EFF6FF
+participant "API Gateway (:8001)" as GW #EFF6FF
+participant "Opossum Circuit Breaker" as CB #EFF6FF
+participant "Target Service (e.g. Wallet :3002)" as WALLET_SVC #EFF6FF
+queue "RabbitMQ Exchange" as RMQ_EX #FEE2E2
+queue "Dead Letter Queue ('tx.dlq')" as DLQ #FEE2E2
+participant "DLQ Recovery Worker" as DLQ_WORKER #FFF7ED
+
+CLIENT -> GW: POST /api/v1/wallets/sync { address: '0xabc...' }
+activate GW
+GW -> CB: Fire Request through 'wallet-service' Breaker
+activate CB
+
+alt Downstream Service Crashing / Timeout (> 3000ms)
+  CB -> WALLET_SVC: HTTP Request
+  WALLET_SVC --> CB: Timeout / 500 Internal Error
+  CB -> CB: Increment Failure Counter (Threshold: 50% errors over 10s)
+  CB -> CB: State changes: CLOSED -> OPEN (Circuit Tripped)
+  CB --> GW: Circuit Breaker Open Fallback
+  GW --> CLIENT: 503 Service Unavailable (Cached / Degraded Fallback Response)
+end
+deactivate CB
+deactivate GW
+
+== Asynchronous RabbitMQ Dead Letter Handling ==
+
+RMQ_EX -> WALLET_SVC: Deliver 'wallet.sync.event'
+activate WALLET_SVC
+WALLET_SVC --> RMQ_EX: NACK (Message Rejected / Parsing Error)
+deactivate WALLET_SVC
+
+RMQ_EX -> DLQ: Route to 'tx.dlq' (x-dead-letter-exchange, retryCount = 1)
+note right of DLQ: Holds unprocessable payloads\nprevents message loss
+
+DLQ_WORKER -> DLQ: Inspect DLQ Messages on Timer
+DLQ_WORKER -> DLQ_WORKER: Apply Exponential Backoff (Delay: 60s)
+DLQ_WORKER -> RMQ_EX: Re-queue to Main Topic once Wallet Service Heals
+@enduml
+
+' =============================================================================
+' 17. STATE MACHINE: SECURITY INCIDENT INVESTIGATION CASE
+' =============================================================================
+@startuml state-case-investigation
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title State Machine - Security Incident Investigation Case Dossier
+
+[*] --> OPEN : Analyst creates Case from Critical Alert
+
+state OPEN #EFF6FF : New dossier created\nLead analyst assigned\nInitial tx hash attached
+
+state EVIDENCE_COLLECTING #FEFCE8 : Blockchain graph exploration\nMixing service hops traced\nToken balances aggregated
+
+state COPILOT_ANALYSIS #FFF7ED : Gemini LLM queried for routing summary\nMoney flow snapshot generated
+
+state ESCALATED_AML #FED7AA : Transferred to Senior Compliance Officer\nRegulatory STR/SAR filing drafted
+
+state CLOSED_BLACKLISTED #991B1B : Malicious exploit confirmed\nAddress added to permanent Blacklist\nTransfers blocked
+
+state CLOSED_CLEARED #DCFCE7 : Verified benign / authorized DEX arbitrage\nFalse positive label recorded
+
+OPEN --> EVIDENCE_COLLECTING : Analyst begins trace
+EVIDENCE_COLLECTING --> COPILOT_ANALYSIS : Ingest Gemini AI insights
+COPILOT_ANALYSIS --> ESCALATED_AML : Large volume laundering detected
+COPILOT_ANALYSIS --> CLOSED_BLACKLISTED : Attacker identified
+COPILOT_ANALYSIS --> CLOSED_CLEARED : Validated safe transaction
+
+ESCALATED_AML --> CLOSED_BLACKLISTED : Regulatory report submitted
+ESCALATED_AML --> CLOSED_CLEARED : Cleared by compliance
+
+CLOSED_BLACKLISTED --> [*]
+CLOSED_CLEARED --> [*]
+@enduml
+
+' =============================================================================
+' 18. COMPONENT: SPECIALIZED MULTI-AGENT SENTINEL SUBSYSTEM
+' =============================================================================
+@startuml component-multi-agent-sentinel
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam linetype ortho
+
+title Specialized Multi-Agent Threat Detection Architecture
+
+package "Scanned Transaction Ingress" #F8FAFC {
+  component "Raw Block Transaction Payload\n• From / To Address, Value ETH, Gas Price\n• Input Data (Call Contract Bytecode)" as TX_IN #EFF6FF
+}
+
+package "Domain-Specific Detection Agents" #FFFFFF {
+  component "Money Laundering (AML) Agent\n• Structuring & Smurfing Detection\n• Tornado Cash / Railgun Mixer Interaction\n• Rapid Multi-Hop Token Velocity" as AML_AGENT #FFF7ED
+
+  component "Wash Trading Agent\n• Circular Loops (A ⇄ B ⇄ A)\n• Zero Net Profit High-Frequency Volume\n• Order Book / DEX Liquidity Spoofing" as WASH_AGENT #FFF7ED
+
+  component "Scam & Honeypot Agent\n• Disposable Wallet Detection (Age < 1h)\n• Unverified Bytecode & Phishing Signatures\n• Sudden Influx of Stolen Funds" as SCAM_AGENT #FFF7ED
+}
+
+package "Hybrid Scoring & Override Arbiter" #ECFDF5 {
+  component "Blacklist Override Gate\n• If address IN ofac_blacklist OR phishing_db\n• IMMEDIATE SCORE = 99 (CRITICAL)\n• Bypasses downstream ML inference" as OVERRIDE_GATE #FEE2E2
+
+  component "Hybrid Consensus Scorer\n• 40% Heuristic Business Rules\n• 60% Random Forest ML Probability\n• Output Score: 0 to 100" as HYBRID_SCORER #A7F3D0
+
+  component "Threat Action Recommender\n• Score >= 70: [ACTION: BLOCK_WALLET]\n• Score 40-69: [ACTION: WATCHLIST]\n• Score < 40: [ACTION: PASS]" as ACTION_REC #A7F3D0
+}
+
+TX_IN --> OVERRIDE_GATE
+OVERRIDE_GATE --> AML_AGENT : Clean
+OVERRIDE_GATE --> WASH_AGENT : Clean
+OVERRIDE_GATE --> SCAM_AGENT : Clean
+
+AML_AGENT --> HYBRID_SCORER
+WASH_AGENT --> HYBRID_SCORER
+SCAM_AGENT --> HYBRID_SCORER
+
+OVERRIDE_GATE --> ACTION_REC : Flagged 99 -> Immediate Block
+HYBRID_SCORER --> ACTION_REC
+@enduml
+
+' =============================================================================
+' 19. ACTIVITY: POSTGRESQL MONTHLY TABLE PARTITIONING MAINTENANCE
+' =============================================================================
+@startuml activity-partition-maintenance
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title Activity / Flow: Automated Monthly Database Partitioning & Archival
+
+start
+
+:Cron Trigger / Startup Hook executes 'ensure_schema()';
+:Inspect PostgreSQL Partition Catalog for 'transactions' Table;
+:Extract current timestamp (e.g. 2026-09-06);
+
+partition "Partition Auto-Provisioning" {
+  :Compute current month partition: 'tx_2026_09';
+  :Compute next month partition: 'tx_2026_10';
+
+  if (Partition 'tx_2026_09' exists?) then (yes)
+    :Verify GiST & B-Tree Indexes on (from_address, block_timestamp);
+  else (no)
+    :Execute DDL: CREATE TABLE tx_2026_09 PARTITION OF transactions\nFOR VALUES FROM ('2026-09-01') TO ('2026-10-01');
+    :Create Indexes on tx_2026_09;
+    :Log Diagnostic Event 'PARTITION_CREATED';
+  endif
+
+  if (Next month partition 'tx_2026_10' pre-warmed?) then (yes)
+  else (no)
+    :Pre-provision 'tx_2026_10' to prevent insert blocking on month boundary;
+  endif
+}
+
+partition "Query Pruning & Archival Optimization" {
+  :Incoming Analyst Query with Date Range (e.g. WHERE block_timestamp >= '2026-09-01');
+  :PostgreSQL Query Planner activates Partition Pruning;
+  :Scans ONLY 'tx_2026_09' partition (Ignores 2025 and earlier tables);
+  :Query Latency reduced from 1200ms to 18ms;
+
+  if (Partitions older than 24 months detected?) then (yes)
+    :Detach Partition from main table;
+    :Export compressed Parquet archive to Cold S3 Glacier Storage;
+    :Drop detached historical partition;
+  else (no)
+  endif
+}
+
+stop
+@enduml
+
+' =============================================================================
+' 20. SEQUENCE: SYSTEM HEALTH MONITORING & DIAGNOSTICS
+' =============================================================================
+@startuml seq-system-health-diagnostics
+!theme plain
+autonumber
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam roundCorner 8
+skinparam shadowing false
+
+title Sequence: System Health Diagnostics & Automated Alerting
+
+actor "System Admin" as ADMIN #EFF6FF
+participant "Admin Diagnostics UI" as FE #FEFCE8
+participant "API Gateway (:8001)" as GW #EFF6FF
+participant "AI Service Diagnostics (:8000)" as DIAG_SVC #FFF7ED
+database "PostgreSQL DB" as DB #E8F0FE
+queue "RabbitMQ Management API" as RMQ #FEE2E2
+participant "Slack Webhook" as SLACK #FEF7E0
+
+ADMIN -> FE: Opens System Diagnostics Dashboard
+FE -> GW: GET /admin/diagnostics/status
+activate GW
+GW -> DIAG_SVC: Forward /admin/diagnostics/status
+activate DIAG_SVC
+
+DIAG_SVC -> DB: SELECT count(*) FROM pg_stat_activity; Check Connection Pool
+DB --> DIAG_SVC: Pool: 22/50 Active, DB Size: 4.8 GB
+
+DIAG_SVC -> RMQ: GET /api/queues/blockchain.tx (Fetch Queue Depth)
+RMQ --> DIAG_SVC: Queue Depth: 45 messages (Normal backlog < 100)
+
+DIAG_SVC -> DIAG_SVC: Compute API p95 Latency over last 15 min: 280ms (Normal < 500ms)
+
+alt Critical Failure Detected (e.g. Error Rate > 5% or Queue Depth > 1000)
+  DIAG_SVC -> SLACK: POST Webhook: "🚨 CRITICAL: RabbitMQ Backlog Exceeded 1000 items!"
+  DIAG_SVC -> DB: INSERT INTO diagnostic_events (severity = 'CRITICAL', component = 'QUEUE')
+end
+
+DIAG_SVC --> GW: 200 OK { status: 'HEALTHY', dbLatencyMs: 4, queueDepth: 45, p95Ms: 280 }
+deactivate DIAG_SVC
+GW --> FE: Return System Health Snapshot JSON
+deactivate GW
+
+FE --> ADMIN: Display Real-time Green Status Badges across all 14 Microservices
+@enduml
+
+
